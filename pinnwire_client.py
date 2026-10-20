@@ -157,12 +157,23 @@ def fair_odds(prices):
     return {side: 1 / p for side, p in probs.items()}, round(margin, 2)
 
 
+def allowed_line(line, market):
+    """Only half-goal lines (x.5) are kept: quarter and whole lines have push/half-win settlement that
+    MerkurXtip does not sell. The one exception is the level handicap (AH 0), which MerkurXtip sells
+    as "X vraća ulog" (draw no bet)."""
+    if line is None:
+        return False
+    if market == "spreads" and line == 0:
+        return True
+    return abs(line * 2 - round(line * 2)) < 1e-9 and round(line * 2) % 2 == 1
+
+
 def build_lines(event, market, sides, line_key, number=0):
     """Spreads or totals of one period as sorted rows with fair odds per side."""
-    return lines_from((period(event, number).get(market) or {}).values(), sides, line_key)
+    return lines_from((period(event, number).get(market) or {}).values(), sides, line_key, market)
 
 
-def lines_from(lines, sides, line_key):
+def lines_from(lines, sides, line_key, market="totals"):
     rows = []
     for line in lines:
         if not isinstance(line, dict):
@@ -178,7 +189,7 @@ def lines_from(lines, sides, line_key):
             "margin": margin,
             "max": line.get("max"),
         })
-    rows = [row for row in rows if row["line"] is not None]
+    rows = [row for row in rows if allowed_line(row["line"], market)]
     # main line first: the one whose prices are closest to even
     rows.sort(key=lambda row: abs(row["odds"][sides[0]] - row["odds"][sides[1]]))
     if rows:

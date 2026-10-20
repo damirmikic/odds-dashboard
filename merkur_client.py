@@ -26,12 +26,19 @@ TEAM_TOTALS = {
     "home": {0.5: ("238", "239"), 1.5: ("248", "247")},
     "away": {0.5: ("240", "241"), 1.5: ("250", "249")},
 }
+# 1st half team goals: "D I 1+" / "D I 0" and "G I 1+" / "G I 0"
+HT_TEAM_TOTALS = {
+    "home": {0.5: ("307", "337")},
+    "away": {0.5: ("308", "338")},
+}
 # params key -> (over code, under code) for markets whose line is given in `params`
 PARAM_TOTALS = {"overUnder": ("227", "228")}
 PARAM_HT_TOTALS = {"overUnderP": ("229", "230")}
 PARAM_TEAM_TOTALS = {"home": {"homeOverUnder": ("356", "355")}, "away": {"awayOverUnder": ("358", "357")}}
 # two-way handicap, line from the home side: params key -> (home code, away code)
 SPREADS = {"hd2w": ("53877", "53878")}
+# fixed-line handicaps: "X vraća ulog" (W1/W2, draw no bet) is the level handicap AH 0
+FIXED_SPREADS = {0.0: ("264", "265")}
 HT_SPREADS = {"hd2wp1": ("53903", "53904")}
 
 
@@ -103,8 +110,12 @@ def _ou(raw, params, ranges, by_param):
     return lines
 
 
-def _spreads(raw, params, by_param):
+def _spreads(raw, params, by_param, fixed=None):
     lines = {}
+    for line, (home, away) in (fixed or {}).items():
+        prices = _pick(raw, {"home": home, "away": away})
+        if prices:
+            lines[line] = prices
     for key, (home, away) in by_param.items():
         line = _param_line(params, key)
         prices = _pick(raw, {"home": home, "away": away})
@@ -121,7 +132,7 @@ def markets(match):
         0: {
             "ml": _pick(raw, ML),
             "totals": _ou(raw, params, TOTALS, PARAM_TOTALS),
-            "spreads": _spreads(raw, params, SPREADS),
+            "spreads": _spreads(raw, params, SPREADS, FIXED_SPREADS),
             "teamTotals": {
                 side: _ou(raw, params, TEAM_TOTALS[side], PARAM_TEAM_TOTALS[side]) for side in ("home", "away")
             },
@@ -130,7 +141,7 @@ def markets(match):
             "ml": _pick(raw, HT_ML),
             "totals": _ou(raw, params, HT_TOTALS, PARAM_HT_TOTALS),
             "spreads": _spreads(raw, params, HT_SPREADS),
-            "teamTotals": {},
+            "teamTotals": {side: _ou(raw, params, HT_TEAM_TOTALS[side], {}) for side in ("home", "away")},
         },
     }
 

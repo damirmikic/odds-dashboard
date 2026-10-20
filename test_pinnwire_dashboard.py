@@ -163,11 +163,42 @@ class ClientTests(unittest.TestCase):
 
     def test_lines_are_sorted_and_main_line_marked(self):
         totals = pw.build_lines(kit_event(), "totals", ("over", "under"), "points")
-        self.assertEqual([row["line"] for row in totals], [2.5, 3.0])
-        self.assertEqual([bool(row.get("main")) for row in totals], [True, False])
+        self.assertEqual([row["line"] for row in totals], [2.5])  # 3.0 is a whole line: dropped
+        self.assertEqual([bool(row.get("main")) for row in totals], [True])
         spreads = pw.build_lines(kit_event(), "spreads", ("home", "away"), "hdp")
         self.assertEqual([row["line"] for row in spreads], [-0.5, 0.0])
         self.assertTrue(spreads[1]["main"])
+
+    def test_only_half_lines_and_level_handicap_are_allowed(self):
+        for line in (0.5, 1.5, 2.5, -1.5, 3.5):
+            self.assertTrue(pw.allowed_line(line, "totals"))
+            self.assertTrue(pw.allowed_line(line, "spreads"))
+        for line in (2.0, 2.25, 2.75, 3.0, -0.25, -1.0, -0.75):
+            self.assertFalse(pw.allowed_line(line, "totals"))
+            self.assertFalse(pw.allowed_line(line, "spreads"))
+        self.assertTrue(pw.allowed_line(0.0, "spreads"))
+        self.assertFalse(pw.allowed_line(0.0, "totals"))
+
+    def test_quarter_and_whole_lines_are_dropped_everywhere(self):
+        spreads = {
+            "0": {"hdp": 0.0, "home": 1.80, "away": 2.10},
+            "-0.25": {"hdp": -0.25, "home": 2.00, "away": 1.90},
+            "-0.5": {"hdp": -0.5, "home": 2.30, "away": 1.65},
+            "-1": {"hdp": -1.0, "home": 3.30, "away": 1.35},
+        }
+        totals = {
+            "2.25": {"points": 2.25, "over": 1.80, "under": 2.05},
+            "2.5": {"points": 2.5, "over": 2.00, "under": 1.88},
+            "2.75": {"points": 2.75, "over": 2.20, "under": 1.72},
+        }
+        pin = event(1, periods={"num_0": {"money_line": {"home": 2.45, "draw": 3.30, "away": 2.90},
+                                          "spreads": spreads, "totals": totals}})
+        state = make_state(FakeAPI([pin]))
+        match = state.board()["matches"][0]
+        self.assertEqual(match["ou"]["line"], 2.5)
+        detail = state.match("1")["periods"][0]
+        self.assertEqual([r["line"] for r in detail["spreads"]], [-0.5, 0.0])
+        self.assertEqual([r["line"] for r in detail["totals"]], [2.5])
 
     def test_specials_and_alt_units_are_not_fixtures(self):
         self.assertTrue(pw.is_main_fixture(kit_event()))
@@ -193,6 +224,12 @@ class MerkurDecodeTests(unittest.TestCase):
         self.assertEqual(decoded[0]["spreads"], {-0.5: {"home": 1.70, "away": 2.05}})
         self.assertEqual(decoded[0]["teamTotals"]["home"][0.5], {"over": 1.3, "under": 3.4})
         self.assertEqual(decoded[1]["ml"], {"home": 3.1, "draw": 2.1, "away": 3.5})
+
+    def test_first_half_team_goals(self):
+        row = merkur_row(**{"307": 1.49, "337": 2.50, "308": 2.30, "338": 1.52})
+        decoded = mx.markets(row)[1]["teamTotals"]
+        self.assertEqual(decoded["home"], {0.5: {"over": 1.49, "under": 2.50}})
+        self.assertEqual(decoded["away"], {0.5: {"over": 2.30, "under": 1.52}})
 
     def test_market_needs_every_side(self):
         decoded = mx.markets(merkur_row(**{"3": None}))
@@ -261,15 +298,15 @@ class ComparisonTests(unittest.TestCase):
     def test_goal_line_closest_to_pinnacle_main_line(self):
         totals = {
             "2.5": {"points": 2.5, "over": 1.70, "under": 2.20},
-            "2.75": {"points": 2.75, "over": 1.95, "under": 1.95},  # Pinnacle main (quarter) line
+            "2.75": {"points": 2.75, "over": 1.95, "under": 1.95},  # quarter line: never used
             "3.5": {"points": 3.5, "over": 2.60, "under": 1.50},
         }
         pin = event(1, periods={"num_0": {"money_line": {"home": 2.45, "draw": 3.30, "away": 2.90},
                                           "totals": totals}})
         row = merkur_row(**{"25": 2.50, "219": 1.48})  # MX has 2.5 and 3.5
         match = make_state(FakeAPI([pin]), [row]).board()["matches"][0]
-        self.assertEqual(match["ou"]["line"], 2.75)
-        self.assertEqual(match["goals"]["line"], 2.5)  # 0.25 from 2.75, nearer than 3.5
+        self.assertEqual(match["ou"]["line"], 2.5)  # main among half lines: closest to even
+        self.assertEqual(match["goals"]["line"], 2.5)
 
     def test_unpaired_match_shows_pinnacle_main_goal_line(self):
         match = make_state(FakeAPI([event(1)])).board()["matches"][0]
@@ -288,6 +325,17 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(goals["mxPrev"], {"over": 1.85, "under": 1.90})
         self.assertEqual(goals["mxChangedAt"], board["merkur"]["fetchedAt"])
         self.assertIsNone(goals["pinPrev"])
+
+    def test_draw_no_bet_is_compared_with_level_handicap(self):
+        # Pinnacle AH 0.0: 1.82 / 2.06; MerkurXtip "X vraća ulog" W1/W2 (264/265)
+        row = merkur_row(**{"264": 1.85, "265": 2.00})
+        state = make_state(FakeAPI([event(1)]), [row])
+        state.board()
+        rows = state.match("1")["merkur"]["periods"]["ft"]
+        dnb = next(r for r in rows if r["group"] == "Hendikep" and r["line"] == 0.0)
+        self.assertEqual([(o["key"], o["merkur"], o["pinnacle"]) for o in dnb["outcomes"]],
+                         [("home", 1.85, 1.82), ("away", 2.00, 2.06)])
+        self.assertEqual(mx.markets(row)[0]["spreads"][0.0], {"home": 1.85, "away": 2.00})
 
     def test_detail_lists_compared_markets_and_skips_lines_pinnacle_lacks(self):
         state = make_state(FakeAPI([event(1)]), [merkur_row()])

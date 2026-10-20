@@ -117,6 +117,13 @@ function fmtLine(line, signed) {
   return line > 0 ? `+${line}` : `−${Math.abs(line)}`;
 }
 
+// Handicap/total line label; AH 0 is MerkurXtip "X vraća ulog" (draw no bet).
+function marketLine(group, line) {
+  if (line == null) return "";
+  if (group === "Hendikep" && line === 0) return "0 · X vraća ulog";
+  return fmtLine(line, group === "Hendikep");
+}
+
 function fmtPct(value, digits = 1) {
   return value == null ? "—" : `${(value * 100).toFixed(digits)}%`;
 }
@@ -551,7 +558,7 @@ function ValueTable({ values, matchesById, competitions, selectedId, onSelect })
                 </td>
                 <td className="value-market">
                   {v.group}
-                  {v.line != null && <b> {fmtLine(v.line, v.group === "Hendikep")}</b>}
+                  {v.line != null && <b> {marketLine(v.group, v.line)}</b>}
                   {v.period === "ht" && <small>1. poluvreme</small>}
                 </td>
                 <td className="value-side">{v.label}</td>
@@ -615,7 +622,7 @@ function MerkurComparison({ merkur, periodKey, home, away }) {
                   {index === 0 && (
                     <th rowSpan={row.outcomes.length} className="mx-market">
                       {row.group}
-                      {row.line != null && <span>{fmtLine(row.line, row.group === "Hendikep")}</span>}
+                      {row.line != null && <span>{marketLine(row.group, row.line)}</span>}
                       <small title="Marža MerkurXtip / Pinnacle">
                         {row.merkurMargin.toFixed(1)}% / {row.pinnacleMargin != null ? `${row.pinnacleMargin.toFixed(1)}%` : "—"}
                       </small>

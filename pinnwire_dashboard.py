@@ -194,10 +194,10 @@ def pinnacle_lines(event, number):
     """Pinnacle prices of one period keyed like merkur_client.markets()."""
     markets = pw.period(event, number)
 
-    def by_line(lines, key, sides):
+    def by_line(lines, key, sides, market):
         out = {}
         for line in (lines or {}).values():
-            if isinstance(line, dict) and line.get(key) is not None:
+            if isinstance(line, dict) and line.get(key) is not None and pw.allowed_line(float(line[key]), market):
                 prices = pw.priced(line, sides)
                 if len(prices) == len(sides):
                     out[float(line[key])] = prices
@@ -206,9 +206,9 @@ def pinnacle_lines(event, number):
     ml = pw.priced(markets.get("money_line") or {}, ML_SIDES)
     return {
         "ml": ml if len(ml) == 3 else None,
-        "totals": by_line(markets.get("totals"), "points", ("over", "under")),
-        "spreads": by_line(markets.get("spreads"), "hdp", ("home", "away")),
-        "teamTotals": {side: by_line(lines, "points", ("over", "under"))
+        "totals": by_line(markets.get("totals"), "points", ("over", "under"), "totals"),
+        "spreads": by_line(markets.get("spreads"), "hdp", ("home", "away"), "spreads"),
+        "teamTotals": {side: by_line(lines, "points", ("over", "under"), "totals")
                        for side, lines in (markets.get("team_totals") or {}).items() if isinstance(lines, dict)},
     }
 
@@ -307,8 +307,11 @@ def best_edge(rows):
         for r in rows[period]:
             for o in r["outcomes"]:
                 if best is None or o["ev"] > best["ev"]:
-                    line = "" if r["line"] is None else f" {r['line']:g}"
-                    best = {"ev": o["ev"], "label": f"{prefix}{r['group']}{line} {o['label']}"}
+                    if r["group"] == "Hendikep" and r["line"] == 0:
+                        market = "X vraća ulog"  # AH 0 = MerkurXtip draw no bet
+                    else:
+                        market = r["group"] + ("" if r["line"] is None else f" {r['line']:g}")
+                    best = {"ev": o["ev"], "label": f"{prefix}{market} {o['label']}"}
     return best
 
 
