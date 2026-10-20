@@ -2,6 +2,16 @@
 
 The offer list keys odds by tip-type code (definitions: /restapi/offer/sr/ttg_lang, `betPickMap`
 entries "<code>_S"). Goal totals are sold as ranges: "0-2" is under 2.5 and "3+" is over 2.5.
+
+Handicaps (home side line L, away side priced at -L) come from three kinds of source:
+- direct two-way handicaps: AH 0 as "X vraća ulog" (264/265) and `hd2w` / `hd2wp1` (line in `params`);
+- 1X2 and double chance, which are half-goal handicaps: AH -0.5 is "1" against "X2", AH +0.5 is "1X"
+  against "2" (same codes with the 1st half 1X2 and double chance for the 1st half);
+- European handicap with integer h (`hd2`, `handicap2`, `handicap3`, 1st half `hdp`): H1 (home + h beats away)
+  is the home side of AH h - 0.5 and H2 (away beats home + h) is the away side of AH h + 0.5.
+  For example h = -1: H1 is home by 2+ (AH -1.5 home) and H2 is "X2" (AH -0.5 away, i.e. AH +0.5 for away).
+Direct prices win over derived ones. A line whose prices are not both direct is flagged derived: its two
+sides come from different markets, so no margin is computed for it.
 """
 from __future__ import annotations
 
@@ -21,15 +31,16 @@ ML = {"home": "1", "draw": "2", "away": "3"}
 HT_ML = {"home": "4", "draw": "5", "away": "6"}
 # line: (over code, under code)
 TOTALS = {1.5: ("242", "21"), 2.5: ("24", "22"), 3.5: ("25", "219"), 4.5: ("27", "453"), 5.5: ("223", "266")}
-HT_TOTALS = {0.5: ("207", "267"), 1.5: ("208", "211")}
+HT_TOTALS = {0.5: ("207", "267"), 1.5: ("208", "211"), 2.5: ("209", "472")}
+# team goals: over 0.5 = "D 1+", under 0.5 = "D 0"; over 1.5 = "D 2+", under 1.5 = "D 0-1" ...
 TEAM_TOTALS = {
-    "home": {0.5: ("238", "239"), 1.5: ("248", "247")},
-    "away": {0.5: ("240", "241"), 1.5: ("250", "249")},
+    "home": {0.5: ("238", "239"), 1.5: ("248", "247"), 2.5: ("276", "551"), 3.5: ("555", "553")},
+    "away": {0.5: ("240", "241"), 1.5: ("250", "249"), 2.5: ("277", "552"), 3.5: ("556", "554")},
 }
-# 1st half team goals: "D I 1+" / "D I 0" and "G I 1+" / "G I 0"
+# 1st half team goals: "D I 1+" / "D I 0", "D I 2+" / "D I 0-1" and the same for the guest
 HT_TEAM_TOTALS = {
-    "home": {0.5: ("307", "337")},
-    "away": {0.5: ("308", "338")},
+    "home": {0.5: ("307", "337"), 1.5: ("274", "817")},
+    "away": {0.5: ("308", "338"), 1.5: ("275", "821")},
 }
 # params key -> (over code, under code) for markets whose line is given in `params`
 PARAM_TOTALS = {"overUnder": ("227", "228")}
@@ -40,6 +51,18 @@ SPREADS = {"hd2w": ("53877", "53878")}
 # fixed-line handicaps: "X vraća ulog" (W1/W2, draw no bet) is the level handicap AH 0
 FIXED_SPREADS = {0.0: ("264", "265")}
 HT_SPREADS = {"hd2wp1": ("53903", "53904")}
+# half-goal handicaps from 1X2 / double chance: line -> {side: code}; both prices must exist
+DERIVED_SPREADS = {
+    -0.5: {"home": "1", "away": "9"},     # "1"  against "X2"
+    0.5: {"home": "7", "away": "3"},      # "1X" against "2"
+}
+HT_DERIVED_SPREADS = {
+    -0.5: {"home": "4", "away": "399"},   # 1st half "1"  against "X2"
+    0.5: {"home": "397", "away": "6"},    # 1st half "1X" against "2"
+}
+# European handicap: params key -> (H1 code, H2 code); the param holds the integer handicap h
+EURO_HANDICAPS = {"hd2": ("201", "203"), "handicap2": ("421", "423"), "handicap3": ("424", "426")}
+HT_EURO_HANDICAPS = {"hdp": ("224", "226")}
 
 
 class MerkurAPI:
@@ -110,29 +133,54 @@ def _ou(raw, params, ranges, by_param):
     return lines
 
 
-def _spreads(raw, params, by_param, fixed=None):
-    lines = {}
+def _spreads(raw, params, by_param, fixed=None, derived=None, euro=None):
+    """Handicap prices by home-side line -> ({line: {side: odds}}, {derived lines}); see the module docstring."""
+    prices = {}  # line -> {side: (odds, direct)}
+
+    def put(line, side, odds, direct):
+        if odds and side not in prices.setdefault(line, {}):
+            prices[line][side] = (odds, direct)
+
+    def put_pair(line, pair, direct):
+        for side, odds in (pair or {}).items():
+            put(line, side, odds, direct)
+
     for line, (home, away) in (fixed or {}).items():
-        prices = _pick(raw, {"home": home, "away": away})
-        if prices:
-            lines[line] = prices
+        put_pair(line, _pick(raw, {"home": home, "away": away}), True)
     for key, (home, away) in by_param.items():
         line = _param_line(params, key)
-        prices = _pick(raw, {"home": home, "away": away})
-        if line is not None and prices:
-            lines[line] = prices
-    return lines
+        if line is not None:
+            put_pair(line, _pick(raw, {"home": home, "away": away}), True)
+    for line, codes in (derived or {}).items():
+        put_pair(line, _pick(raw, codes), False)
+    for key, (h1, h2) in (euro or {}).items():
+        h = _param_line(params, key)
+        if h is None or h == 0 or h != round(h):
+            continue
+        put(h - 0.5, "home", _odds(raw, h1), False)
+        put(h + 0.5, "away", _odds(raw, h2), False)
+
+    lines = {line: {side: odds for side, (odds, _) in sides.items()} for line, sides in prices.items() if sides}
+    derived_lines = {line for line, sides in prices.items() if sides and not all(d for _, d in sides.values())}
+    return lines, derived_lines
 
 
 def markets(match):
-    """Decode one offer row into {period: {ml, totals, spreads, teamTotals}}; 0 = match, 1 = 1st half."""
+    """Decode one offer row into {period: {ml, totals, spreads, derived, teamTotals}}.
+
+    0 = match, 1 = 1st half. `spreads` is {line: {side: odds}} and may hold one side only;
+    `derived` is the set of spread lines that are not a direct two-way price.
+    """
     raw = match.get("odds") or {}
     params = match.get("params") or {}
+    spreads, derived = _spreads(raw, params, SPREADS, FIXED_SPREADS, DERIVED_SPREADS, EURO_HANDICAPS)
+    ht_spreads, ht_derived = _spreads(raw, params, HT_SPREADS, None, HT_DERIVED_SPREADS, HT_EURO_HANDICAPS)
     return {
         0: {
             "ml": _pick(raw, ML),
             "totals": _ou(raw, params, TOTALS, PARAM_TOTALS),
-            "spreads": _spreads(raw, params, SPREADS, FIXED_SPREADS),
+            "spreads": spreads,
+            "derived": derived,
             "teamTotals": {
                 side: _ou(raw, params, TEAM_TOTALS[side], PARAM_TEAM_TOTALS[side]) for side in ("home", "away")
             },
@@ -140,7 +188,8 @@ def markets(match):
         1: {
             "ml": _pick(raw, HT_ML),
             "totals": _ou(raw, params, HT_TOTALS, PARAM_HT_TOTALS),
-            "spreads": _spreads(raw, params, HT_SPREADS),
+            "spreads": ht_spreads,
+            "derived": ht_derived,
             "teamTotals": {side: _ou(raw, params, HT_TEAM_TOTALS[side], {}) for side in ("home", "away")},
         },
     }

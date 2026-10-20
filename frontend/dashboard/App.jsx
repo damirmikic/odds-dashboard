@@ -124,6 +124,18 @@ function marketLine(group, line) {
   return fmtLine(line, group === "Hendikep");
 }
 
+const DERIVED_HINT =
+  "Izvedeno: MerkurXtip nema ovu liniju kao dvosmernu igru. Kvota je iz 1X2, dvostruke šanse ili evropskog hendikepa, pa nema marže.";
+
+function fmtMargins(mx, pin) {
+  const fmt = (value) => (value != null ? `${value.toFixed(1)}%` : "—");
+  return `${fmt(mx)} / ${fmt(pin)}`;
+}
+
+function DerivedTag() {
+  return <i className="derived-tag" title={DERIVED_HINT}>izv.</i>;
+}
+
 function fmtPct(value, digits = 1) {
   return value == null ? "—" : `${(value * 100).toFixed(digits)}%`;
 }
@@ -559,6 +571,7 @@ function ValueTable({ values, matchesById, competitions, selectedId, onSelect })
                 <td className="value-market">
                   {v.group}
                   {v.line != null && <b> {marketLine(v.group, v.line)}</b>}
+                  {v.derived && <DerivedTag />}
                   {v.period === "ht" && <small>1. poluvreme</small>}
                 </td>
                 <td className="value-side">{v.label}</td>
@@ -572,7 +585,7 @@ function ValueTable({ values, matchesById, competitions, selectedId, onSelect })
                   <span className={`ev-chip ${evClass(v.ev)}`}>{fmtEv(v.ev)}</span>
                 </td>
                 <td className="mc-group muted value-margin">
-                  {v.merkurMargin.toFixed(1)}% / {v.pinnacleMargin != null ? `${v.pinnacleMargin.toFixed(1)}%` : "—"}
+                  {fmtMargins(v.merkurMargin, v.pinnacleMargin)}
                 </td>
               </tr>
             );
@@ -622,9 +635,9 @@ function MerkurComparison({ merkur, periodKey, home, away }) {
                   {index === 0 && (
                     <th rowSpan={row.outcomes.length} className="mx-market">
                       {row.group}
-                      {row.line != null && <span>{marketLine(row.group, row.line)}</span>}
+                      {row.line != null && <span>{marketLine(row.group, row.line)}{row.derived && <DerivedTag />}</span>}
                       <small title="Marža MerkurXtip / Pinnacle">
-                        {row.merkurMargin.toFixed(1)}% / {row.pinnacleMargin != null ? `${row.pinnacleMargin.toFixed(1)}%` : "—"}
+                        {fmtMargins(row.merkurMargin, row.pinnacleMargin)}
                       </small>
                     </th>
                   )}

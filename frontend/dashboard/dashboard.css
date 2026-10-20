@@ -399,3 +399,10 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
   .topbar { padding-top: max(10px, env(safe-area-inset-top)); }
   .app { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
+
+/* handicaps built from 1X2 / double chance / European handicap */
+.derived-tag {
+  display: inline-block; margin-left: 5px; padding: 0 4px; border-radius: 3px; vertical-align: 1px;
+  background: var(--purple-bg); color: var(--purple-ink); font-size: 9px; font-style: normal; font-weight: 800;
+  letter-spacing: .03em; text-transform: uppercase; cursor: help;
+}

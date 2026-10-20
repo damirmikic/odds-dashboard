@@ -213,19 +213,28 @@ def pinnacle_lines(event, number):
     }
 
 
-def compare_row(group, line, labels, merkur, pinnacle):
-    """One market: Merkur odds against Pinnacle fair odds. ev = Merkur / fair - 1."""
+def compare_row(group, line, labels, merkur, pinnacle, derived=False):
+    """One market: Merkur odds against Pinnacle fair odds. ev = Merkur / fair - 1.
+
+    `merkur` may hold only some of the sides (a handicap derived from a European handicap has one);
+    only the sides Merkur prices become outcomes. The Merkur margin needs both sides of a direct
+    two-way price, so it is None for partial and derived rows.
+    """
     fair, pin_margin = pw.fair_odds(pinnacle)
     outcomes = []
     for key, label in labels:
+        if key not in merkur:
+            continue
         ev = merkur[key] / fair[key] - 1
         outcomes.append({"key": key, "label": label, "merkur": merkur[key], "pinnacle": pinnacle[key],
                          "fair": round(fair[key], 3), "ev": round(ev, 4)})
+    complete = not derived and len(outcomes) == len(labels)
     return {
         "group": group,
         "line": line,
         "outcomes": outcomes,
-        "merkurMargin": round((sum(1 / o for o in merkur.values()) - 1) * 100, 2),
+        "derived": derived,
+        "merkurMargin": round((sum(1 / o for o in merkur.values()) - 1) * 100, 2) if complete else None,
         "pinnacleMargin": pin_margin,
         "maxEv": max(o["ev"] for o in outcomes),
     }
@@ -241,7 +250,8 @@ def compare_period(event, merkur_period, number):
             continue
         for line in sorted(merkur_period.get(key) or {}):
             if line in pin[key]:
-                rows.append(compare_row(group, line, labels, merkur_period[key][line], pin[key][line]))
+                derived = key == "spreads" and line in merkur_period.get("derived", ())
+                rows.append(compare_row(group, line, labels, merkur_period[key][line], pin[key][line], derived))
     for side, group in (("home", "Golovi domaćin"), ("away", "Golovi gost")):
         pin_side = pin["teamTotals"].get(side) or {}
         for line, prices in sorted(((merkur_period.get("teamTotals") or {}).get(side) or {}).items()):
@@ -296,6 +306,7 @@ def value_items(match, rows):
                     "ev": o["ev"],
                     "overPinnacle": round(o["merkur"] / o["pinnacle"] - 1, 4),
                     "merkurMargin": r["merkurMargin"],
+                    "derived": r["derived"],
                     "pinnacleMargin": r["pinnacleMargin"],
                 })
     return items

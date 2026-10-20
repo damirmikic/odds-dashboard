@@ -225,6 +225,64 @@ class MerkurDecodeTests(unittest.TestCase):
         self.assertEqual(decoded[0]["teamTotals"]["home"][0.5], {"over": 1.3, "under": 3.4})
         self.assertEqual(decoded[1]["ml"], {"home": 3.1, "draw": 2.1, "away": 3.5})
 
+    def test_half_goal_handicaps_from_1x2_and_double_chance(self):
+        row = merkur_row(**{"7": 1.57, "9": 1.55, "4": 2.72, "399": 1.40, "397": 1.50, "6": 2.68})
+        decoded = mx.markets(row)
+        ft, ht = decoded[0], decoded[1]
+
+        # AH -0.5: "1" against "X2";  AH +0.5: "1X" against "2"
+        self.assertEqual(ft["spreads"][-0.5], {"home": 1.70, "away": 2.05})  # direct hd2w wins on its own line
+        self.assertEqual(ft["spreads"][0.5], {"home": 1.57, "away": 2.80})
+        self.assertIn(0.5, ft["derived"])
+        self.assertNotIn(-0.5, ft["derived"])
+        self.assertEqual(ht["spreads"][-0.5], {"home": 2.72, "away": 1.40})
+        self.assertEqual(ht["spreads"][0.5], {"home": 1.50, "away": 2.68})
+        self.assertEqual(ht["derived"], {-0.5, 0.5})
+
+    def test_derived_handicap_needs_both_prices(self):
+        # AH +0.5 is "1X" (7) against "2" (3): with both priced it is a pair ...
+        decoded = mx.markets(merkur_row(**{"7": 1.57}))
+        self.assertEqual(decoded[0]["spreads"][0.5], {"home": 1.57, "away": 2.80})
+        # ... and without the "2" price the line is dropped instead of being half-filled
+        decoded = mx.markets(merkur_row(**{"7": 1.57, "3": None}))
+        self.assertNotIn(0.5, decoded[0]["spreads"])
+
+    def test_european_handicap_gives_one_side_of_two_asian_lines(self):
+        # h = -1: H1 = home by 2+ = AH -1.5 home; H2 = X2 = AH -0.5 away (away +0.5)
+        row = merkur_row(**{"201": 2.27, "203": 2.43})
+        row["params"].update(hd2="-1")
+        spreads = mx.markets(row)[0]["spreads"]
+        self.assertEqual(spreads[-1.5], {"home": 2.27})
+        self.assertEqual(spreads[-0.5]["away"], 2.05)   # direct hd2w price is kept, not the derived 2.43
+
+    def test_european_handicap_lines_for_each_sign(self):
+        row = merkur_row(**{"421": 4.0, "423": 1.5, "424": 1.25, "426": 6.7})
+        row["params"].update(hd2w="-5.5", handicap2="-2", handicap3="1")
+        spreads = mx.markets(row)[0]["spreads"]
+        self.assertEqual(spreads[-2.5], {"home": 4.0})   # h=-2: home by 3+
+        self.assertEqual(spreads[-1.5], {"away": 1.5})   # h=-2: away +1.5
+        self.assertEqual(spreads[0.5]["home"], 1.25)     # h=+1: home +0.5 (1X)
+        self.assertEqual(spreads[1.5], {"away": 6.7})    # h=+1: away -1.5
+
+    def test_both_sides_from_different_european_handicaps_make_a_derived_line(self):
+        row = merkur_row(**{"201": 2.27, "203": 2.43, "421": 4.0, "423": 1.5})
+        row["params"] = {"hd2": "-1", "handicap2": "-2"}  # no direct hd2w
+        decoded = mx.markets(row)[0]
+        self.assertEqual(decoded["spreads"][-1.5], {"home": 2.27, "away": 1.5})
+        self.assertIn(-1.5, decoded["derived"])
+
+    def test_team_goal_and_half_time_total_lines(self):
+        row = merkur_row(**{"276": 2.6, "551": 1.45, "555": 5.0, "553": 1.17, "277": 2.5, "552": 1.5,
+                            "274": 3.6, "817": 1.3, "275": 3.65, "821": 1.28, "209": 6.0, "472": 1.12,
+                            "207": 1.1, "267": 6.0})
+        decoded = mx.markets(row)
+        self.assertEqual(decoded[0]["teamTotals"]["home"][2.5], {"over": 2.6, "under": 1.45})
+        self.assertEqual(decoded[0]["teamTotals"]["home"][3.5], {"over": 5.0, "under": 1.17})
+        self.assertEqual(decoded[0]["teamTotals"]["away"][2.5], {"over": 2.5, "under": 1.5})
+        self.assertEqual(decoded[1]["teamTotals"]["home"][1.5], {"over": 3.6, "under": 1.3})
+        self.assertEqual(decoded[1]["teamTotals"]["away"][1.5], {"over": 3.65, "under": 1.28})
+        self.assertEqual(decoded[1]["totals"][2.5], {"over": 6.0, "under": 1.12})
+
     def test_first_half_team_goals(self):
         row = merkur_row(**{"307": 1.49, "337": 2.50, "308": 2.30, "338": 1.52})
         decoded = mx.markets(row)[1]["teamTotals"]
@@ -325,6 +383,54 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(goals["mxPrev"], {"over": 1.85, "under": 1.90})
         self.assertEqual(goals["mxChangedAt"], board["merkur"]["fetchedAt"])
         self.assertIsNone(goals["pinPrev"])
+
+    def test_derived_and_partial_handicaps_are_compared_without_margin(self):
+        # Pinnacle AH -0.5 2.45/1.58, AH +0.5 and AH -1.5; Merkur: -0.5 from "1"/"X2", -1.5 home from euro h=-1
+        spreads = {
+            "-0.5": {"hdp": -0.5, "home": 2.45, "away": 1.58},
+            "0.5": {"hdp": 0.5, "home": 1.40, "away": 3.10},
+            "-1.5": {"hdp": -1.5, "home": 4.00, "away": 1.27},
+        }
+        pin = event(1, periods={"num_0": {"money_line": {"home": 2.45, "draw": 3.30, "away": 2.90},
+                                          "spreads": spreads}})
+        row = merkur_row(**{"1": 2.55, "9": 1.60, "7": 1.45, "3": 3.00, "201": 4.20})
+        row["params"] = {"hd2": "-1"}  # no direct hd2w
+        state = make_state(FakeAPI([pin]), [row])
+        state.board()
+        rows = {r["line"]: r for r in state.match("1")["merkur"]["periods"]["ft"] if r["group"] == "Hendikep"}
+
+        self.assertEqual(sorted(rows), [-1.5, -0.5, 0.5])
+        for line in rows:
+            self.assertTrue(rows[line]["derived"])
+            self.assertIsNone(rows[line]["merkurMargin"])
+            self.assertIsNotNone(rows[line]["pinnacleMargin"])
+        # AH -0.5: both sides ("1" 2.55 vs home 2.45, "X2" 1.60 vs away 1.58)
+        self.assertEqual([(o["key"], o["merkur"], o["pinnacle"]) for o in rows[-0.5]["outcomes"]],
+                         [("home", 2.55, 2.45), ("away", 1.60, 1.58)])
+        # AH -1.5: only the home side, from the European handicap
+        self.assertEqual([(o["key"], o["merkur"]) for o in rows[-1.5]["outcomes"]], [("home", 4.20)])
+        fair_home = rows[-1.5]["outcomes"][0]["fair"]
+        self.assertAlmostEqual(rows[-1.5]["outcomes"][0]["ev"], 4.20 / fair_home - 1, places=3)
+
+    def test_direct_handicap_keeps_its_margin(self):
+        state = make_state(FakeAPI([event(1)]), [merkur_row()])
+        state.board()
+        row = next(r for r in state.match("1")["merkur"]["periods"]["ft"] if r["group"] == "Hendikep")
+        self.assertFalse(row["derived"])
+        self.assertAlmostEqual(row["merkurMargin"], (1 / 1.70 + 1 / 2.05 - 1) * 100, places=2)
+
+    def test_value_list_flags_derived_rows_and_keeps_one_sided_outcomes(self):
+        spreads = {"-1.5": {"hdp": -1.5, "home": 4.00, "away": 1.27}}
+        pin = event(1, periods={"num_0": {"money_line": {"home": 2.45, "draw": 3.30, "away": 2.90},
+                                          "spreads": spreads}})
+        row = merkur_row(**{"201": 4.30})
+        row["params"] = {"hd2": "-1"}
+        values = make_state(FakeAPI([pin]), [row]).board()["values"]
+        handicap = [v for v in values if v["group"] == "Hendikep"]
+        self.assertEqual(len(handicap), 1)
+        self.assertTrue(handicap[0]["derived"])
+        self.assertIsNone(handicap[0]["merkurMargin"])
+        self.assertEqual((handicap[0]["line"], handicap[0]["key"], handicap[0]["merkur"]), (-1.5, "home", 4.30))
 
     def test_draw_no_bet_is_compared_with_level_handicap(self):
         # Pinnacle AH 0.0: 1.82 / 2.06; MerkurXtip "X vraća ulog" W1/W2 (264/265)
