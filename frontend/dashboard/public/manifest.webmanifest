@@ -1,0 +1,36 @@
+{
+  "name": "Pinnacle Board",
+  "short_name": "Pinnacle Board",
+  "description": "Pinnacle i MerkurXtip kvote za top 5 liga i UEFA takmičenja: fer kvote, poređenje i value.",
+  "lang": "sr",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#0e1116",
+  "theme_color": "#0e1116",
+  "categories": ["sports", "finance", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Value",
+      "short_name": "Value",
+      "description": "Ishodi gde je MerkurXtip iznad Pinnacle fer kvote",
+      "url": "/?view=value",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "MerkurXtip vs Pinnacle",
+      "short_name": "Poređenje",
+      "url": "/?view=compare",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

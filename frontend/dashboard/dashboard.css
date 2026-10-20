@@ -388,3 +388,14 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 @media (prefers-color-scheme: light) {
   :root { --blue-bg: #e6effc; --blue-line: #a9c3ee; --blue-ink: #1d4ed8; }
 }
+
+/* ---------------------------------------------------------------- PWA */
+.offline-banner {
+  position: sticky; top: 0; z-index: 6; padding: 8px 20px;
+  background: var(--edge-near-bg); color: var(--edge-near); border-bottom: 1px solid var(--line);
+  font-size: 12.5px; font-weight: 600;
+}
+@media (display-mode: standalone) {
+  .topbar { padding-top: max(10px, env(safe-area-inset-top)); }
+  .app { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+}

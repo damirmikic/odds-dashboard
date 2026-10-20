@@ -39,6 +39,16 @@ The **MerkurXtip vs Pinnacle** view (default) compares the public MerkurXtip pre
 - **Sources:** offer list `GET /restapi/custom/offer/sr/sport/S/mob?annex=0` (~7 MB, cached 60 s and refetched on **Osveži**). Single match `GET /restapi/offer/sr/match/<id>`. Odds codes are defined in `/restapi/offer/sr/ttg_lang` (`betPickMap`). Goal totals are sold as ranges: `0-2` = under 2.5, `3+` = over 2.5.
 - MerkurXtip competitions are mapped by `leagueShort` (`merkur` in `COMPETITIONS`).
 
+## Install as an app (PWA)
+
+The dashboard is a Progressive Web App. In Chrome or Edge, open http://127.0.0.1:8070 and click **⤓ Instaliraj** in the top bar, or use the install icon in the address bar. It then runs in its own window, with a Start-menu or desktop icon. Right-clicking the icon gives the shortcuts **Value** and **MerkurXtip vs Pinnacle**.
+
+- The Python server must still be running; the PWA is a window onto it. `start.bat` can be added to Windows startup.
+- **Offline / server down:** the app still opens from the service worker cache and shows the last odds it loaded, with a banner saying they are not live. Refresh works again once the server is back.
+- **Caching:** the app shell and hashed `/assets/*` are cached. API calls go network-first, and the last good response is kept per path. `index.html`, `sw.js` and the manifest are served `no-cache`, so a new `npm run build` is picked up on the next visit.
+- **Phones:** browsers only allow service workers on `https://` or `localhost`. Opening `http://<pc-ip>:8070` from a phone (server started with `--host 0.0.0.0`) works as a web page but cannot be installed. Installing on a phone needs HTTPS in front of the server, for example Tailscale Serve or a reverse proxy with a certificate.
+- Files: `frontend/dashboard/public/` (`manifest.webmanifest`, `sw.js`, `icons/`). Bump `VERSION` in `sw.js` to drop old caches when the caching rules change.
+
 ## Request budget
 
 PinnWire has no league filter, so one request returns all soccer fixtures. The first load takes that full snapshot. **Osveži** sends `since=<last>` and merges only events that changed since the previous response. A full snapshot is taken at least hourly, or on demand with **Pun reload**. **Osveži meč** in the detail panel requests only that event.
@@ -54,7 +64,7 @@ Opening and previous 1X2 prices are stored in `data/dashboard_history.json`, so 
 | `pinnwire_dashboard.py` | Local server on port 8070: competition filter, delta merge, price history, `/api/board`, `/api/match/<id>`, static files |
 | `merkur_client.py` | MerkurXtip offer client, odds-code decoding and event pairing |
 | `pinnwire_client.py` | PinnWire REST client (`x-api-key`, 429/Retry-After handling), devig and market parsing |
-| `frontend/` | React + Vite app (source in `frontend/dashboard/`) |
+| `frontend/` | React + Vite app (source in `frontend/dashboard/`; PWA manifest, service worker and icons in `frontend/dashboard/public/`) |
 | `static/dashboard_build/` | Production bundle served by Python |
 | `test_pinnwire_dashboard.py` | Unit tests: `python -m unittest test_pinnwire_dashboard` |
 | `data/` | API key and price history; do not share `pinnwire_config.json` |

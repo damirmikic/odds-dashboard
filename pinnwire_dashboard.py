@@ -41,6 +41,17 @@ COMPETITIONS = [
 ]
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
 MERKUR_COMP = {c["merkur"]: c["id"] for c in COMPETITIONS}
+# Explicit types: on Windows `mimetypes` reads the registry, where .js is sometimes text/plain,
+# which breaks module scripts and service worker registration.
+STATIC_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".webmanifest": "application/manifest+json",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+}
 FULL_RELOAD_SECONDS = 3600  # take a fresh full snapshot at least hourly; deltas in between
 ML_SIDES = ("home", "draw", "away")
 
@@ -662,11 +673,14 @@ class Handler(BaseHTTPRequestHandler):
                 content = static_file.read()
         except OSError as exc:
             return self.send_error_json(500, f"Ne mogu da pročitam statički fajl: {exc}")
-        content_type = mimetypes.guess_type(candidate)[0] or "application/octet-stream"
+        content_type = (STATIC_TYPES.get(os.path.splitext(candidate)[1].lower())
+                        or mimetypes.guess_type(candidate)[0] or "application/octet-stream")
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(content)))
-        self.send_header("Cache-Control", "no-cache" if relative == "index.html" else "public, max-age=3600")
+        # the page, service worker and manifest must be revalidated so a new build is picked up
+        no_cache = relative in ("index.html", "sw.js", "manifest.webmanifest")
+        self.send_header("Cache-Control", "no-cache" if no_cache else "public, max-age=3600")
         self.end_headers()
         self.wfile.write(content)
 

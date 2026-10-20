@@ -20,7 +20,42 @@ async function requestJson(url, options) {
     return {};
   });
   if (!response.ok) throw new Error(result.error || `Zahtev nije uspeo (${response.status})`);
+  // set by the service worker when it answers offline from its copy of the last good response
+  const cachedAt = response.headers.get("X-PB-Cache");
+  if (cachedAt && result && typeof result === "object") result.__cachedAt = cachedAt;
   return result;
+}
+
+// PWA install prompt (Chrome/Edge) and connectivity state.
+function usePwa() {
+  const [installEvent, setInstallEvent] = useState(null);
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const onPrompt = (event) => {
+      event.preventDefault();
+      setInstallEvent(event);
+    };
+    const onInstalled = () => setInstallEvent(null);
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+  const install = useCallback(async () => {
+    if (!installEvent) return;
+    installEvent.prompt();
+    await installEvent.userChoice.catch(() => null);
+    setInstallEvent(null);
+  }, [installEvent]);
+  return { canInstall: !!installEvent, install, online };
 }
 
 function readStored(key, fallback) {
@@ -841,6 +876,7 @@ export default function App() {
   const [valueLeague, setValueLeague] = useState("all");
   const [valueGroup, setValueGroup] = useState(() => readStored("pb.valueGroup", "all"));
   const [selectedId, setSelectedId] = useState(() => window.location.hash.replace(/\D/g, ""));
+  const pwa = usePwa();
 
   // #<event id> deep-links to a match
   useEffect(() => {
@@ -992,6 +1028,11 @@ export default function App() {
         </div>
 
         <div className="actions">
+          {pwa.canInstall && (
+            <button type="button" className="button ghost" onClick={pwa.install} title="Instaliraj Pinnacle Board kao aplikaciju">
+              ⤓ Instaliraj
+            </button>
+          )}
           <label className="auto">
             Auto
             <select value={autoMinutes} onChange={(e) => setAutoMinutes(Number(e.target.value))}>
@@ -1012,6 +1053,17 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {(!pwa.online || board?.__cachedAt) && (
+        <div className="offline-banner" role="status">
+          {!pwa.online ? "Offline." : "Server nije dostupan."}{" "}
+          {board?.__cachedAt
+            ? `Prikazane su poslednje sačuvane kvote${
+                Number.isNaN(new Date(board.__cachedAt).getTime()) ? "" : ` (${clockFmt.format(new Date(board.__cachedAt))})`
+              } — nisu žive.`
+            : "Kvote se ne mogu osvežiti dok veza ne proradi."}
+        </div>
+      )}
 
       {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); loadBoard("full"); }} />}
 
