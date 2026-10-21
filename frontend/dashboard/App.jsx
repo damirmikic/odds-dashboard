@@ -168,7 +168,7 @@ function OpenDelta({ match }) {
   // Biggest relative move of the home or away price since we first saw the match.
   const moves = ["home", "away"].map((side) => {
     const open = match.open[side];
-    const now = match.ml[side]?.odds;
+    const now = match.ml?.[side]?.odds;
     return open && now ? { side, pct: (now - open) / open } : null;
   }).filter(Boolean);
   if (!moves.length) return <span className="muted">—</span>;
@@ -199,8 +199,8 @@ function MatchRow({ match, selected, fresh, onSelect, showLeague, competition })
       {ML_SIDES.map(([side]) => (
         <td className="col-price" key={side}>
           <Price
-            odds={match.ml[side]?.odds}
-            fair={match.ml[side]?.fair}
+            odds={match.ml?.[side]?.odds}
+            fair={match.ml?.[side]?.fair}
             prev={match.prev?.[side]}
             open={match.open?.[side]}
           />
@@ -381,27 +381,27 @@ function CompareRow({ match, tolerance, selected, onSelect, onOdds, pinStamp, mx
         ) : "—"}
       </td>
       {ML_SIDES.map(([side], i) => (
-        <td key={`f${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={oddsClick}>{fmt2(match.ml[side]?.fair)}</td>
+        <td key={`f${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={oddsClick}>{fmt2(match.ml?.[side]?.fair)}</td>
       ))}
       {ML_SIDES.map(([side], i) => (
         <td key={`p${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={oddsClick}>
           <span
-            className={`mc-cell ${pinnacleClass(match.ml[side]?.odds, pinPrev?.[side])}`}
+            className={`mc-cell ${pinnacleClass(match.ml?.[side]?.odds, pinPrev?.[side])}`}
             title={match.prev?.[side] ? `Prethodna: ${fmtOdds(match.prev[side])}` : undefined}
           >
-            {fmt2(match.ml[side]?.odds)}
+            {fmt2(match.ml?.[side]?.odds)}
           </span>
         </td>
       ))}
       {ML_SIDES.map(([side], i) => {
         const odds = x?.ml?.[side]?.odds;
         const ev = x?.ml?.[side]?.ev;
-        const pin = match.ml[side]?.odds;
+        const pin = match.ml?.[side]?.odds;
         const prev = mxPrev?.[side];
         return (
           <td key={`m${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={oddsClick}>
             {odds ? (
-              <span className={`mc-cell ${merkurClass(odds, pin, ev, prev)}`} title={merkurTitle(odds, pin, match.ml[side]?.fair, ev, prev)}>
+              <span className={`mc-cell ${merkurClass(odds, pin, ev, prev)}`} title={merkurTitle(odds, pin, match.ml?.[side]?.fair, ev, prev)}>
                 {fmt2(odds)}
               </span>
             ) : (
@@ -948,6 +948,104 @@ function KeyPanel({ onSaved }) {
   );
 }
 
+const SPORTS = [
+  { key: "football", label: "Fudbal", live: true },
+  { key: "basketball", label: "Košarka" },
+  { key: "tennis", label: "Tenis" },
+  { key: "hockey", label: "Hokej" },
+  { key: "volleyball", label: "Odbojka" },
+];
+
+// Line icons (24px grid, currentColor); the `sport-*` classes drive the hover animations in dashboard.css.
+function SportIcon({ sport }) {
+  const shape = {
+    football: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path className="ball-core" d="M12 8.2l3.6 2.6-1.4 4.2H9.8l-1.4-4.2z" />
+        <path d="M12 8.2V3M15.6 10.8l4.8-1.6M14.2 15l2.8 4.4M9.8 15L7 19.4M8.4 10.8L3.6 9.2" />
+      </>
+    ),
+    basketball: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3v18M3 12h18M5.6 5.6c3.4 3.4 3.4 9.4 0 12.8M18.4 5.6c-3.4 3.4-3.4 9.4 0 12.8" />
+      </>
+    ),
+    tennis: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M5.2 5.2c4.3 3.3 4.3 10.3 0 13.6M18.8 5.2c-4.3 3.3-4.3 10.3 0 13.6" />
+      </>
+    ),
+    hockey: (
+      <>
+        <path d="M6 3l5 13c.5 1.3 1 1.3 2.4 1.3H18" />
+        <ellipse className="puck" cx="15" cy="20.6" rx="3.2" ry="1.2" />
+      </>
+    ),
+    volleyball: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3c0 5-3.4 8.6-8.4 9.6M20.4 9c-5.4.4-8.6 3-9.9 11.7M6.2 18.6c1.6-4.2 5.6-6.4 11.6-5.6" />
+      </>
+    ),
+  }[sport];
+  return (
+    <svg className={`sport-icon sport-${sport}`} viewBox="0 0 24 24" width="24" height="24" fill="none"
+      stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {shape}
+    </svg>
+  );
+}
+
+function SideMenu({ groups, all, onPick, label }) {
+  return (
+    <aside className="sidebar">
+      <div className="sport-switch" role="tablist" aria-label="Sport">
+        {SPORTS.map((sport) => (
+          <button
+            type="button"
+            key={sport.key}
+            role="tab"
+            aria-selected={!!sport.live}
+            className={`sport-btn${sport.live ? " active" : ""}`}
+            disabled={!sport.live}
+            title={sport.live ? sport.label : `${sport.label} — uskoro`}
+          >
+            <SportIcon sport={sport.key} />
+            <span>{sport.label}</span>
+          </button>
+        ))}
+      </div>
+      <nav aria-label={label}>
+        <button type="button" className={`side-item${all.active ? " active" : ""}`} onClick={() => onPick(all)}>
+          <b>{all.label}</b> <span>{all.count}</span>
+        </button>
+        {groups.map((group) => (
+          <div className="side-group" key={group.title}>
+            <h3>{group.title}</h3>
+            {group.items.map((item) => (
+              <button
+                type="button"
+                key={item.key}
+                className={`side-item${item.active ? " active" : ""}`}
+                onClick={() => onPick(item)}
+                disabled={item.disabled}
+                title={item.title}
+              >
+                <CompBadge competition={item.comp} /> <b>{item.comp.name}</b>
+                {item.extra && <em className={item.extraClass}>{item.extra}</em>}
+                <span>{item.count}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
 export default function App() {
   const [apiKeySet, setApiKeySet] = useState(null);
   const [board, setBoard] = useState(null);
@@ -1088,6 +1186,35 @@ export default function App() {
 
   const totalCount = board?.matches.length || 0;
 
+  // Side menu: competitions grouped by country; in the value view the counts are value outcomes.
+  const inValue = view === "value";
+  const menuItem = (c) => {
+    const row = inValue ? valueSummary.get(c.id) : null;
+    return {
+      id: c.id,
+      key: c.key,
+      comp: c,
+      count: inValue ? (row ? row.count : 0) : c.count,
+      extra: row ? fmtEv(row.best) : null,
+      extraClass: row ? evClass(row.best) : "",
+      disabled: inValue ? !row : !c.count,
+      active: inValue ? valueLeague === String(c.id) : competition === c.key,
+      title: row ? `${row.count} ishoda na ${row.matches.size} mečeva, najveća razlika vs fer ${fmtEv(row.best)}` : undefined,
+    };
+  };
+  const menuGroups = useMemo(() => {
+    const map = new Map();
+    for (const c of competitions) {
+      if (!map.has(c.country)) map.set(c.country, { title: c.country, items: [] });
+      map.get(c.country).items.push(menuItem(c));
+    }
+    return [...map.values()];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [competitions, inValue, valueSummary, valueLeague, competition]);
+  const allItem = inValue
+    ? { id: null, key: "all", label: "Sve lige", count: levelValues.length, active: valueLeague === "all" }
+    : { id: null, key: "all", label: "Sve", count: totalCount, active: competition === "all" };
+
   return (
     <div className="app">
       <header className="topbar">
@@ -1095,7 +1222,7 @@ export default function App() {
           <span className="logo" aria-hidden="true">P</span>
           <div>
             <strong>Pinnacle Board</strong>
-            <small>Top 5 liga + UEFA · Pinnacle vs MerkurXtip</small>
+            <small>Fudbal · Pinnacle vs MerkurXtip</small>
           </div>
         </div>
 
@@ -1162,206 +1289,175 @@ export default function App() {
 
       {apiKeySet && (
         <>
-          {view !== "value" && (
-          <nav className="tabs" aria-label="Takmičenja">
-            <button type="button" className={competition === "all" ? "active" : ""} onClick={() => setCompetition("all")}>
-              Sve <span>{totalCount}</span>
-            </button>
-            {competitions.map((c) => (
-              <button
-                type="button"
-                key={c.key}
-                className={competition === c.key ? "active" : ""}
-                onClick={() => setCompetition(c.key)}
-                disabled={!c.count}
-              >
-                <CompBadge competition={c} /> {c.name} <span>{c.count}</span>
-              </button>
-            ))}
-          </nav>
-          )}
-          {view === "value" && (
-            <nav className="tabs value-summary" aria-label="Value po takmičenjima">
-              <button type="button" className={valueLeague === "all" ? "active" : ""} onClick={() => setValueLeague("all")}>
-                Sve lige <span>{levelValues.length}</span>
-              </button>
-              {competitions.map((c) => {
-                const row = valueSummary.get(c.id);
-                return (
-                  <button
-                    type="button"
-                    key={c.key}
-                    className={valueLeague === String(c.id) ? "active" : ""}
-                    onClick={() => setValueLeague((current) => (current === String(c.id) ? "all" : String(c.id)))}
-                    disabled={!row}
-                    title={row ? `${row.count} ishoda na ${row.matches.size} mečeva, najveća razlika vs fer ${fmtEv(row.best)}` : "Nema ishoda za izabrane filtere"}
-                  >
-                    <CompBadge competition={c} /> {c.name}
-                    <span>{row ? row.count : 0}</span>
-                    {row && <em className={evClass(row.best)}>{fmtEv(row.best)}</em>}
-                  </button>
-                );
-              })}
-            </nav>
-          )}
-
-          <div className="filters">
-            <div className="segmented view-switch">
-              <button type="button" className={view === "compare" ? "active" : ""} onClick={() => setView("compare")}>
-                MerkurXtip vs Pinnacle
-              </button>
-              <button type="button" className={view === "pinnacle" ? "active" : ""} onClick={() => setView("pinnacle")}>
-                Samo Pinnacle
-              </button>
-              <button
-                type="button"
-                className={view === "value" ? "active" : ""}
-                onClick={() => setView("value")}
-                title={`${valueList.length} ishoda gde je MX > Pinnacle, od toga ${fairValueCount} gde je MX ≥ fer`}
-              >
-                Value <span className="view-count">{fairValueCount}/{valueList.length}</span>
-              </button>
-            </div>
-            {view === "value" && (
-              <>
-                <div className="segmented">
-                  {VALUE_LEVELS.map(([key, label]) => (
-                    <button key={key} type="button" className={valueLevel === key ? "active" : ""} onClick={() => setValueLevel(key)}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
+          <div className="shell">
+            <SideMenu
+              groups={menuGroups}
+              all={allItem}
+              onPick={(item) => (view === "value"
+                ? setValueLeague((cur) => (item.id == null || cur === String(item.id) ? "all" : String(item.id)))
+                : setCompetition(item.key))}
+              label={view === "value" ? "Value po takmičenjima" : "Takmičenja"}
+            />
+            <div className="content">
+            <div className="filters">
+              <div className="segmented view-switch">
+                <button type="button" className={view === "compare" ? "active" : ""} onClick={() => setView("compare")}>
+                  MerkurXtip vs Pinnacle
+                </button>
+                <button type="button" className={view === "pinnacle" ? "active" : ""} onClick={() => setView("pinnacle")}>
+                  Samo Pinnacle
+                </button>
+                <button
+                  type="button"
+                  className={view === "value" ? "active" : ""}
+                  onClick={() => setView("value")}
+                  title={`${valueList.length} ishoda gde je MX > Pinnacle, od toga ${fairValueCount} gde je MX ≥ fer`}
+                >
+                  Value <span className="view-count">{fairValueCount}/{valueList.length}</span>
+                </button>
+              </div>
+              {view === "value" && (
+                <>
+                  <div className="segmented">
+                    {VALUE_LEVELS.map(([key, label]) => (
+                      <button key={key} type="button" className={valueLevel === key ? "active" : ""} onClick={() => setValueLevel(key)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="auto">
+                    Tržište
+                    <select value={valueGroup} onChange={(e) => setValueGroup(e.target.value)}>
+                      {VALUE_GROUPS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                    </select>
+                  </label>
+                </>
+              )}
+              {view === "compare" && (
                 <label className="auto">
-                  Tržište
-                  <select value={valueGroup} onChange={(e) => setValueGroup(e.target.value)}>
-                    {VALUE_GROUPS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                  Odstupanje
+                  <select value={edgeFilter} onChange={(e) => setEdgeFilter(e.target.value)}>
+                    <option value="all">svi mečevi</option>
+                    <option value="paired">upareni</option>
+                    <option value="-0.02">najveće ≥ −2%</option>
+                    <option value="0">najveće ≥ 0%</option>
+                    <option value="0.02">najveće ≥ +2%</option>
+                    <option value="missing">nije u ponudi MX</option>
                   </select>
                 </label>
-              </>
-            )}
-            {view === "compare" && (
-              <label className="auto">
-                Odstupanje
-                <select value={edgeFilter} onChange={(e) => setEdgeFilter(e.target.value)}>
-                  <option value="all">svi mečevi</option>
-                  <option value="paired">upareni</option>
-                  <option value="-0.02">najveće ≥ −2%</option>
-                  <option value="0">najveće ≥ 0%</option>
-                  <option value="0.02">najveće ≥ +2%</option>
-                  <option value="missing">nije u ponudi MX</option>
-                </select>
-              </label>
-            )}
-            {view === "compare" && (
-              <label className="auto" title="Max kvota = Pinnacle fer kvota favorita × (1 + tolerancija)">
-                Tolerancija
-                <input
-                  className="tolerance"
-                  type="number"
-                  min="-10"
-                  max="20"
-                  step="0.1"
-                  value={tolerance}
-                  onChange={(e) => setTolerance(Number(e.target.value) || 0)}
-                />
-                %
-              </label>
-            )}
-            <div className="segmented">
-              {DAY_FILTERS.map(([key, label]) => (
-                <button key={key} type="button" className={dayFilter === key ? "active" : ""} onClick={() => setDayFilter(key)}>
-                  {label}
-                </button>
-              ))}
+              )}
+              {view === "compare" && (
+                <label className="auto" title="Max kvota = Pinnacle fer kvota favorita × (1 + tolerancija)">
+                  Tolerancija
+                  <input
+                    className="tolerance"
+                    type="number"
+                    min="-10"
+                    max="20"
+                    step="0.1"
+                    value={tolerance}
+                    onChange={(e) => setTolerance(Number(e.target.value) || 0)}
+                  />
+                  %
+                </label>
+              )}
+              <div className="segmented">
+                {DAY_FILTERS.map(([key, label]) => (
+                  <button key={key} type="button" className={dayFilter === key ? "active" : ""} onClick={() => setDayFilter(key)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <input
+                className="search"
+                type="search"
+                placeholder="Pretraga timova…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {view === "pinnacle" ? (
+                <span className="legend">
+                  <span className="price up"><span className="price-odds">▲</span></span> kvota raste
+                  <span className="price down"><span className="price-odds">▼</span></span> kvota pada
+                  <span className="legend-fair">sivo = fer kvota (bez marže)</span>
+                </span>
+              ) : (
+                <span className="legend mc-legend">
+                  <span className="mc-cell mx-fair">MX ≥ fer</span>
+                  <span className="mc-cell mx-above">MX &gt; Pinnacle</span>
+                  {view === "compare" && (
+                    <>
+                      <span className="mc-cell mx-moved" title="Promena pri poslednjem osvežavanju">MX promena</span>
+                      <span className="mc-cell pin-up" title="Promena pri poslednjem osvežavanju">PIN raste</span>
+                      <span className="mc-cell pin-down" title="Promena pri poslednjem osvežavanju">PIN pada</span>
+                    </>
+                  )}
+                </span>
+              )}
             </div>
-            <input
-              className="search"
-              type="search"
-              placeholder="Pretraga timova…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {view === "pinnacle" ? (
-              <span className="legend">
-                <span className="price up"><span className="price-odds">▲</span></span> kvota raste
-                <span className="price down"><span className="price-odds">▼</span></span> kvota pada
-                <span className="legend-fair">sivo = fer kvota (bez marže)</span>
-              </span>
-            ) : (
-              <span className="legend mc-legend">
-                <span className="mc-cell mx-fair">MX ≥ fer</span>
-                <span className="mc-cell mx-above">MX &gt; Pinnacle</span>
-                {view === "compare" && (
-                  <>
-                    <span className="mc-cell mx-moved" title="Promena pri poslednjem osvežavanju">MX promena</span>
-                    <span className="mc-cell pin-up" title="Promena pri poslednjem osvežavanju">PIN raste</span>
-                    <span className="mc-cell pin-down" title="Promena pri poslednjem osvežavanju">PIN pada</span>
-                  </>
-                )}
-              </span>
-            )}
-          </div>
 
-          <main className={`workspace${selectedId ? " with-detail" : ""}`}>
-            <section className="board-wrap">
-              {error && <p className="state error" role="alert">{error}</p>}
-              {!board && loading && <p className="state">Učitavam ponudu…</p>}
-              {board && view !== "value" && !filtered.length && <p className="state">Nema mečeva za izabrani filter.</p>}
-              {!!filtered.length && view === "compare" && (
-                <CompareTable
-                  matches={filtered}
-                  tolerance={tolerance}
-                  pinStamp={board.fetchedAt}
-                  mxStamp={board.merkur?.fetchedAt}
-                  selectedId={oddsId}
-                  onOdds={setOddsId}
-                  onSelect={setOddsId}
+            <main className={`workspace${selectedId ? " with-detail" : ""}`}>
+              <section className="board-wrap">
+                {error && <p className="state error" role="alert">{error}</p>}
+                {!board && loading && <p className="state">Učitavam ponudu…</p>}
+                {board && view !== "value" && !filtered.length && <p className="state">Nema mečeva za izabrani filter.</p>}
+                {!!filtered.length && view === "compare" && (
+                  <CompareTable
+                    matches={filtered}
+                    tolerance={tolerance}
+                    pinStamp={board.fetchedAt}
+                    mxStamp={board.merkur?.fetchedAt}
+                    selectedId={oddsId}
+                    onOdds={setOddsId}
+                    onSelect={setOddsId}
+                  />
+                )}
+                {board && view === "value" && !shownValues.length && (
+                  <p className="state">Nema ishoda za izabrane filtere.</p>
+                )}
+                {board && view === "value" && !!shownValues.length && (
+                  <ValueTable
+                    values={shownValues}
+                    matchesById={matchesById}
+                    competitions={competitions}
+                    selectedId={oddsId}
+                    onOdds={setOddsId}
+                    onSelect={setOddsId}
+                  />
+                )}
+                {!!filtered.length && view === "pinnacle" && (
+                  <BoardTable
+                    groups={groups}
+                    competitions={competitions}
+                    selectedId={selectedId}
+                    fetchedAt={board.fetchedAt}
+                    onSelect={(id) => setSelectedId((current) => (current === id ? "" : id))}
+                    showLeague={competition === "all"}
+                  />
+                )}
+              </section>
+              {selectedId && (
+                <DetailPanel
+                  key={selectedId}
+                  matchId={selectedId}
+                  boardMatch={selectedMatch}
+                  competition={selectedMatch ? compById.get(selectedMatch.leagueId) : null}
+                  onClose={() => setSelectedId("")}
+                  onCalls={onCalls}
                 />
               )}
-              {board && view === "value" && !shownValues.length && (
-                <p className="state">Nema ishoda za izabrane filtere.</p>
-              )}
-              {board && view === "value" && !!shownValues.length && (
-                <ValueTable
-                  values={shownValues}
-                  matchesById={matchesById}
-                  competitions={competitions}
-                  selectedId={oddsId}
-                  onOdds={setOddsId}
-                  onSelect={setOddsId}
-                />
-              )}
-              {!!filtered.length && view === "pinnacle" && (
-                <BoardTable
-                  groups={groups}
-                  competitions={competitions}
-                  selectedId={selectedId}
-                  fetchedAt={board.fetchedAt}
-                  onSelect={(id) => setSelectedId((current) => (current === id ? "" : id))}
-                  showLeague={competition === "all"}
-                />
-              )}
-            </section>
-            {selectedId && (
-              <DetailPanel
-                key={selectedId}
-                matchId={selectedId}
-                boardMatch={selectedMatch}
-                competition={selectedMatch ? compById.get(selectedMatch.leagueId) : null}
-                onClose={() => setSelectedId("")}
+            </main>
+            {oddsId && (
+              <OddsModal
+                key={oddsId}
+                matchId={oddsId}
+                boardMatch={matchesById.get(Number(oddsId)) || matchesById.get(oddsId)}
+                onClose={() => setOddsId("")}
                 onCalls={onCalls}
               />
             )}
-          </main>
-          {oddsId && (
-            <OddsModal
-              key={oddsId}
-              matchId={oddsId}
-              boardMatch={matchesById.get(Number(oddsId)) || matchesById.get(oddsId)}
-              onClose={() => setOddsId("")}
-              onCalls={onCalls}
-            />
-          )}
+            </div>
+          </div>
         </>
       )}
 

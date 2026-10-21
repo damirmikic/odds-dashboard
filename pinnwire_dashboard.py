@@ -553,7 +553,7 @@ class DashboardState:
         live_keys = {f"{src}:{i}:" for m in matches for src, i in
                      (("pin", m["id"]), ("mx", (m["merkur"] or {}).get("id")))}
         self.goal_track = {k: v for k, v in self.goal_track.items() if k[:k.rindex(":") + 1] in live_keys}
-        matches = [m for m in matches if m["ml"]]
+        matches = [m for m in matches if m["ml"] or m["ah"] or m["ou"]]
         kept = {m["id"] for m in matches}
         values = [v for v in values if v["matchId"] in kept]
         matches.sort(key=lambda m: (m["starts"], m["home"]))
