@@ -1534,17 +1534,18 @@ export default function App() {
   const basketball = sport === "basketball";
   const reload = basketball ? loadBasketball : loadBoard;
   useEffect(() => writeStored("pb.sport", sport), [sport]);
-  // the basketball board is fetched the first time the sport is opened
+  // each sport's board is fetched the first time it is opened
   useEffect(() => {
     if (basketball && apiKeySet && !bbBoard && !bbLoading && !bbError) loadBasketball();
-  }, [basketball, apiKeySet, bbBoard, bbLoading, bbError, loadBasketball]);
+    if (!basketball && apiKeySet && !board && !loading && !error) loadBoard();
+  }, [basketball, apiKeySet, bbBoard, bbLoading, bbError, board, loading, error, loadBasketball, loadBoard]);
 
   useEffect(() => {
     requestJson("/api/status")
       .then((status) => {
         setApiKeySet(status.apiKeySet);
         setCallsToday(status.callsToday);
-        if (status.apiKeySet && initialSport() !== "basketball") loadBoard();
+        
       })
       .catch((err) => setError(err.message));
   }, [loadBoard]);
