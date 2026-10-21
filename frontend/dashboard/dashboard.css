@@ -406,3 +406,15 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
   background: var(--purple-bg); color: var(--purple-ink); font-size: 9px; font-style: normal; font-weight: 800;
   letter-spacing: .03em; text-transform: uppercase; cursor: help;
 }
+
+/* odds comparison modal (click on any odds cell) */
+.mc-click { cursor: pointer; }
+.mc-click:hover { background: var(--panel-2); }
+.modal-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding: 5vh 16px; overflow-y: auto; background: rgba(0, 0, 0, 0.55); }
+.modal { width: min(640px, 100%); display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg, var(--panel)); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); }
+.modal-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.modal-head h2 { margin: 0; font-size: 18px; }
+.modal-head h2 span { color: var(--muted); }
+.modal-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.modal .segmented { justify-self: start; }
+.mx-table tbody.mx-group-start { border-top: 3px solid var(--muted); }
