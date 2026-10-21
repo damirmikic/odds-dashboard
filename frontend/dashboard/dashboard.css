@@ -498,3 +498,5 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
   margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--edge-pos-bg); color: var(--edge-pos);
   font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;
 }
+.missing-hint { text-align: left; white-space: nowrap; }
+.missing-hint small { margin-left: 4px; color: var(--faint); }

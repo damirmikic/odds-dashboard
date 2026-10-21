@@ -1066,6 +1066,86 @@ function SideMenu({ sport, onSport, groups, all, onPick, label }) {
   );
 }
 
+// Empty "missing" view: say whether nothing is missing at all or only under the current filters.
+function missingEmpty(total, filtered, showAll) {
+  if (!total) return "Svi mečevi su u ponudi MerkurXtip.";
+  return (
+    <>
+      Nema nedostajućih mečeva za izabrane filtere (liga, dan, pretraga). Ukupno nedostaje {total}.{" "}
+      {filtered && <button type="button" className="button small" onClick={showAll}>Sve lige</button>}
+    </>
+  );
+}
+
+// Matches Pinnacle prices but MerkurXtip does not offer (or could not be paired by team names).
+function MissingTable({ matches, competitions, sport }) {
+  const byId = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
+  const football = sport === "football";
+  const lines = (match) => (football
+    ? { ah: match.ah && { line: match.ah.line, home: match.ah.odds.home, away: match.ah.odds.away },
+        ou: match.ou && { line: match.ou.line, over: match.ou.odds.over, under: match.ou.odds.under } }
+    : { ah: match.spread && { line: match.spread.line, home: match.spread.pinnacle.home, away: match.spread.pinnacle.away },
+        ou: match.total && { line: match.total.line, over: match.total.pinnacle.over, under: match.total.pinnacle.under } });
+  const sides = football ? ML_SIDES : ML_SIDES.filter(([side]) => side !== "draw");
+  return (
+    <div className="board-scroll mc-wrap">
+      <table className="mc-board missing-board">
+        <thead>
+          <tr>
+            <th className="mc-match">Meč</th>
+            <th colSpan={sides.length} className="mc-group">Pinnacle {football ? "1X2" : "pobednik"}</th>
+            <th colSpan={3} className="mc-group-strong">Hendikep</th>
+            <th colSpan={3} className="mc-group-strong">{football ? "Golovi" : "Ukupno poena"}</th>
+            <th className="mc-group">Najbliže u ponudi MerkurXtip</th>
+          </tr>
+        </thead>
+        <tbody>
+          {matches.map((match) => {
+            const comp = byId.get(match.leagueId);
+            const { ah, ou } = lines(match);
+            return (
+              <tr key={match.id} className="mc-row">
+                <td className="mc-match">
+                  <div className="mc-when">{fmtKickoffShort(new Date(match.starts))}</div>
+                  <div className="mc-teams"><b>{match.home}</b> <span>vs</span> <b>{match.away}</b></div>
+                  <div className="mc-league">{comp && <CompBadge competition={comp} />} {match.leagueName}</div>
+                </td>
+                {sides.map(([side], i) => (
+                  <td key={side} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>{fmt2(match.ml?.[side]?.odds)}</td>
+                ))}
+                {ah ? (
+                  <>
+                    <td className="mc-line mc-group-strong">{fmtLine(ah.line, true)}</td>
+                    <td className="mc-odds">{fmt2(ah.home)}</td>
+                    <td className="mc-odds">{fmt2(ah.away)}</td>
+                  </>
+                ) : <td className="mc-group-strong muted" colSpan={3}>—</td>}
+                {ou ? (
+                  <>
+                    <td className="mc-line mc-group-strong">{fmtLine(ou.line)}</td>
+                    <td className="mc-odds">{fmt2(ou.over)}</td>
+                    <td className="mc-odds">{fmt2(ou.under)}</td>
+                  </>
+                ) : <td className="mc-group-strong muted" colSpan={3}>—</td>}
+                <td className="mc-group missing-hint">
+                  {match.hint ? (
+                    <span title="Najbolje poklapanje među neuparenim mečevima iste lige. Verovatno isti meč pod drugim imenima: dodaj alias u merkur_client.py.">
+                      {match.hint.home} – {match.hint.away}
+                      <small> sličnost {Math.round(match.hint.score * 100)}%
+                        {match.hint.kickoffDiff ? ` · ${match.hint.kickoffDiff > 0 ? "+" : "−"}${Math.abs(match.hint.kickoffDiff)} min` : ""}
+                      </small>
+                    </span>
+                  ) : <span className="muted">nije u ponudi</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // Competitions grouped by country for the side menu; with `valueSummary` the counts are value outcomes.
 function buildMenuGroups({ competitions, valueSummary, activeKey, activeLeague }) {
   const map = new Map();
@@ -1282,7 +1362,8 @@ function BbCompareTable({ matches, competitions, expandedId, onToggle }) {
 function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport }) {
   const [competition, setCompetition] = useState(() => readStored("pb.bb.competition", "all"));
   const [view, setView] = useState(() => (
-    new URLSearchParams(window.location.search).get("view") === "value" ? "value" : readStored("pb.bb.view", "compare")
+    ["value", "missing"].includes(new URLSearchParams(window.location.search).get("view"))
+      ? new URLSearchParams(window.location.search).get("view") : readStored("pb.bb.view", "compare")
   ));
   const [valueLevel, setValueLevel] = useState(() => readStored("pb.bb.valueLevel", "fair"));
   const [valueGroup, setValueGroup] = useState(() => readStored("pb.bb.valueGroup", "all"));
@@ -1302,13 +1383,21 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
   const q = query.trim().toLocaleLowerCase();
   const textOk = (m) => !q || `${m.home} ${m.away} ${m.merkur?.home || ""} ${m.merkur?.away || ""}`.toLocaleLowerCase().includes(q);
 
+  const missingCounts = useMemo(() => {
+    const counts = new Map();
+    for (const m of board?.matches || []) if (!m.merkur) counts.set(m.leagueId, (counts.get(m.leagueId) || 0) + 1);
+    return counts;
+  }, [board]);
+  const missingTotal = useMemo(() => [...missingCounts.values()].reduce((a, b) => a + b, 0), [missingCounts]);
+
   const filtered = useMemo(
     () => (board?.matches || []).filter((m) => (
       (competition === "all" || compById.get(m.leagueId)?.key === competition)
       && inDayFilter(new Date(m.starts), dayFilter) && textOk(m)
+      && (view !== "missing" || !m.merkur)
     )),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [board, competition, dayFilter, q, compById],
+    [board, competition, dayFilter, q, compById, view],
   );
   const valueList = useMemo(
     () => (board?.values || []).filter((v) => {
@@ -1344,15 +1433,22 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
   const fairValueCount = useMemo(() => valueList.filter((v) => v.ev >= 0).length, [valueList]);
 
   const inValue = view === "value";
+  const inMissing = view === "missing";
+  const menuCompetitions = useMemo(
+    () => (inMissing ? competitions.map((c) => ({ ...c, count: missingCounts.get(c.id) || 0 })) : competitions),
+    [competitions, inMissing, missingCounts],
+  );
   const menuGroups = useMemo(
     () => buildMenuGroups({
-      competitions, valueSummary: inValue ? valueSummary : null, activeKey: competition, activeLeague: valueLeague,
+      competitions: menuCompetitions, valueSummary: inValue ? valueSummary : null, activeKey: competition,
+      activeLeague: valueLeague,
     }),
-    [competitions, inValue, valueSummary, competition, valueLeague],
+    [menuCompetitions, inValue, valueSummary, competition, valueLeague],
   );
   const allItem = inValue
     ? { id: null, key: "all", label: "Sve lige", count: levelValues.length, active: valueLeague === "all" }
-    : { id: null, key: "all", label: "Sve", count: board?.matches.length || 0, active: competition === "all" };
+    : { id: null, key: "all", label: "Sve", count: inMissing ? missingTotal : board?.matches.length || 0,
+        active: competition === "all" };
 
   const groups = useMemo(() => {
     const map = new Map();
@@ -1391,6 +1487,14 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
               title={`${valueList.length} ishoda gde je MX > Pinnacle, od toga ${fairValueCount} gde je MX ≥ fer`}
             >
               Value <span className="view-count">{fairValueCount}/{valueList.length}</span>
+            </button>
+            <button
+              type="button"
+              className={view === "missing" ? "active" : ""}
+              onClick={() => setView("missing")}
+              title="Mečevi koje Pinnacle ima, a MerkurXtip nema"
+            >
+              Nedostaju <span className="view-count">{missingTotal}</span>
             </button>
           </div>
           {inValue && (
@@ -1435,8 +1539,13 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
           <section className="board-wrap">
             {error && <p className="state error" role="alert">{error}</p>}
             {!board && loading && <p className="state">Učitavam ponudu…</p>}
-            {board && !inValue && !filtered.length && <p className="state">Nema mečeva za izabrani filter.</p>}
-            {!inValue && groups.map((group) => (
+            {board && !inValue && !filtered.length && (
+              <p className="state">
+                {inMissing ? missingEmpty(missingTotal, competition !== "all", () => setCompetition("all")) : "Nema mečeva za izabrani filter."}
+              </p>
+            )}
+            {inMissing && !!filtered.length && <MissingTable matches={filtered} competitions={competitions} sport="basketball" />}
+            {view === "compare" && groups.map((group) => (
               <div key={group.key} className="bb-day">
                 <h3 className="bb-day-title">{group.title} <span>{group.matches.length}</span></h3>
                 <BbCompareTable matches={group.matches} competitions={competitions} expandedId={expandedId} onToggle={toggle} />
@@ -1482,7 +1591,7 @@ export default function App() {
   const [autoMinutes, setAutoMinutes] = useState(() => readStored("pb.auto", 0));
   const [view, setView] = useState(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("view");
-    return ["compare", "pinnacle", "value"].includes(fromUrl) ? fromUrl : readStored("pb.view", "compare");
+    return ["compare", "pinnacle", "value", "missing"].includes(fromUrl) ? fromUrl : readStored("pb.view", "compare");
   });
   const [edgeFilter, setEdgeFilter] = useState(() => readStored("pb.edge", "all"));
   const [tolerance, setTolerance] = useState(() => readStored("pb.tolerance", 1));
@@ -1573,6 +1682,7 @@ export default function App() {
     return (board?.matches || []).filter((m) => {
       if (competition !== "all" && compById.get(m.leagueId)?.key !== competition) return false;
       if (!inDayFilter(new Date(m.starts), dayFilter)) return false;
+      if (view === "missing" && m.merkur) return false;
       if (view === "compare" && edgeFilter !== "all") {
         if (edgeFilter === "missing") {
           if (m.merkur) return false;
@@ -1637,6 +1747,17 @@ export default function App() {
 
   // Side menu: competitions grouped by country; in the value view the counts are value outcomes.
   const inValue = view === "value";
+  const inMissing = view === "missing";
+  const missingCounts = useMemo(() => {
+    const counts = new Map();
+    for (const m of board?.matches || []) if (!m.merkur) counts.set(m.leagueId, (counts.get(m.leagueId) || 0) + 1);
+    return counts;
+  }, [board]);
+  const missingTotal = useMemo(() => [...missingCounts.values()].reduce((a, b) => a + b, 0), [missingCounts]);
+  const menuCompetitions = useMemo(
+    () => (inMissing ? competitions.map((c) => ({ ...c, count: missingCounts.get(c.id) || 0 })) : competitions),
+    [competitions, inMissing, missingCounts],
+  );
   const menuItem = (c) => {
     const row = inValue ? valueSummary.get(c.id) : null;
     return {
@@ -1653,16 +1774,16 @@ export default function App() {
   };
   const menuGroups = useMemo(() => {
     const map = new Map();
-    for (const c of competitions) {
+    for (const c of menuCompetitions) {
       if (!map.has(c.country)) map.set(c.country, { title: c.country, items: [] });
       map.get(c.country).items.push(menuItem(c));
     }
     return [...map.values()];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competitions, inValue, valueSummary, valueLeague, competition]);
+  }, [menuCompetitions, inValue, valueSummary, valueLeague, competition]);
   const allItem = inValue
     ? { id: null, key: "all", label: "Sve lige", count: levelValues.length, active: valueLeague === "all" }
-    : { id: null, key: "all", label: "Sve", count: totalCount, active: competition === "all" };
+    : { id: null, key: "all", label: "Sve", count: inMissing ? missingTotal : totalCount, active: competition === "all" };
 
   const cur = basketball ? bbBoard : board;
   const curLoading = basketball ? bbLoading : loading;
@@ -1783,6 +1904,14 @@ export default function App() {
                 >
                   Value <span className="view-count">{fairValueCount}/{valueList.length}</span>
                 </button>
+                <button
+                  type="button"
+                  className={view === "missing" ? "active" : ""}
+                  onClick={() => setView("missing")}
+                  title="Mečevi koje Pinnacle ima, a MerkurXtip nema"
+                >
+                  Nedostaju <span className="view-count">{missingTotal}</span>
+                </button>
               </div>
               {view === "value" && (
                 <>
@@ -1868,7 +1997,14 @@ export default function App() {
               <section className="board-wrap">
                 {error && <p className="state error" role="alert">{error}</p>}
                 {!board && loading && <p className="state">Učitavam ponudu…</p>}
-                {board && view !== "value" && !filtered.length && <p className="state">Nema mečeva za izabrani filter.</p>}
+                {board && view !== "value" && !filtered.length && (
+                  <p className="state">
+                    {view === "missing" ? missingEmpty(missingTotal, competition !== "all", () => setCompetition("all")) : "Nema mečeva za izabrani filter."}
+                  </p>
+                )}
+                {!!filtered.length && view === "missing" && (
+                  <MissingTable matches={filtered} competitions={competitions} sport="football" />
+                )}
                 {!!filtered.length && view === "compare" && (
                   <CompareTable
                     matches={filtered}

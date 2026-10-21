@@ -352,13 +352,27 @@ def best_edge(rows):
     return best
 
 
-def pair_events(events, offer):
+def pair_inputs(events, offer):
     pin = [{"id": str(e["event_id"]), "comp": e["league_id"], "home": e.get("home", ""),
             "away": e.get("away", ""), "ts": event_ts(e)} for e in events]
     mer = [{"id": r["id"], "comp": MX_COMP[r["leagueId"]], "home": r.get("home", ""), "away": r.get("away", ""),
             "ts": r.get("kickOffTime") or 0, "row": r}
-           for r in offer if r.get("leagueId") in MX_COMP and not r.get("live")]
+           for r in offer if r.get("leagueId") in MX_COMP and mx.is_prematch(r)]
+    return pin, mer
+
+
+def pair_events(events, offer):
+    pin, mer = pair_inputs(events, offer)
     return {pid: (m["row"], score) for pid, (m, score) in mx.pair(pin, mer).items()}
+
+
+def unpaired_hints(events, offer):
+    """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
+    pin, mer = pair_inputs(events, offer)
+    paired = mx.pair(pin, mer)
+    ts = {p["id"]: p["ts"] for p in pin}
+    return {pid: {"home": m["home"], "away": m["away"], "score": score, "kickoffDiff": round((m["ts"] - ts[pid]) / 60000)}
+            for pid, (m, score) in mx.closest_unpaired(pin, mer, paired).items()}
 
 
 def shape_match(event, hit):
@@ -478,9 +492,11 @@ class BasketballState:
             now = utc_now()
             events = [e for e in (self.events or {}).values() if is_upcoming(e, now)]
         pairs = pair_events(events, offer)
+        hints = unpaired_hints(events, offer)
         matches, values = [], []
         for event in events:
             match, items = shape_match(event, pairs.get(str(event["event_id"])))
+            match["hint"] = hints.get(str(event["event_id"]))
             # a match without any Pinnacle price is not worth a row
             if match["ml"] or match["spread"] or match["total"]:
                 matches.append(match)
@@ -501,6 +517,6 @@ class BasketballState:
                 "fetchedAt": self.merkur.stamp,
                 "error": self.merkur.error,
                 "paired": sum(1 for m in matches if m["merkur"]),
-                "offered": sum(1 for r in offer if r.get("leagueId") in MX_COMP and not r.get("live")),
+                "offered": sum(1 for r in offer if r.get("leagueId") in MX_COMP and mx.is_prematch(r)),
             },
         }

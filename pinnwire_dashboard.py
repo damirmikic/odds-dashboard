@@ -382,13 +382,27 @@ def goals_line(match, totals_rows):
     return None
 
 
-def pair_events(events, offer):
+def pair_inputs(events, offer):
     pin = [{"id": str(e["event_id"]), "comp": e["league_id"], "home": e.get("home", ""),
             "away": e.get("away", ""), "ts": event_ts(e)} for e in events]
     mer = [{"id": r["id"], "comp": MERKUR_COMP[r["leagueShort"]], "home": r.get("home", ""),
             "away": r.get("away", ""), "ts": merkur_ts(r), "row": r}
-           for r in offer if r.get("leagueShort") in MERKUR_COMP and not r.get("live")]
+           for r in offer if r.get("leagueShort") in MERKUR_COMP and mx.is_prematch(r)]
+    return pin, mer
+
+
+def pair_events(events, offer):
+    pin, mer = pair_inputs(events, offer)
     return {pid: (m["row"], score) for pid, (m, score) in mx.pair(pin, mer).items()}
+
+
+def unpaired_hints(events, offer):
+    """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
+    pin, mer = pair_inputs(events, offer)
+    paired = mx.pair(pin, mer)
+    ts = {p["id"]: p["ts"] for p in pin}
+    return {pid: {"home": m["home"], "away": m["away"], "score": score, "kickoffDiff": round((m["ts"] - ts[pid]) / 60000)}
+            for pid, (m, score) in mx.closest_unpaired(pin, mer, paired).items()}
 
 
 # ------------------------------------------------------------------------- state
@@ -536,12 +550,14 @@ class DashboardState:
             events = [e for e in (self.events or {}).values() if is_upcoming(e, now)]
             matches = [summary(e, self.history.track(e["event_id"])) for e in events]
         pairs = pair_events(events, offer)
+        hints = unpaired_hints(events, offer)
         self.pairs = pairs
         by_id = {str(e["event_id"]): e for e in events}
         values = []
         for m in matches:
             hit = pairs.get(str(m["id"]))
             m["merkur"] = merkur_summary(hit[0], by_id[str(m["id"])], hit[1]) if hit else None
+            m["hint"] = hints.get(str(m["id"]))
             if m["merkur"]:
                 m["merkur"].update(self.track_merkur(m["merkur"]))
             m["goals"] = goals_line(m, m["merkur"].pop("totals") if m["merkur"] else None)
@@ -573,7 +589,7 @@ class DashboardState:
                 "fetchedAt": self.merkur.stamp,
                 "error": self.merkur.error,
                 "paired": sum(1 for m in matches if m["merkur"]),
-                "offered": sum(1 for r in offer if r.get("leagueShort") in MERKUR_COMP and not r.get("live")),
+                "offered": sum(1 for r in offer if r.get("leagueShort") in MERKUR_COMP and mx.is_prematch(r)),
             },
         }
 

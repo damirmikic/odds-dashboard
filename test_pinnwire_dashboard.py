@@ -628,5 +628,26 @@ class BasketballModelTests(unittest.TestCase):
         self.assertFalse(bb.favours("Ukupno poena", -3.0, "under"))
 
 
+class MissingHintTests(unittest.TestCase):
+    def test_closest_unpaired_points_at_unused_row_of_same_competition(self):
+        pin = [{"id": "1", "comp": 5, "home": "Alpha Beta Gamma Delta", "away": "Qqq Rrr", "ts": 0},
+               {"id": "2", "comp": 5, "home": "Nobody", "away": "Else", "ts": 0}]
+        mer = [{"id": 10, "comp": 5, "home": "Alpha Zeta", "away": "Mmm Nnn", "ts": 60000},
+               {"id": 11, "comp": 6, "home": "Nobody", "away": "Else", "ts": 0}]
+        hints = mx.closest_unpaired(pin, mer, mx.pair(pin, mer))
+        self.assertEqual(hints["1"][0]["id"], 10)
+        self.assertNotIn("2", hints)  # the only same-name row belongs to another competition
+
+    def test_women_marker_is_ignored_in_names(self):
+        self.assertGreaterEqual(mx.name_score("AZS UMCS Lublin", "Lublin W"), 1.0)
+
+
+class PrematchRowTests(unittest.TestCase):
+    def test_live_flag_before_kickoff_still_counts_as_prematch(self):
+        self.assertTrue(mx.is_prematch({"live": True, "kickOffTime": 2000}, now_ms=1000))
+        self.assertFalse(mx.is_prematch({"live": True, "kickOffTime": 500}, now_ms=1000))
+        self.assertTrue(mx.is_prematch({"live": False, "kickOffTime": 500}, now_ms=1000))
+
+
 if __name__ == "__main__":
     unittest.main()

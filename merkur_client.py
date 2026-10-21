@@ -99,6 +99,13 @@ class MerkurAPI:
 
 # ------------------------------------------------------------------------- decoding
 
+def is_prematch(row, now_ms=None):
+    """Offer rows still before kickoff. MerkurXtip flags some matches `live` hours early (live betting opens
+    before the start) while their prices are still prematch ones, so only started matches are excluded."""
+    now_ms = time.time() * 1000 if now_ms is None else now_ms
+    return not row.get("live") or (row.get("kickOffTime") or 0) > now_ms
+
+
 def _odds(raw, code):
     try:
         value = float(raw.get(code))
@@ -198,7 +205,7 @@ def markets(match):
 
 # ------------------------------------------------------------------------- pairing
 
-_STOP = {"fc", "ac", "cf", "sc", "cp", "sv", "fk", "afc", "sk", "nk", "bk", "club", "the", "cd", "ud", "sd", "as"}
+_STOP = {"w", "fc", "ac", "cf", "sc", "cp", "sv", "fk", "afc", "sk", "nk", "bk", "club", "the", "cd", "ud", "sd", "as"}
 # normalised name -> canonical form, for names the token rules cannot pair
 ALIASES = {
     "agf": "aarhus",
@@ -258,6 +265,30 @@ def pair(pinnacle, merkur, window_minutes=180, min_score=0.5):
             continue
         out[pid] = (m, round(score, 2))
         used.add(mid)
+    return out
+
+
+def closest_unpaired(pinnacle, merkur, pairs, window_minutes=180):
+    """For each unpaired Pinnacle event the best still-unused MerkurXtip row of the same competition and kickoff window.
+
+    Rows paired below `min_score` still show up here, which points at team names that need an alias.
+    pairs: the result of pair(). Returns {pinnacle id: (merkur row, score)}.
+    """
+    used = {m["id"] for m, _ in pairs.values()}
+    out = {}
+    for p in pinnacle:
+        if p["id"] in pairs:
+            continue
+        best = None
+        for m in merkur:
+            diff = abs(m["ts"] - p["ts"]) / 60000
+            if m["comp"] != p["comp"] or m["id"] in used or diff > window_minutes:
+                continue
+            score = (name_score(p["home"], m["home"]) + name_score(p["away"], m["away"])) / 2
+            if score > 0 and (best is None or (score, -diff) > best[0]):
+                best = ((score, -diff), m)
+        if best:
+            out[p["id"]] = (best[1], round(best[0][0], 2))
     return out
 
 
