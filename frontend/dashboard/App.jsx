@@ -136,6 +136,23 @@ function DerivedTag() {
   return <i className="derived-tag" title={DERIVED_HINT}>izv.</i>;
 }
 
+function ModeledTag() {
+  return (
+    <i className="derived-tag" title="Pinnacle nema ovu liniju. Fer kvota je procenjena modelom iz Pinnacle lestvice linija.">
+      model
+    </i>
+  );
+}
+
+function StaleTag({ gap }) {
+  const text = `${gap > 0 ? "+" : "−"}${Math.abs(gap)}`;
+  return (
+    <i className="stale-tag" title={`Glavna linija MerkurXtip se razlikuje od Pinnacle za ${text}: ponuda kasni.`}>
+      kasni {text}
+    </i>
+  );
+}
+
 function fmtPct(value, digits = 1) {
   return value == null ? "—" : `${(value * 100).toFixed(digits)}%`;
 }
@@ -581,6 +598,8 @@ function ValueTable({ values, matchesById, competitions, selectedId, onSelect, o
                   {v.group}
                   {v.line != null && <b> {marketLine(v.group, v.line)}</b>}
                   {v.derived && <DerivedTag />}
+                  {v.modeled && <ModeledTag />}
+                  {v.stale != null && <StaleTag gap={v.stale} />}
                   {v.period === "ht" && <small>1. poluvreme</small>}
                 </td>
                 <td className="value-side">{v.label}</td>
@@ -950,7 +969,7 @@ function KeyPanel({ onSaved }) {
 
 const SPORTS = [
   { key: "football", label: "Fudbal", live: true },
-  { key: "basketball", label: "Košarka" },
+  { key: "basketball", label: "Košarka", live: true },
   { key: "tennis", label: "Tenis" },
   { key: "hockey", label: "Hokej" },
   { key: "volleyball", label: "Odbojka" },
@@ -999,22 +1018,23 @@ function SportIcon({ sport }) {
   );
 }
 
-function SideMenu({ groups, all, onPick, label }) {
+function SideMenu({ sport, onSport, groups, all, onPick, label }) {
   return (
     <aside className="sidebar">
       <div className="sport-switch" role="tablist" aria-label="Sport">
-        {SPORTS.map((sport) => (
+        {SPORTS.map((item) => (
           <button
             type="button"
-            key={sport.key}
+            key={item.key}
             role="tab"
-            aria-selected={!!sport.live}
-            className={`sport-btn${sport.live ? " active" : ""}`}
-            disabled={!sport.live}
-            title={sport.live ? sport.label : `${sport.label} — uskoro`}
+            aria-selected={sport === item.key}
+            className={`sport-btn${sport === item.key ? " active" : ""}`}
+            disabled={!item.live}
+            onClick={() => onSport(item.key)}
+            title={item.live ? item.label : `${item.label} — uskoro`}
           >
-            <SportIcon sport={sport.key} />
-            <span>{sport.label}</span>
+            <SportIcon sport={item.key} />
+            <span>{item.label}</span>
           </button>
         ))}
       </div>
@@ -1046,8 +1066,412 @@ function SideMenu({ groups, all, onPick, label }) {
   );
 }
 
+// Competitions grouped by country for the side menu; with `valueSummary` the counts are value outcomes.
+function buildMenuGroups({ competitions, valueSummary, activeKey, activeLeague }) {
+  const map = new Map();
+  for (const c of competitions) {
+    if (!map.has(c.country)) map.set(c.country, { title: c.country, items: [] });
+    const row = valueSummary ? valueSummary.get(c.id) : null;
+    map.get(c.country).items.push({
+      id: c.id,
+      key: c.key,
+      comp: c,
+      count: valueSummary ? (row ? row.count : 0) : c.count,
+      extra: row ? fmtEv(row.best) : null,
+      extraClass: row ? evClass(row.best) : "",
+      disabled: valueSummary ? !row : !c.count,
+      active: valueSummary ? activeLeague === String(c.id) : activeKey === c.key,
+      title: row ? `${row.count} ishoda na ${row.matches.size} mečeva, najveća razlika vs fer ${fmtEv(row.best)}` : undefined,
+    });
+  }
+  return [...map.values()];
+}
+
+const BB_ML = [["home", "1"], ["away", "2"]];
+const BB_OU = [["over", "V"], ["under", "M"]];
+const BB_VALUE_GROUPS = [
+  ["all", "Sva tržišta"],
+  ["Pobednik", "Pobednik"],
+  ["Hendikep", "Hendikep"],
+  ["Ukupno poena", "Ukupno poena"],
+  ["team", "Poeni timova"],
+];
+
+// One outcome per line market of a match (the largest edge); markets without a line keep every outcome.
+function bestPerMarket(values) {
+  const best = new Map();
+  const out = [];
+  for (const v of values) {
+    if (v.line == null) {
+      out.push(v);
+      continue;
+    }
+    const key = `${v.matchId}|${v.group}`;
+    if (!best.has(key) || v.ev > best.get(key).ev) best.set(key, v);
+  }
+  return [...out, ...best.values()];
+}
+
+function bbValuePasses(value, level, group) {
+  if (level === "fair" && value.ev < 0) return false;
+  if (level !== "all" && level !== "fair" && value.ev < Number(level)) return false;
+  if (group === "team") return value.group.startsWith("Poeni ");
+  return group === "all" || value.group === group;
+}
+
+// Fair / Pinnacle / MerkurXtip cells of one two-way line market (handicap or total points).
+function BbLineCells({ cell, sides, signed }) {
+  if (!cell) return <td className="mc-line mc-group-strong" colSpan={7}><span className="muted">—</span></td>;
+  return (
+    <>
+      <td className="mc-line mc-group-strong" title={cell.merkur ? "Linija koju imaju obe kuće, najbliža Pinnacle glavnoj" : "Pinnacle glavna linija"}>
+        {fmtLine(cell.line, signed)}
+      </td>
+      {sides.map(([side], i) => (
+        <td key={`f${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>{fmt2(cell.fair[side])}</td>
+      ))}
+      {sides.map(([side], i) => (
+        <td key={`p${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>
+          <span className="mc-cell">{fmt2(cell.pinnacle[side])}</span>
+        </td>
+      ))}
+      {sides.map(([side], i) => {
+        const odds = cell.merkur?.[side];
+        return (
+          <td key={`m${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>
+            {odds ? (
+              <span
+                className={`mc-cell ${merkurClass(odds, cell.pinnacle[side], cell.ev?.[side])}`}
+                title={merkurTitle(odds, cell.pinnacle[side], cell.fair[side], cell.ev?.[side])}
+              >
+                {fmt2(odds)}
+              </span>
+            ) : <span className="muted" title="MerkurXtip nema ovu liniju">—</span>}
+          </td>
+        );
+      })}
+    </>
+  );
+}
+
+function BbDetail({ match }) {
+  const rows = match.rows || [];
+  if (!match.merkur) return <p className="muted bb-detail">Meč nije u ponudi MerkurXtip (ili nije uparen).</p>;
+  return (
+    <div className="bb-detail">
+      <p className="mx-names">
+        {match.merkur.home} – {match.merkur.away}
+        <KickoffWarning diff={match.merkur.kickoffDiff} />
+      </p>
+      <table className="lines mx-table">
+        <thead>
+          <tr><th>Tržište</th><th>Linija</th><th>Ishod</th><th>Fer</th><th>PIN</th><th>MX</th><th>Razlika</th></tr>
+        </thead>
+        <tbody>
+          {rows.flatMap((r) => r.outcomes.map((o, i) => (
+            <tr key={`${r.group}-${r.line}-${o.key}`} className={i === 0 ? "mx-first" : ""}>
+              <td>{i === 0 ? r.group : ""}</td>
+              <td>{i === 0 && r.line != null ? fmtLine(r.line, r.group === "Hendikep") : ""}{i === 0 && r.modeled && <ModeledTag />}</td>
+              <td>{r.group === "Hendikep" ? (o.key === "home" ? match.home : match.away) : o.label}</td>
+              <td>{fmtOdds(o.fair)}</td>
+              <td>{fmtOdds(o.pinnacle)}</td>
+              <td><span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}>{fmt2(o.merkur)}</span></td>
+              <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
+            </tr>
+          )))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BbRow({ match, competition, expanded, onToggle }) {
+  const x = match.merkur;
+  return (
+    <>
+      <tr className={`mc-row${expanded ? " selected" : ""}`} onClick={onToggle}>
+        <td className="mc-match">
+          <div className="mc-when">
+            {fmtKickoffShort(new Date(match.starts))}
+            {x && <KickoffWarning diff={x.kickoffDiff} />}
+            {x?.stale?.map((st) => (
+              <span key={st.group} title={`${st.group}: glavna linija MerkurXtip se razlikuje od Pinnacle`}>
+                <StaleTag gap={st.gap} />
+              </span>
+            ))}
+          </div>
+          <div className="mc-teams"><b>{match.home}</b> <span>vs</span> <b>{match.away}</b></div>
+          <div className="mc-league">{competition && <CompBadge competition={competition} />} {match.leagueName}</div>
+        </td>
+        {BB_ML.map(([side], i) => (
+          <td key={`f${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>{fmt2(match.ml?.[side]?.fair)}</td>
+        ))}
+        {BB_ML.map(([side], i) => (
+          <td key={`p${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>
+            <span className="mc-cell">{fmt2(match.ml?.[side]?.odds)}</span>
+          </td>
+        ))}
+        {BB_ML.map(([side], i) => {
+          const odds = x?.ml?.[side]?.odds;
+          const ev = x?.ml?.[side]?.ev;
+          return (
+            <td key={`m${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>
+              {odds ? (
+                <span
+                  className={`mc-cell ${merkurClass(odds, match.ml?.[side]?.odds, ev)}`}
+                  title={merkurTitle(odds, match.ml?.[side]?.odds, match.ml?.[side]?.fair, ev)}
+                >
+                  {fmt2(odds)}
+                </span>
+              ) : <span className="muted" title={x ? "MerkurXtip nema pobednika" : "Nije u ponudi MerkurXtip"}>—</span>}
+            </td>
+          );
+        })}
+        <BbLineCells cell={match.spread} sides={BB_ML} signed />
+        <BbLineCells cell={match.total} sides={BB_OU} />
+      </tr>
+      {expanded && (
+        <tr className="bb-detail-row"><td colSpan={21}><BbDetail match={match} /></td></tr>
+      )}
+    </>
+  );
+}
+
+function BbCompareTable({ matches, competitions, expandedId, onToggle }) {
+  const byId = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
+  return (
+    <div className="board-scroll mc-wrap">
+      <table className="mc-board">
+        <thead>
+          <tr>
+            <th rowSpan={2} className="mc-match">Meč</th>
+            <th colSpan={6} className="mc-group-strong">Pobednik <small>(sa produžecima)</small></th>
+            <th colSpan={7} className="mc-group-strong">Hendikep</th>
+            <th colSpan={7} className="mc-group-strong">Ukupno poena</th>
+          </tr>
+          <tr className="mc-sub">
+            {["No-vig", "Pinnacle", "MerkurXtip"].map((title) => (
+              <th key={`ml${title}`} colSpan={2} className="mc-group">{title}</th>
+            ))}
+            <th className="mc-line mc-group-strong">linija</th>
+            {["No-vig", "Pinnacle", "MerkurXtip"].map((title) => (
+              <th key={`h${title}`} colSpan={2} className="mc-group">{title}</th>
+            ))}
+            <th className="mc-line mc-group-strong">linija</th>
+            {["No-vig", "Pinnacle", "MerkurXtip"].map((title) => (
+              <th key={`t${title}`} colSpan={2} className="mc-group">{title}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {matches.map((match) => (
+            <BbRow
+              key={match.id}
+              match={match}
+              competition={byId.get(match.leagueId)}
+              expanded={String(match.id) === expandedId}
+              onToggle={() => onToggle(String(match.id))}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport }) {
+  const [competition, setCompetition] = useState(() => readStored("pb.bb.competition", "all"));
+  const [view, setView] = useState(() => (
+    new URLSearchParams(window.location.search).get("view") === "value" ? "value" : readStored("pb.bb.view", "compare")
+  ));
+  const [valueLevel, setValueLevel] = useState(() => readStored("pb.bb.valueLevel", "fair"));
+  const [valueGroup, setValueGroup] = useState(() => readStored("pb.bb.valueGroup", "all"));
+  const [showModeled, setShowModeled] = useState(() => readStored("pb.bb.modeled", false));
+  const [onlyStale, setOnlyStale] = useState(false);
+  const [valueLeague, setValueLeague] = useState("all");
+  const [expandedId, setExpandedId] = useState("");
+  useEffect(() => writeStored("pb.bb.competition", competition), [competition]);
+  useEffect(() => writeStored("pb.bb.view", view), [view]);
+  useEffect(() => writeStored("pb.bb.valueLevel", valueLevel), [valueLevel]);
+  useEffect(() => writeStored("pb.bb.valueGroup", valueGroup), [valueGroup]);
+  useEffect(() => writeStored("pb.bb.modeled", showModeled), [showModeled]);
+
+  const competitions = board?.competitions || [];
+  const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
+  const matchesById = useMemo(() => new Map((board?.matches || []).map((m) => [m.id, m])), [board]);
+  const q = query.trim().toLocaleLowerCase();
+  const textOk = (m) => !q || `${m.home} ${m.away} ${m.merkur?.home || ""} ${m.merkur?.away || ""}`.toLocaleLowerCase().includes(q);
+
+  const filtered = useMemo(
+    () => (board?.matches || []).filter((m) => (
+      (competition === "all" || compById.get(m.leagueId)?.key === competition)
+      && inDayFilter(new Date(m.starts), dayFilter) && textOk(m)
+    )),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [board, competition, dayFilter, q, compById],
+  );
+  const valueList = useMemo(
+    () => (board?.values || []).filter((v) => {
+      const m = matchesById.get(v.matchId);
+      return m && inDayFilter(new Date(m.starts), dayFilter) && textOk(m)
+        && (showModeled || !v.modeled) && (!onlyStale || v.stale != null);
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [board, matchesById, dayFilter, q, showModeled, onlyStale],
+  );
+  const levelValues = useMemo(
+    () => bestPerMarket(valueList.filter((v) => bbValuePasses(v, valueLevel, valueGroup)))
+      .sort((a, b) => b.ev - a.ev),
+    [valueList, valueLevel, valueGroup],
+  );
+  const valueSummary = useMemo(() => {
+    const byLeague = new Map();
+    for (const v of levelValues) {
+      const leagueId = matchesById.get(v.matchId).leagueId;
+      const row = byLeague.get(leagueId) || { count: 0, best: -Infinity, matches: new Set() };
+      row.count += 1;
+      row.best = Math.max(row.best, v.ev);
+      row.matches.add(v.matchId);
+      byLeague.set(leagueId, row);
+    }
+    return byLeague;
+  }, [levelValues, matchesById]);
+  const shownValues = useMemo(
+    () => (valueLeague === "all" ? levelValues
+      : levelValues.filter((v) => String(matchesById.get(v.matchId).leagueId) === valueLeague)),
+    [levelValues, valueLeague, matchesById],
+  );
+  const fairValueCount = useMemo(() => valueList.filter((v) => v.ev >= 0).length, [valueList]);
+
+  const inValue = view === "value";
+  const menuGroups = useMemo(
+    () => buildMenuGroups({
+      competitions, valueSummary: inValue ? valueSummary : null, activeKey: competition, activeLeague: valueLeague,
+    }),
+    [competitions, inValue, valueSummary, competition, valueLeague],
+  );
+  const allItem = inValue
+    ? { id: null, key: "all", label: "Sve lige", count: levelValues.length, active: valueLeague === "all" }
+    : { id: null, key: "all", label: "Sve", count: board?.matches.length || 0, active: competition === "all" };
+
+  const groups = useMemo(() => {
+    const map = new Map();
+    for (const m of filtered) {
+      const date = new Date(m.starts);
+      const key = dayKey(date);
+      if (!map.has(key)) map.set(key, { key, title: dayLabel(date), matches: [] });
+      map.get(key).matches.push(m);
+    }
+    return [...map.values()];
+  }, [filtered]);
+  const toggle = (id) => setExpandedId((cur) => (cur === id ? "" : id));
+
+  return (
+    <div className="shell">
+      <SideMenu
+        sport={sport}
+        onSport={onSport}
+        groups={menuGroups}
+        all={allItem}
+        onPick={(item) => (inValue
+          ? setValueLeague((cur) => (item.id == null || cur === String(item.id) ? "all" : String(item.id)))
+          : setCompetition(item.key))}
+        label={inValue ? "Value po takmičenjima" : "Takmičenja"}
+      />
+      <div className="content">
+        <div className="filters">
+          <div className="segmented view-switch">
+            <button type="button" className={view === "compare" ? "active" : ""} onClick={() => setView("compare")}>
+              MerkurXtip vs Pinnacle
+            </button>
+            <button
+              type="button"
+              className={view === "value" ? "active" : ""}
+              onClick={() => setView("value")}
+              title={`${valueList.length} ishoda gde je MX > Pinnacle, od toga ${fairValueCount} gde je MX ≥ fer`}
+            >
+              Value <span className="view-count">{fairValueCount}/{valueList.length}</span>
+            </button>
+          </div>
+          {inValue && (
+            <>
+              <div className="segmented">
+                {VALUE_LEVELS.map(([key, label]) => (
+                  <button key={key} type="button" className={valueLevel === key ? "active" : ""} onClick={() => setValueLevel(key)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <label className="auto">
+                Tržište
+                <select value={valueGroup} onChange={(e) => setValueGroup(e.target.value)}>
+                  {BB_VALUE_GROUPS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </label>
+              <label className="auto" title="Linije koje Pinnacle nema; fer kvota je procena modelom">
+                <input type="checkbox" checked={showModeled} onChange={(e) => setShowModeled(e.target.checked)} />
+                modelirano
+              </label>
+              <label className="auto" title="Samo ishodi na strani koju favorizuje razlika glavnih linija (MerkurXtip kasni)">
+                <input type="checkbox" checked={onlyStale} onChange={(e) => setOnlyStale(e.target.checked)} />
+                samo kasni
+              </label>
+            </>
+          )}
+          <div className="segmented">
+            {DAY_FILTERS.map(([key, label]) => (
+              <button key={key} type="button" className={dayFilter === key ? "active" : ""} onClick={() => setDayFilter(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <input className="search" type="search" placeholder="Pretraga timova…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <span className="legend mc-legend">
+            <span className="mc-cell mx-fair">MX ≥ fer</span>
+            <span className="mc-cell mx-above">MX &gt; Pinnacle</span>
+          </span>
+        </div>
+        <main className="workspace">
+          <section className="board-wrap">
+            {error && <p className="state error" role="alert">{error}</p>}
+            {!board && loading && <p className="state">Učitavam ponudu…</p>}
+            {board && !inValue && !filtered.length && <p className="state">Nema mečeva za izabrani filter.</p>}
+            {!inValue && groups.map((group) => (
+              <div key={group.key} className="bb-day">
+                <h3 className="bb-day-title">{group.title} <span>{group.matches.length}</span></h3>
+                <BbCompareTable matches={group.matches} competitions={competitions} expandedId={expandedId} onToggle={toggle} />
+              </div>
+            ))}
+            {board && inValue && !shownValues.length && <p className="state">Nema ishoda za izabrane filtere.</p>}
+            {board && inValue && !!shownValues.length && (
+              <ValueTable
+                values={shownValues}
+                matchesById={matchesById}
+                competitions={competitions}
+                selectedId=""
+                onOdds={() => {}}
+                onSelect={() => {}}
+              />
+            )}
+          </section>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// ?sport=basketball deep-links to a sport; otherwise the last one used
+function initialSport() {
+  const fromUrl = new URLSearchParams(window.location.search).get("sport");
+  return (fromUrl || readStored("pb.sport", "football")) === "basketball" ? "basketball" : "football";
+}
+
 export default function App() {
   const [apiKeySet, setApiKeySet] = useState(null);
+  const [sport, setSport] = useState(initialSport);
+  const [bbBoard, setBbBoard] = useState(null);
+  const [bbLoading, setBbLoading] = useState(false);
+  const [bbError, setBbError] = useState("");
   const [board, setBoard] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1091,21 +1515,45 @@ export default function App() {
     }
   }, []);
 
+  const loadBasketball = useCallback(async (mode) => {
+    setBbLoading(true);
+    setBbError("");
+    try {
+      const suffix = mode === "full" ? "?full=1" : mode === "refresh" ? "?refresh=1" : "";
+      const data = await requestJson(`/api/basketball/board${suffix}`);
+      setBbBoard(data);
+      setCallsToday(data.callsToday);
+    } catch (err) {
+      setBbError(err.message);
+      if (err.message.includes("ključ")) setApiKeySet(false);
+    } finally {
+      setBbLoading(false);
+    }
+  }, []);
+
+  const basketball = sport === "basketball";
+  const reload = basketball ? loadBasketball : loadBoard;
+  useEffect(() => writeStored("pb.sport", sport), [sport]);
+  // the basketball board is fetched the first time the sport is opened
+  useEffect(() => {
+    if (basketball && apiKeySet && !bbBoard && !bbLoading && !bbError) loadBasketball();
+  }, [basketball, apiKeySet, bbBoard, bbLoading, bbError, loadBasketball]);
+
   useEffect(() => {
     requestJson("/api/status")
       .then((status) => {
         setApiKeySet(status.apiKeySet);
         setCallsToday(status.callsToday);
-        if (status.apiKeySet) loadBoard();
+        if (status.apiKeySet && initialSport() !== "basketball") loadBoard();
       })
       .catch((err) => setError(err.message));
   }, [loadBoard]);
 
   useEffect(() => {
     if (!autoMinutes || !apiKeySet) return undefined;
-    const timer = setInterval(() => loadBoard("refresh"), autoMinutes * 60000);
+    const timer = setInterval(() => reload("refresh"), autoMinutes * 60000);
     return () => clearInterval(timer);
-  }, [autoMinutes, apiKeySet, loadBoard]);
+  }, [autoMinutes, apiKeySet, reload]);
 
   useEffect(() => writeStored("pb.competition", competition), [competition]);
   useEffect(() => writeStored("pb.day", dayFilter), [dayFilter]);
@@ -1215,6 +1663,9 @@ export default function App() {
     ? { id: null, key: "all", label: "Sve lige", count: levelValues.length, active: valueLeague === "all" }
     : { id: null, key: "all", label: "Sve", count: totalCount, active: competition === "all" };
 
+  const cur = basketball ? bbBoard : board;
+  const curLoading = basketball ? bbLoading : loading;
+
   return (
     <div className="app">
       <header className="topbar">
@@ -1222,26 +1673,26 @@ export default function App() {
           <span className="logo" aria-hidden="true">P</span>
           <div>
             <strong>Pinnacle Board</strong>
-            <small>Fudbal · Pinnacle vs MerkurXtip</small>
+            <small>{basketball ? "Košarka" : "Fudbal"} · Pinnacle vs MerkurXtip</small>
           </div>
         </div>
 
         <div className="status">
-          {board?.fetchedAt && (
-            <span title={board.mode === "delta" ? "Delta osvežavanje: preuzete samo promene" : "Pun snapshot"}>
-              <i className={`dot${loading ? " busy" : ""}`} />
-              {clockFmt.format(new Date(board.fetchedAt))}
-              <em>{board.mode === "delta" ? `Δ ${board.changed} promena` : "pun snapshot"}</em>
+          {cur?.fetchedAt && (
+            <span title={cur.mode === "delta" ? "Delta osvežavanje: preuzete samo promene" : "Pun snapshot"}>
+              <i className={`dot${curLoading ? " busy" : ""}`} />
+              {clockFmt.format(new Date(cur.fetchedAt))}
+              <em>{cur.mode === "delta" ? `Δ ${cur.changed} promena` : "pun snapshot"}</em>
             </span>
           )}
-          {board?.merkur && (
+          {cur?.merkur && (
             <span
-              className={board.merkur.error ? "status-error" : ""}
-              title={board.merkur.error || "MerkurXtip ponuda: upareni mečevi / mečevi ovih takmičenja u ponudi"}
+              className={cur.merkur.error ? "status-error" : ""}
+              title={cur.merkur.error || "MerkurXtip ponuda: upareni mečevi / mečevi ovih takmičenja u ponudi"}
             >
-              MX {board.merkur.fetchedAt ? clockFmt.format(new Date(board.merkur.fetchedAt)) : "—"}
-              <em>upareno {board.merkur.paired}/{board.merkur.offered}</em>
-              {board.merkur.error && <em>· greška</em>}
+              MX {cur.merkur.fetchedAt ? clockFmt.format(new Date(cur.merkur.fetchedAt)) : "—"}
+              <em>upareno {cur.merkur.paired}/{cur.merkur.offered}</em>
+              {cur.merkur.error && <em>· greška</em>}
             </span>
           )}
           <span title="Broj PinnWire zahteva danas (trial: 100/dan, 20/min)">API danas: <b>{callsToday}</b></span>
@@ -1259,14 +1710,14 @@ export default function App() {
               {AUTO_OPTIONS.map((m) => <option key={m} value={m}>{m ? `${m} min` : "isklj."}</option>)}
             </select>
           </label>
-          <button type="button" className="button primary" onClick={() => loadBoard("refresh")} disabled={!apiKeySet || loading}>
+          <button type="button" className="button primary" onClick={() => reload("refresh")} disabled={!apiKeySet || curLoading}>
             ↻ Osveži
           </button>
           <button
             type="button"
             className="button ghost"
-            onClick={() => loadBoard("full")}
-            disabled={!apiKeySet || loading}
+            onClick={() => reload("full")}
+            disabled={!apiKeySet || curLoading}
             title="Preuzmi kompletan snapshot umesto samo promena"
           >
             Pun reload
@@ -1274,23 +1725,39 @@ export default function App() {
         </div>
       </header>
 
-      {(!pwa.online || board?.__cachedAt) && (
+      {(!pwa.online || cur?.__cachedAt) && (
         <div className="offline-banner" role="status">
           {!pwa.online ? "Offline." : "Server nije dostupan."}{" "}
-          {board?.__cachedAt
+          {cur?.__cachedAt
             ? `Prikazane su poslednje sačuvane kvote${
-                Number.isNaN(new Date(board.__cachedAt).getTime()) ? "" : ` (${clockFmt.format(new Date(board.__cachedAt))})`
+                Number.isNaN(new Date(cur.__cachedAt).getTime()) ? "" : ` (${clockFmt.format(new Date(cur.__cachedAt))})`
               } — nisu žive.`
             : "Kvote se ne mogu osvežiti dok veza ne proradi."}
         </div>
       )}
 
-      {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); loadBoard("full"); }} />}
+      {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); setBbBoard(null); setBbError(""); reload("full"); }} />}
 
-      {apiKeySet && (
+      {apiKeySet && basketball && (
+        <BasketballPane
+          board={bbBoard}
+          error={bbError}
+          loading={bbLoading}
+          dayFilter={dayFilter}
+          setDayFilter={setDayFilter}
+          query={query}
+          setQuery={setQuery}
+          sport={sport}
+          onSport={setSport}
+        />
+      )}
+
+      {apiKeySet && !basketball && (
         <>
           <div className="shell">
             <SideMenu
+              sport={sport}
+              onSport={setSport}
               groups={menuGroups}
               all={allItem}
               onPick={(item) => (view === "value"

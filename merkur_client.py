@@ -66,7 +66,8 @@ HT_EURO_HANDICAPS = {"hdp": ("224", "226")}
 
 
 class MerkurAPI:
-    def __init__(self, timeout=30):
+    def __init__(self, timeout=30, offer_path=OFFER_PATH):
+        self.offer_path = offer_path
         self.s = requests.Session()
         self.s.headers.update(HEADERS)
         self.timeout = timeout
@@ -86,7 +87,7 @@ class MerkurAPI:
             raise RuntimeError("MerkurXtip je vratio neispravan JSON.") from exc
 
     def offer(self):
-        data = self._get(OFFER_PATH, annex=0)
+        data = self._get(self.offer_path, annex=0)
         return data.get("esMatches") or [] if isinstance(data, dict) else []
 
     def match(self, match_id):

@@ -1,5 +1,6 @@
 import unittest
 
+import basketball as bb
 import merkur_client as mx
 import pinnwire_client as pw
 import pinnwire_dashboard as dash
@@ -496,6 +497,135 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(merged["periods"]["num_0"]["totals"], {})
         self.assertIn("money_line", merged["periods"]["num_0"])
         self.assertEqual(merged["home"], "Alaves")
+
+
+class BasketballTests(unittest.TestCase):
+    ROW = {
+        "id": 1, "home": "Orlando", "away": "Atlanta", "leagueId": 2314399, "kickOffTime": 1_900_000_000_000,
+        "odds": {"50291": 1.67, "50293": 2.2, "50430": 2.08, "50431": 1.77, "50445": 1.9, "50444": 1.9,
+                 "50432": 2.48, "50433": 1.52},
+        "params": {"handicapOvertime": "-4.5", "handicapOvertime2": "-7.5", "overUnderOvertime": "235.5"},
+    }
+
+    @staticmethod
+    def event():
+        return {"event_id": 7, "league_id": 487, "league_name": "NBA", "home": "Orlando Magic",
+                "away": "Atlanta Hawks", "starts": "2030-03-17T17:46:40Z", "units": "Regular", "parent_id": None,
+                "periods": {"num_0": {
+                    "money_line": {"home": 1.7, "away": 2.2},
+                    "spreads": {"-4.5": {"hdp": -4.5, "home": 2.0, "away": 1.85},
+                                "-7.5": {"hdp": -7.5, "home": 2.4, "away": 1.58}},
+                    "totals": {"235.5": {"points": 235.5, "over": 1.85, "under": 1.95}},
+                }}}
+
+    def test_merkur_markets_use_line_params(self):
+        decoded = bb.merkur_markets(self.ROW)
+        self.assertEqual(decoded["ml"], {"home": 1.67, "away": 2.2})
+        self.assertEqual(decoded["spreads"], {-4.5: {"home": 2.08, "away": 1.77}, -7.5: {"home": 2.48, "away": 1.52}})
+        self.assertEqual(decoded["totals"], {235.5: {"over": 1.9, "under": 1.9}})
+
+    def test_match_compares_shared_lines_only(self):
+        match, values = bb.shape_match(self.event(), (self.ROW, 1.0))
+        groups = {(r["group"], r["line"]) for r in match["rows"]}
+        self.assertEqual(groups, {("Pobednik", None), ("Hendikep", -4.5), ("Hendikep", -7.5),
+                                  ("Ukupno poena", 235.5)})
+        self.assertEqual(match["total"]["line"], 235.5)
+        self.assertEqual(match["spread"]["line"], -4.5)  # closest to even Pinnacle prices
+        self.assertTrue(all(v["merkur"] > v["pinnacle"] for v in values))
+
+    def test_match_without_merkur_keeps_pinnacle_main_lines(self):
+        match, values = bb.shape_match(self.event(), None)
+        self.assertIsNone(match["merkur"])
+        self.assertIsNone(match["total"]["merkur"])
+        self.assertEqual(values, [])
+
+    def test_pairs_by_merkur_league_id(self):
+        pairs = bb.pair_events([self.event()], [self.ROW])
+        self.assertEqual(pairs["7"][0]["id"], 1)
+
+
+class DevigTests(unittest.TestCase):
+    def test_two_way_uses_shin_and_sums_to_one(self):
+        probs = pw.devig({"home": 1.15, "away": 5.78})
+        self.assertAlmostEqual(sum(probs.values()), 1.0, places=9)
+        self.assertAlmostEqual(1 / probs["away"], 6.59, places=2)
+
+    def test_lopsided_two_way_does_not_explode(self):
+        probs = pw.devig({"home": 1.01, "away": 8.12})
+        self.assertLess(1 / probs["away"], 20)
+
+    def test_three_way_keeps_power_method(self):
+        probs = pw.devig({"home": 2.0, "draw": 3.4, "away": 4.0})
+        self.assertAlmostEqual(sum(probs.values()), 1.0, places=9)
+        expected = pw._power([1 / 2.0, 1 / 3.4, 1 / 4.0])
+        for side, p in zip(("home", "draw", "away"), expected):
+            self.assertAlmostEqual(probs[side], p, places=9)
+
+    def test_even_market_is_symmetric(self):
+        probs = pw.devig({"over": 1.9, "under": 1.9})
+        self.assertAlmostEqual(probs["over"], 0.5, places=9)
+
+
+class ValueDedupeTests(unittest.TestCase):
+    @staticmethod
+    def item(group, line, key, ev, period="ft", match=1):
+        return {"matchId": match, "period": period, "group": group, "line": line, "key": key, "ev": ev}
+
+    def test_alternative_lines_collapse_to_best(self):
+        items = [self.item("Ukupno golova", 2.5, "over", 0.01), self.item("Ukupno golova", 3.5, "over", 0.03),
+                 self.item("Hendikep", -0.5, "home", 0.02), self.item("Hendikep", 0.5, "home", 0.01),
+                 self.item("1X2", None, "home", 0.01), self.item("1X2", None, "away", 0.02)]
+        out = pw.best_per_line_market(items)
+        self.assertEqual({(i["group"], i["line"]) for i in out},
+                         {("Ukupno golova", 3.5), ("Hendikep", -0.5), ("1X2", None)})
+        self.assertEqual(len([i for i in out if i["group"] == "1X2"]), 2)
+
+    def test_periods_and_matches_stay_separate(self):
+        items = [self.item("Hendikep", -0.5, "home", 0.02), self.item("Hendikep", -0.5, "home", 0.01, period="ht"),
+                 self.item("Hendikep", -0.5, "home", 0.03, match=2)]
+        self.assertEqual(len(pw.best_per_line_market(items)), 3)
+
+
+class BasketballModelTests(unittest.TestCase):
+    # Pinnacle totals ladder built from a normal with mean 166.5 and sigma 14, quoted without margin.
+    @staticmethod
+    def ladder(mean=166.5, sigma=14.0, lines=(164.5, 165.5, 166.5, 167.5, 168.5)):
+        from statistics import NormalDist
+        out = {}
+        for line in lines:
+            over = 1 - NormalDist(mean, sigma).cdf(line)
+            out[line] = {"over": round(1 / (over * 1.025), 3), "under": round(1 / ((1 - over) * 1.025), 3)}
+        return out
+
+    def test_model_extends_the_ladder(self):
+        ladder = self.ladder()
+        p, margin = bb.model_probability(ladder, "totals", 161.5)
+        from statistics import NormalDist
+        self.assertAlmostEqual(p, 1 - NormalDist(166.5, 14).cdf(161.5), delta=0.01)
+        self.assertGreater(margin, 0)
+
+    def test_model_refuses_far_lines(self):
+        self.assertIsNone(bb.model_probability(self.ladder(), "totals", 150.5))
+
+    def test_modeled_row_flags_value_on_a_lagging_total(self):
+        ladder = self.ladder()
+        pin = {"ml": None, "spreads": {}, "totals": ladder, "home": {}, "away": {}}
+        merkur = {"ml": None, "spreads": {}, "totals": {161.5: {"over": 1.9, "under": 1.9}}, "home": {}, "away": {},
+                  "main": {"spreads": None, "totals": 161.5}}
+        rows = bb.compare(pin, merkur)
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["modeled"])
+        over = next(o for o in rows[0]["outcomes"] if o["key"] == "over")
+        self.assertGreater(over["ev"], 0.1)
+        gaps = bb.stale_gaps(pin, merkur)
+        self.assertEqual(gaps, {"Ukupno poena": -5.0})
+        items = bb.value_items(1, rows, gaps)
+        self.assertEqual([(i["key"], i["stale"], i["modeled"]) for i in items], [("over", -5.0, True)])
+
+    def test_spread_direction(self):
+        self.assertTrue(bb.favours("Hendikep", 2.5, "home"))
+        self.assertTrue(bb.favours("Ukupno poena", 3.0, "under"))
+        self.assertFalse(bb.favours("Ukupno poena", -3.0, "under"))
 
 
 if __name__ == "__main__":

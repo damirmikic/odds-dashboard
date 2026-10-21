@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
+import basketball as bb
 import merkur_client as mx
 import pinnwire_client as pw
 
@@ -316,7 +317,7 @@ def value_items(match, rows):
                     "derived": r["derived"],
                     "pinnacleMargin": r["pinnacleMargin"],
                 })
-    return items
+    return pw.best_per_line_market(items)
 
 
 def best_edge(rows):
@@ -663,6 +664,7 @@ class DashboardState:
 
 
 STATE = DashboardState()
+BB_STATE = bb.BasketballState(STATE.history, current_api_key)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -715,6 +717,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/status":
                 return self.send_json(200, {"apiKeySet": bool(current_api_key()),
                                             "callsToday": STATE.history.calls_today()})
+            if path == "/api/basketball/board":
+                return self.send_json(200, BB_STATE.board(refresh=refresh, full=full))
             if path == "/api/board":
                 return self.send_json(200, STATE.board(refresh=refresh, full=full))
             if path.startswith("/api/match/"):
@@ -742,6 +746,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_error_json(400, "Neispravan format podešavanja.")
             save_api_key(body.get("apiKey", ""))
             STATE.reset()
+            BB_STATE.reset()
             return self.send_json(200, {"apiKeySet": True})
         except (ValueError, json.JSONDecodeError) as exc:
             return self.send_error_json(400, str(exc))

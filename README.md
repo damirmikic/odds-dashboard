@@ -25,7 +25,7 @@ Stop with `Ctrl+C`. Options: `--port 9000`, `--no-browser`.
 
 - **Board:** one row per match with Pinnacle 1X2 and fair (no-vig) odds, margin, the main Asian handicap and goal line, and the move since opening. Prices that changed since the previous refresh are green (up) or red (down). A side menu lists the competitions grouped by country; there are also day filters and search.
 - **Detail panel:** click a match to see full match and 1st half: a probability bar, 1X2 with the opening price, all handicap and total lines (GL = main line), and team totals. `#<event id>` in the URL opens a match directly.
-- Fair odds remove the margin with the power method.
+- Fair odds remove the margin with the power method for three-way markets (1X2) and with Shin's method for two-way ones (handicaps, totals, winner in basketball). Power overshoots on lopsided two-way prices.
 
 ## MerkurXtip comparison
 
@@ -79,3 +79,13 @@ Opening and previous 1X2 prices are stored in `data/dashboard_history.json`, so 
 Competitions are the `COMPETITIONS` list in `pinnwire_dashboard.py`, keyed by PinnWire `league_id`. Add an entry to track another league.
 
 During frontend development, run the Python server in one terminal and `npm run dev` in `frontend/` in another. Vite runs on port 5175 and proxies `/api` to 8070.
+
+## Basketball
+
+Pick the basketball icon at the top of the side menu (or open `/?sport=basketball`). It has its own board, built in `basketball.py`:
+
+- PinnWire sport 3 against the MerkurXtip basketball offer (`/restapi/custom/offer/sr/sport/B/mob`). Both are cached and refreshed like football (delta requests), so basketball adds one PinnWire request per refresh.
+- Compared markets are full game with overtime: winner, handicap, total points and home/away team totals. Lines are matched exactly, and whole-number lines are kept (a push refunds at both books). Quarters and halves are not compared yet.
+- Competitions are the `COMPETITIONS` list in `basketball.py`: PinnWire `league_id` plus the MerkurXtip `leagueId` (basketball `leagueShort` values are not unique, so the numeric id is used). Add an entry to track another league.
+- MerkurXtip codes: winner `50291/50293`; handicap, total and team-total lines come in numbered sets (`handicapOvertime`, `handicapOvertime2` … in `params`) with the codes listed in `basketball.py`. The board shows the shared line closest to Pinnacle's main line; click a row for every compared line.
+

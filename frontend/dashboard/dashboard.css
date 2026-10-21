@@ -482,3 +482,19 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .modal-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 .modal .segmented { justify-self: start; }
 .mx-table tbody.mx-group-start { border-top: 3px solid var(--muted); }
+
+/* ---------------------------------------------------------------- basketball */
+.bb-day { margin-bottom: 14px; }
+.bb-day-title { display: flex; align-items: center; gap: 8px; margin: 4px 2px 8px; font-size: 13px; font-weight: 700; }
+.bb-day-title span { padding: 1px 7px; border-radius: 10px; background: var(--panel-2); color: var(--faint); font-size: 11px; }
+.bb-detail-row > td { padding: 10px 14px 14px; border-bottom: 1px solid var(--line); background: var(--panel-2); text-align: left; }
+.bb-detail .mx-names { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.comp-badge.nba { --badge: #1d428a; }
+.comp-badge.euroleague, .comp-badge.elw { --badge: #e86a10; }
+.comp-badge.eurocup, .comp-badge.ecw { --badge: #1f6fb4; }
+.comp-badge.bcl { --badge: #0b2a6f; }
+.comp-badge.fibaec { --badge: #1f9d55; }
+.stale-tag {
+  margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--edge-pos-bg); color: var(--edge-pos);
+  font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;
+}

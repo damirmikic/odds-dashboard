@@ -4,6 +4,7 @@ Docs: https://pinnwire.com/docs.html · https://pinnwire.com/llms-full.txt
 """
 from __future__ import annotations
 
+import math
 import time
 
 import requests
@@ -107,15 +108,43 @@ def to_odds(value):
 
 
 def devig(odds):
-    """{side: decimal odds} -> {side: fair probability}, power method.
+    """{side: decimal odds} -> {side: fair probability}.
 
-    p_i = q_i ** k with sum(p) = 1 (k > 1 when there is a margin), which puts more of the
-    margin on long shots than proportional scaling.
+    Two-way markets use Shin's method, three-way (1X2) the power method. Both put more of the margin
+    on long shots than proportional scaling; the power method overshoots on lopsided two-way prices
+    (a 1.01 favourite makes the 8.12 underdog "fair" at 53), Shin stays close to it.
     """
     sides = list(odds)
     q = [1.0 / odds[s] for s in sides]
     if sum(q) <= 1.0:
         return {s: x / sum(q) for s, x in zip(sides, q)}
+    if len(sides) == 2:
+        return dict(zip(sides, _shin(q)))
+    return dict(zip(sides, _power(q)))
+
+
+def _shin(q):
+    """Shin probabilities for implied probabilities q (sum > 1); z is the share of insider money."""
+    total = sum(q)
+
+    def probs(z):
+        return [(math.sqrt(z * z + 4 * (1 - z) * x * x / total) - z) / (2 * (1 - z)) for x in q]
+
+    lo, hi = 0.0, 0.4
+    for _ in range(200):  # bisection: sum(probs) falls from > 1 at z = 0 towards 1 as z grows
+        mid = 0.5 * (lo + hi)
+        if sum(probs(mid)) > 1.0:
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo < 1e-12:
+            break
+    p = probs(0.5 * (lo + hi))
+    return [x / sum(p) for x in p]
+
+
+def _power(q):
+    """Power method: p_i = q_i ** k with sum(p) = 1 (k > 1 when there is a margin)."""
     lo, hi = 1.0, 6.0
     for _ in range(200):  # bisection on k
         mid = 0.5 * (lo + hi)
@@ -126,7 +155,23 @@ def devig(odds):
         if hi - lo < 1e-10:
             break
     k = 0.5 * (lo + hi)
-    return {s: x ** k for s, x in zip(sides, q)}
+    return [x ** k for x in q]
+
+
+def best_per_line_market(items):
+    """Value items with one entry per line market of a match: alternative lines of the same handicap
+    or total (per period) collapse into the outcome with the largest edge. Markets without a line
+    (1X2, winner) keep every outcome."""
+    best = {}
+    out = []
+    for item in items:
+        if item["line"] is None:
+            out.append(item)
+            continue
+        key = (item["matchId"], item.get("period"), item["group"], item.get("modeled"))
+        if key not in best or item["ev"] > best[key]["ev"]:
+            best[key] = item
+    return out + list(best.values())
 
 
 def is_main_fixture(event):
