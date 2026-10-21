@@ -655,6 +655,7 @@ function MerkurComparison({ merkur, periodKey, home, away }) {
               <th>PIN</th>
               <th>MX</th>
               <th title="MerkurXtip kvota / Pinnacle fer kvota − 1">Razlika</th>
+              <th title="Pinnacle limit (max bet) tržišta">Max bet</th>
             </tr>
           </thead>
           {rows.map((row, i) => (
@@ -677,6 +678,9 @@ function MerkurComparison({ merkur, periodKey, home, away }) {
                     <span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}><b>{fmtOdds(o.merkur)}</b></span>
                   </td>
                   <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
+                  {index === 0 && (
+                    <td rowSpan={row.outcomes.length} className="mx-maxbet">{fmtLimit(row.maxBet) || "—"}</td>
+                  )}
                 </tr>
               ))}
             </tbody>

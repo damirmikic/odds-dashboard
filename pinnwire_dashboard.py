@@ -238,7 +238,26 @@ def pinnacle_lines(event, number):
     }
 
 
-def compare_row(group, line, labels, merkur, pinnacle, derived=False):
+def pinnacle_max(event, number):
+    """Pinnacle limit (max bet) per line, shaped like pinnacle_lines(); the 1X2 price carries no limit."""
+    markets = pw.period(event, number)
+
+    def by_line(lines, key, market):
+        out = {}
+        for line in (lines or {}).values():
+            if isinstance(line, dict) and line.get(key) is not None and pw.allowed_line(float(line[key]), market):
+                out[float(line[key])] = line.get("max")
+        return out
+
+    return {
+        "totals": by_line(markets.get("totals"), "points", "totals"),
+        "spreads": by_line(markets.get("spreads"), "hdp", "spreads"),
+        "teamTotals": {side: by_line(lines, "points", "totals")
+                       for side, lines in (markets.get("team_totals") or {}).items() if isinstance(lines, dict)},
+    }
+
+
+def compare_row(group, line, labels, merkur, pinnacle, derived=False, max_bet=None):
     """One market: Merkur odds against Pinnacle fair odds. ev = Merkur / fair - 1.
 
     `merkur` may hold only some of the sides (a handicap derived from a European handicap has one);
@@ -261,12 +280,14 @@ def compare_row(group, line, labels, merkur, pinnacle, derived=False):
         "derived": derived,
         "merkurMargin": round((sum(1 / o for o in merkur.values()) - 1) * 100, 2) if complete else None,
         "pinnacleMargin": pin_margin,
+        "maxBet": max_bet,
         "maxEv": max(o["ev"] for o in outcomes),
     }
 
 
 def compare_period(event, merkur_period, number):
     pin = pinnacle_lines(event, number)
+    limits = pinnacle_max(event, number)
     rows = []
     for key, group, labels in COMPARE_GROUPS:
         if key == "ml":
@@ -276,12 +297,14 @@ def compare_period(event, merkur_period, number):
         for line in sorted(merkur_period.get(key) or {}):
             if line in pin[key]:
                 derived = key == "spreads" and line in merkur_period.get("derived", ())
-                rows.append(compare_row(group, line, labels, merkur_period[key][line], pin[key][line], derived))
+                rows.append(compare_row(group, line, labels, merkur_period[key][line], pin[key][line], derived,
+                                        limits[key].get(line)))
     for side, group in (("home", "Golovi domaćin"), ("away", "Golovi gost")):
         pin_side = pin["teamTotals"].get(side) or {}
         for line, prices in sorted(((merkur_period.get("teamTotals") or {}).get(side) or {}).items()):
             if line in pin_side:
-                rows.append(compare_row(group, line, OU_SIDES, prices, pin_side[line]))
+                rows.append(compare_row(group, line, OU_SIDES, prices, pin_side[line],
+                                        max_bet=limits["teamTotals"].get(side, {}).get(line)))
     return rows
 
 
