@@ -1237,12 +1237,16 @@ function BbLineCells({ cell, sides, signed }) {
 function BbDetail({ match }) {
   const rows = match.rows || [];
   if (!match.merkur) return <p className="muted bb-detail">Meč nije u ponudi MerkurXtip (ili nije uparen).</p>;
+  const modeled = rows.filter((r) => r.modeled).length;
   return (
     <div className="bb-detail">
       <p className="mx-names">
         {match.merkur.home} – {match.merkur.away}
         <KickoffWarning diff={match.merkur.kickoffDiff} />
+        {match.merkur.stale?.map((st) => <StaleTag key={st.group} gap={st.gap} />)}
+        <small> · upoređeno {rows.length} tržišta{modeled ? `, od toga ${modeled} modelirano` : ""}</small>
       </p>
+      {!rows.length && <p className="muted">Nema tržišta koja postoje kod obe kuće.</p>}
       <table className="lines mx-table">
         <thead>
           <tr><th>Tržište</th><th>Linija</th><th>Ishod</th><th>Fer</th><th>PIN</th><th>MX</th><th>Razlika</th></tr>
@@ -1261,6 +1265,52 @@ function BbDetail({ match }) {
           )))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function BbOddsModal({ matchId, boardMatch, onClose, onCalls }) {
+  const [detail, setDetail] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    requestJson(`/api/basketball/match/${matchId}`, { signal: controller.signal })
+      .then((data) => {
+        setDetail(data);
+        onCalls(data.callsToday);
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError") setError(err.message);
+      });
+    return () => controller.abort();
+  }, [matchId, onCalls]);
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const match = detail?.match || boardMatch;
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Uporedne kvote" onClick={(e) => e.stopPropagation()}>
+        <header className="modal-head">
+          <div>
+            <h2>{match?.home} <span>–</span> {match?.away}</h2>
+            {match?.starts && <p>{dayLabel(new Date(match.starts))}, {timeFmt.format(new Date(match.starts))} · {match.leagueName}</p>}
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Zatvori">✕</button>
+        </header>
+        {error && <p className="state error" role="alert">{error}</p>}
+        {!detail && !error && <p className="state">Učitavam kvote…</p>}
+        {detail?.error && <p className="state error">{detail.error} Prikazane su kvote iz liste ponude.</p>}
+        {detail && <BbDetail match={detail.match} />}
+        {detail?.fetchedAt && <p className="muted bb-fetched">MerkurXtip {clockFmt.format(new Date(detail.fetchedAt))}</p>}
+      </div>
     </div>
   );
 }
@@ -1310,14 +1360,11 @@ function BbRow({ match, competition, expanded, onToggle }) {
         <BbLineCells cell={match.spread} sides={BB_ML} signed />
         <BbLineCells cell={match.total} sides={BB_OU} />
       </tr>
-      {expanded && (
-        <tr className="bb-detail-row"><td colSpan={21}><BbDetail match={match} /></td></tr>
-      )}
     </>
   );
 }
 
-function BbCompareTable({ matches, competitions, expandedId, onToggle }) {
+function BbCompareTable({ matches, competitions, selectedId, onOpen }) {
   const byId = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
   return (
     <div className="board-scroll mc-wrap">
@@ -1349,8 +1396,8 @@ function BbCompareTable({ matches, competitions, expandedId, onToggle }) {
               key={match.id}
               match={match}
               competition={byId.get(match.leagueId)}
-              expanded={String(match.id) === expandedId}
-              onToggle={() => onToggle(String(match.id))}
+              expanded={String(match.id) === selectedId}
+              onToggle={() => onOpen(String(match.id))}
             />
           ))}
         </tbody>
@@ -1359,7 +1406,7 @@ function BbCompareTable({ matches, competitions, expandedId, onToggle }) {
   );
 }
 
-function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport }) {
+function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport, setCallsToday }) {
   const [competition, setCompetition] = useState(() => readStored("pb.bb.competition", "all"));
   const [view, setView] = useState(() => (
     ["value", "missing"].includes(new URLSearchParams(window.location.search).get("view"))
@@ -1370,7 +1417,7 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
   const [showModeled, setShowModeled] = useState(() => readStored("pb.bb.modeled", false));
   const [onlyStale, setOnlyStale] = useState(false);
   const [valueLeague, setValueLeague] = useState("all");
-  const [expandedId, setExpandedId] = useState("");
+  const [oddsId, setOddsId] = useState(() => window.location.hash.replace(/\D/g, ""));
   useEffect(() => writeStored("pb.bb.competition", competition), [competition]);
   useEffect(() => writeStored("pb.bb.view", view), [view]);
   useEffect(() => writeStored("pb.bb.valueLevel", valueLevel), [valueLevel]);
@@ -1460,7 +1507,7 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
     }
     return [...map.values()];
   }, [filtered]);
-  const toggle = (id) => setExpandedId((cur) => (cur === id ? "" : id));
+  const onCalls = useCallback((n) => setCallsToday(n), [setCallsToday]);
 
   return (
     <div className="shell">
@@ -1548,7 +1595,7 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
             {view === "compare" && groups.map((group) => (
               <div key={group.key} className="bb-day">
                 <h3 className="bb-day-title">{group.title} <span>{group.matches.length}</span></h3>
-                <BbCompareTable matches={group.matches} competitions={competitions} expandedId={expandedId} onToggle={toggle} />
+                <BbCompareTable matches={group.matches} competitions={competitions} selectedId={oddsId} onOpen={setOddsId} />
               </div>
             ))}
             {board && inValue && !shownValues.length && <p className="state">Nema ishoda za izabrane filtere.</p>}
@@ -1557,13 +1604,22 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
                 values={shownValues}
                 matchesById={matchesById}
                 competitions={competitions}
-                selectedId=""
-                onOdds={() => {}}
-                onSelect={() => {}}
+                selectedId={oddsId}
+                onOdds={setOddsId}
+                onSelect={setOddsId}
               />
             )}
           </section>
         </main>
+        {oddsId && (
+          <BbOddsModal
+            key={oddsId}
+            matchId={oddsId}
+            boardMatch={matchesById.get(Number(oddsId)) || matchesById.get(oddsId)}
+            onClose={() => setOddsId("")}
+            onCalls={onCalls}
+          />
+        )}
       </div>
     </div>
   );
@@ -1871,6 +1927,7 @@ export default function App() {
           setQuery={setQuery}
           sport={sport}
           onSport={setSport}
+          setCallsToday={setCallsToday}
         />
       )}
 

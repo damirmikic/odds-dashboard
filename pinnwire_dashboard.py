@@ -733,6 +733,11 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/status":
                 return self.send_json(200, {"apiKeySet": bool(current_api_key()),
                                             "callsToday": STATE.history.calls_today()})
+            if path.startswith("/api/basketball/match/"):
+                event_id = unquote(path[len("/api/basketball/match/"):].strip("/"))
+                if not event_id.isdigit():
+                    return self.send_error_json(400, "Neispravan ID događaja.")
+                return self.send_json(200, BB_STATE.match(event_id))
             if path == "/api/basketball/board":
                 return self.send_json(200, BB_STATE.board(refresh=refresh, full=full))
             if path == "/api/board":

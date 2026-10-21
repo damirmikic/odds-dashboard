@@ -420,6 +420,7 @@ class BasketballState:
         self.fetch_lock = threading.Lock()
         self.merkur = mx.OfferCache(mx.MerkurAPI(offer_path=OFFER_PATH))
         self.merkur_lock = threading.Lock()
+        self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
         self.api = None
         self.api_key = None
         self.events = None
@@ -483,6 +484,26 @@ class BasketballState:
                          or time.monotonic() - self.full_at > FULL_RELOAD_SECONDS)
             self._fetch(need_full)
 
+    def match(self, event_id):
+        """One match compared against fresh single-match MerkurXtip odds (no PinnWire request)."""
+        if self.events is None:
+            self.refresh(if_empty=True)
+        with self.lock:
+            event = (self.events or {}).get(event_id)
+        if event is None:
+            raise LookupError("Meč nije u ponudi (možda je počeo ili uklonjen).")
+        hit = self.pairs.get(event_id)
+        error, fetched = "", self.merkur.stamp
+        if hit is not None:
+            row, score = hit
+            try:
+                row, fetched = {**hit[0], **self.merkur.api.match(row["id"])}, utc_stamp()
+            except (RuntimeError, LookupError) as exc:
+                error = str(exc)
+            hit = (row, score)
+        match, _ = shape_match(event, hit)
+        return {"match": match, "fetchedAt": fetched, "error": error, "callsToday": self.history.calls_today()}
+
     def board(self, refresh=False, full=False):
         if refresh or full or self.events is None:
             self.refresh(full=full, if_empty=not (refresh or full))
@@ -492,6 +513,7 @@ class BasketballState:
             now = utc_now()
             events = [e for e in (self.events or {}).values() if is_upcoming(e, now)]
         pairs = pair_events(events, offer)
+        self.pairs = pairs
         hints = unpaired_hints(events, offer)
         matches, values = [], []
         for event in events:
