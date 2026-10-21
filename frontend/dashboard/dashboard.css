@@ -150,6 +150,17 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.eliteserien { --badge: #1f3f7a; }
 .comp-badge.scotprem { --badge: #0a4a8f; }
 .comp-badge.mls { --badge: #14264a; }
+.comp-badge.leagueone { --badge: #1f9d55; }
+.comp-badge.leaguetwo { --badge: #2a7fb8; }
+.comp-badge.allsvenskan { --badge: #2b5fa8; }
+.comp-badge.primeraco { --badge: #a8321c; }
+.comp-badge.rpl { --badge: #b3202a; }
+.comp-badge.liga3 { --badge: #6d1f1f; }
+.comp-badge.firstligacz { --badge: #7a2e8c; }
+.comp-badge.prosa { --badge: #0a7a3d; }
+.comp-badge.ligamx { --badge: #1a6b3a; }
+.comp-badge.bundesligaat { --badge: #c8102e; }
+.comp-badge.j1 { --badge: #b3202a; }
 .comp-badge.atp { --badge: #1b6fb5; }
 .comp-badge.wta { --badge: #8d3a9b; }
 .comp-badge.challenger { --badge: #2f8f6b; }
