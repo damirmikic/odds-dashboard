@@ -18,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 import basketball as bb
+import tennis
 import merkur_client as mx
 import pinnwire_client as pw
 
@@ -681,6 +682,7 @@ class DashboardState:
 
 STATE = DashboardState()
 BB_STATE = bb.BasketballState(STATE.history, current_api_key)
+TN_STATE = tennis.TennisState(STATE.history, current_api_key)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -740,6 +742,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, BB_STATE.match(event_id))
             if path == "/api/basketball/board":
                 return self.send_json(200, BB_STATE.board(refresh=refresh, full=full))
+            if path.startswith("/api/tennis/match/"):
+                event_id = unquote(path[len("/api/tennis/match/"):].strip("/"))
+                if not event_id.isdigit():
+                    return self.send_error_json(400, "Neispravan ID događaja.")
+                return self.send_json(200, TN_STATE.match(event_id))
+            if path == "/api/tennis/board":
+                return self.send_json(200, TN_STATE.board(refresh=refresh, full=full))
             if path == "/api/board":
                 return self.send_json(200, STATE.board(refresh=refresh, full=full))
             if path.startswith("/api/match/"):
@@ -768,6 +777,7 @@ class Handler(BaseHTTPRequestHandler):
             save_api_key(body.get("apiKey", ""))
             STATE.reset()
             BB_STATE.reset()
+            TN_STATE.reset()
             return self.send_json(200, {"apiKeySet": True})
         except (ValueError, json.JSONDecodeError) as exc:
             return self.send_error_json(400, str(exc))

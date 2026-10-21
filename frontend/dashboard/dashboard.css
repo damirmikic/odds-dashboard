@@ -139,6 +139,12 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.superlig { --badge: #c8102e; }
 .comp-badge.championship { --badge: #3a3a8c; }
 .comp-badge.bundesliga2 { --badge: #7a1f1f; }
+.comp-badge.atp { --badge: #1b6fb5; }
+.comp-badge.wta { --badge: #8d3a9b; }
+.comp-badge.challenger { --badge: #2f8f6b; }
+.comp-badge.itfm { --badge: #4a6275; }
+.comp-badge.itfw { --badge: #a8527e; }
+.comp-badge.tennis { --badge: #5c6878; }
 .tabs button:disabled .comp-badge { opacity: .5; }
 
 /* ---------------------------------------------------------------- side menu */

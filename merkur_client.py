@@ -239,13 +239,15 @@ def name_score(a, b):
     return sum(1 for t in short if any(_token_match(t, u) for u in long_)) / len(short)
 
 
-def pair(pinnacle, merkur, window_minutes=180, min_score=0.5):
+def pair(pinnacle, merkur, window_minutes=180, min_score=0.5, score_fn=None):
     """Pair events one-to-one.
 
     pinnacle: [{id, comp, home, away, ts}], merkur: [{id, comp, home, away, ts}] (ts in ms).
     Only the same competition with kickoff within the window is considered; the best name score wins.
+    `score_fn(pinnacle name, merkur name)` replaces name_score where a sport needs stricter name rules.
     Returns {pinnacle id: (merkur row, score)}.
     """
+    score_fn = score_fn or name_score
     by_comp = {}
     for m in merkur:
         by_comp.setdefault(m["comp"], []).append(m)
@@ -255,7 +257,7 @@ def pair(pinnacle, merkur, window_minutes=180, min_score=0.5):
             diff = abs(m["ts"] - p["ts"]) / 60000
             if diff > window_minutes:
                 continue
-            score = (name_score(p["home"], m["home"]) + name_score(p["away"], m["away"])) / 2
+            score = (score_fn(p["home"], m["home"]) + score_fn(p["away"], m["away"])) / 2
             if score >= min_score:
                 scored.append((score, -diff, p["id"], m["id"], m))
     scored.sort(key=lambda row: (row[0], row[1]), reverse=True)
@@ -268,12 +270,13 @@ def pair(pinnacle, merkur, window_minutes=180, min_score=0.5):
     return out
 
 
-def closest_unpaired(pinnacle, merkur, pairs, window_minutes=180):
+def closest_unpaired(pinnacle, merkur, pairs, window_minutes=180, score_fn=None):
     """For each unpaired Pinnacle event the best still-unused MerkurXtip row of the same competition and kickoff window.
 
     Rows paired below `min_score` still show up here, which points at team names that need an alias.
     pairs: the result of pair(). Returns {pinnacle id: (merkur row, score)}.
     """
+    score_fn = score_fn or name_score
     used = {m["id"] for m, _ in pairs.values()}
     out = {}
     for p in pinnacle:
@@ -284,7 +287,7 @@ def closest_unpaired(pinnacle, merkur, pairs, window_minutes=180):
             diff = abs(m["ts"] - p["ts"]) / 60000
             if m["comp"] != p["comp"] or m["id"] in used or diff > window_minutes:
                 continue
-            score = (name_score(p["home"], m["home"]) + name_score(p["away"], m["away"])) / 2
+            score = (score_fn(p["home"], m["home"]) + score_fn(p["away"], m["away"])) / 2
             if score > 0 and (best is None or (score, -diff) > best[0]):
                 best = ((score, -diff), m)
         if best:

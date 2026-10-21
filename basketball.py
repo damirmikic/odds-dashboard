@@ -452,12 +452,18 @@ def shape_match(event, hit):
 
 
 class BasketballState:
+    """PinnWire snapshot + MerkurXtip offer for one sport. TennisState overrides the hook methods below."""
+
+    sport_id = SPORT_ID
+    offer_path = OFFER_PATH
+    alt_units = False  # ask PinnWire for the side-market events too
+
     def __init__(self, history, key_fn):
         self.history = history  # shared with the football state: only its request counter is used
         self.key_fn = key_fn
         self.lock = threading.Lock()
         self.fetch_lock = threading.Lock()
-        self.merkur = mx.OfferCache(mx.MerkurAPI(offer_path=OFFER_PATH))
+        self.merkur = mx.OfferCache(mx.MerkurAPI(offer_path=self.offer_path))
         self.merkur_lock = threading.Lock()
         self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
         self.api = None
@@ -468,6 +474,34 @@ class BasketballState:
         self.fetched_at = ""
         self.mode = ""
         self.changed = 0
+
+    # ----- hooks
+    def incoming(self, data):
+        return [e for e in data.get("events") or [] if e.get("event_id") and is_tracked(e)]
+
+    def merge(self, old, new):
+        return merge_event(old, new)
+
+    def complete(self, event):
+        return True
+
+    def shape(self, event, hit):
+        return shape_match(event, hit)
+
+    def pair(self, events, offer):
+        return pair_events(events, offer)
+
+    def hints(self, events, offer):
+        return unpaired_hints(events, offer)
+
+    def offered(self, offer):
+        return sum(1 for r in offer if r.get("leagueId") in MX_COMP and mx.is_prematch(r))
+
+    def competitions(self, matches):
+        counts = {}
+        for m in matches:
+            counts[m["leagueId"]] = counts.get(m["leagueId"], 0) + 1
+        return [{**c, "count": counts.get(c["id"], 0)} for c in COMPETITIONS]
 
     def get_api(self):
         key = self.key_fn()
@@ -493,15 +527,15 @@ class BasketballState:
         since = None if full else self.last
         before = api.calls
         try:
-            data = api.prematch_snapshot(SPORT_ID, since=since)
+            data = api.prematch_snapshot(self.sport_id, since=since, alt_units=self.alt_units)
         finally:
             self.history.count_calls(api.calls - before)
-        incoming = [e for e in data.get("events") or [] if e.get("event_id") and is_tracked(e)]
+        incoming = self.incoming(data)
         with self.lock:
             events = {} if since is None else dict(self.events or {})
             for raw in incoming:
                 key = str(raw["event_id"])
-                events[key] = merge_event(events[key], raw) if key in events and since else raw
+                events[key] = self.merge(events[key], raw) if key in events and since else raw
             now = utc_now()
             self.events = {k: e for k, e in events.items() if is_upcoming(e, now)}
             if since is None:
@@ -529,7 +563,7 @@ class BasketballState:
             self.refresh(if_empty=True)
         with self.lock:
             event = (self.events or {}).get(event_id)
-        if event is None:
+        if event is None or not self.complete(event):
             raise LookupError("Meč nije u ponudi (možda je počeo ili uklonjen).")
         hit = self.pairs.get(event_id)
         error, fetched = "", self.merkur.stamp
@@ -540,7 +574,7 @@ class BasketballState:
             except (RuntimeError, LookupError) as exc:
                 error = str(exc)
             hit = (row, score)
-        match, _ = shape_match(event, hit)
+        match, _ = self.shape(event, hit)
         return {"match": match, "fetchedAt": fetched, "error": error, "callsToday": self.history.calls_today()}
 
     def board(self, refresh=False, full=False):
@@ -550,24 +584,21 @@ class BasketballState:
             offer = self.merkur.get(refresh=refresh or full, stamp_fn=utc_stamp)
         with self.lock:
             now = utc_now()
-            events = [e for e in (self.events or {}).values() if is_upcoming(e, now)]
-        pairs = pair_events(events, offer)
+            events = [e for e in (self.events or {}).values() if is_upcoming(e, now) and self.complete(e)]
+        pairs = self.pair(events, offer)
         self.pairs = pairs
-        hints = unpaired_hints(events, offer)
+        hints = self.hints(events, offer)
         matches, values = [], []
         for event in events:
-            match, items = shape_match(event, pairs.get(str(event["event_id"])))
+            match, items = self.shape(event, pairs.get(str(event["event_id"])))
             match["hint"] = hints.get(str(event["event_id"]))
             # a match without any Pinnacle price is not worth a row
             if match["ml"] or match["spread"] or match["total"]:
                 matches.append(match)
                 values.extend(items)
         matches.sort(key=lambda m: (m["starts"], m["home"]))
-        counts = {}
-        for m in matches:
-            counts[m["leagueId"]] = counts.get(m["leagueId"], 0) + 1
         return {
-            "competitions": [{**c, "count": counts.get(c["id"], 0)} for c in COMPETITIONS],
+            "competitions": self.competitions(matches),
             "matches": matches,
             "fetchedAt": self.fetched_at,
             "mode": self.mode,
@@ -578,6 +609,6 @@ class BasketballState:
                 "fetchedAt": self.merkur.stamp,
                 "error": self.merkur.error,
                 "paired": sum(1 for m in matches if m["merkur"]),
-                "offered": sum(1 for r in offer if r.get("leagueId") in MX_COMP and mx.is_prematch(r)),
+                "offered": self.offered(offer),
             },
         }

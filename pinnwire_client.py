@@ -83,9 +83,12 @@ class PinnWireAPI:
         """Never leak the API key into logs or the UI."""
         return msg.replace(self.key, "***") if self.key else msg
 
-    def prematch_snapshot(self, sport_id=SOCCER, since=None):
-        """Raw fixtures response {events, last, ...}; with `since` only events changed after it."""
-        data = self.get("/kit/v1/prematch/fixtures", sport_id=sport_id, since=since)
+    def prematch_snapshot(self, sport_id=SOCCER, since=None, alt_units=False):
+        """Raw fixtures response {events, last, ...}; with `since` only events changed after it.
+
+        `alt_units` also lists each fixture's side markets as events with a parent_id (tennis games)."""
+        data = self.get("/kit/v1/prematch/fixtures", sport_id=sport_id, since=since,
+                        include_alt_units=1 if alt_units else None)
         return data if isinstance(data, dict) else {}
 
     def prematch_event(self, event_id):

@@ -4,6 +4,7 @@ import basketball as bb
 import merkur_client as mx
 import pinnwire_client as pw
 import pinnwire_dashboard as dash
+import tennis
 
 
 def kit_event(event_id=1628594960, **overrides):
@@ -542,6 +543,127 @@ class BasketballTests(unittest.TestCase):
     def test_pairs_by_merkur_league_id(self):
         pairs = bb.pair_events([self.event()], [self.ROW])
         self.assertEqual(pairs["7"][0]["id"], 1)
+
+
+class TennisTests(unittest.TestCase):
+    ROW = {
+        "id": 5, "home": "S. Wawrinka", "away": "M. Landaluce", "kickOffTime": 1_900_000_000_000,
+        "odds": {"1": 2.4, "3": 1.5, "50510": 2.25, "50511": 1.55, "261": 2.35, "260": 1.48,
+                 "50538": 1.57, "50539": 2.2, "251": 1.72, "253": 1.97, "256": 2.0, "254": 1.7,
+                 "259": 1.8, "257": 2.0, "50941": 1.75, "50940": 1.92},
+        "params": {"hd2": "1.5", "handicapGames": "3.5", "overUnderGames": "22.5",
+                   "overUnderGamesFirstSet": "9.5", "homeOverUnderGames": "11.5"},
+    }
+
+    @staticmethod
+    def main_event():
+        return {"event_id": 7, "league_id": 199241, "league_name": "ATP Lyon - R16", "home": "Stan Wawrinka",
+                "away": "Martin Landaluce", "starts": "2030-03-17T17:46:40Z", "units": "Sets", "parent_id": None,
+                "periods": {
+                    "num_0": {"money_line": {"home": 2.6, "away": 1.45},
+                              "spreads": {"1.5": {"hdp": 1.5, "home": 1.6, "away": 2.3},
+                                          "-1.5": {"hdp": -1.5, "home": 4.4, "away": 1.2}},
+                              "totals": {"2.5": {"points": 2.5, "over": 2.2, "under": 1.65}}},
+                    "num_1": {"money_line": {"home": 2.4, "away": 1.55}}}}
+
+    @staticmethod
+    def games_event():
+        return {"event_id": 8, "league_id": 199241, "league_name": "ATP Lyon - R16",
+                "home": "Stan Wawrinka (Games)", "away": "Martin Landaluce (Games)",
+                "starts": "2030-03-17T17:46:41Z", "units": "Games", "parent_id": 7,
+                "periods": {
+                    "num_0": {"spreads": {"3.5": {"hdp": 3.5, "home": 1.8, "away": 2.05},
+                                          "4.5": {"hdp": 4.5, "home": 1.6, "away": 2.4}},
+                              "totals": {"22.5": {"points": 22.5, "over": 1.95, "under": 1.85},
+                                         "22": {"points": 22, "over": 1.9, "under": 1.9}},
+                              "team_totals": {"home": {"11.5": {"points": 11.5, "over": 1.9, "under": 1.9}},
+                                              "away": {}}},
+                    "num_1": {"totals": {"9.5": {"points": 9.5, "over": 1.85, "under": 1.95}}}}}
+
+    def merged(self):
+        return tennis.TennisState.incoming(None, {"events": [self.games_event(), self.main_event()]})[0]
+
+    def test_games_event_is_folded_into_its_main_event(self):
+        events = tennis.TennisState.incoming(None, {"events": [self.games_event(), self.main_event()]})
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_id"], 7)
+        self.assertEqual(events[0]["home"], "Stan Wawrinka")
+        self.assertIn("num_0", events[0]["games"])
+
+    def test_games_event_alone_is_not_a_complete_match(self):
+        events = tennis.TennisState.incoming(None, {"events": [self.games_event()]})
+        self.assertFalse(tennis.TennisState.complete(None, events[0]))
+
+    def test_delta_merges_games_markets_per_period(self):
+        delta = {"event_id": 7, "games": {"num_0": {"totals": {"23.5": {"points": 23.5, "over": 2.1, "under": 1.75}}}}}
+        out = tennis.merge_event(self.merged(), delta)
+        self.assertEqual(set(out["games"]["num_0"]["totals"]), {"23.5"})
+        self.assertIn("num_1", out["games"])
+        self.assertEqual(out["home"], "Stan Wawrinka")
+
+    def test_merkur_markets_use_line_params_and_fixed_set_totals(self):
+        decoded = tennis.merkur_markets(self.ROW)
+        self.assertEqual(decoded["ml"], {"home": 2.4, "away": 1.5})
+        self.assertEqual(decoded["setspreads"], {1.5: {"home": 1.57, "away": 2.2}})
+        self.assertEqual(decoded["settotals"], {2.5: {"over": 2.35, "under": 1.48}})
+        self.assertEqual(decoded["spreads"], {3.5: {"home": 1.72, "away": 1.97}})
+        self.assertEqual(decoded["totals"], {22.5: {"over": 2.0, "under": 1.7}})
+        self.assertEqual(decoded["home"], {11.5: {"over": 1.75, "under": 1.92}})
+        self.assertEqual(decoded["away"], {})
+        first_set = tennis.merkur_markets(self.ROW, "s1")
+        self.assertEqual(first_set["ml"], {"home": 2.25, "away": 1.55})
+        self.assertEqual(first_set["totals"], {9.5: {"over": 1.8, "under": 2.0}})
+
+    def test_pinnacle_markets_read_sets_and_games(self):
+        pin = tennis.pinnacle_markets(self.merged())
+        self.assertEqual(set(pin["setspreads"]), {1.5, -1.5})
+        self.assertEqual(set(pin["settotals"]), {2.5})
+        self.assertEqual(set(pin["spreads"]), {3.5, 4.5})
+        self.assertEqual(set(pin["totals"]), {22.5})  # the whole-game line 22 is dropped
+        self.assertEqual(set(pin["home"]), {11.5})
+        self.assertEqual(set(tennis.pinnacle_markets(self.merged(), "s1")["totals"]), {9.5})
+
+    def test_match_compares_shared_lines_in_every_period(self):
+        match, values = tennis.shape_match(self.merged(), (self.ROW, 1.0))
+        groups = {(r["group"], r["line"]) for r in match["rows"]}
+        self.assertEqual(groups, {("Pobednik", None), ("Hendikep setova", 1.5), ("Ukupno setova", 2.5),
+                                  ("Hendikep gemova", 3.5), ("Ukupno gemova", 22.5), ("Gemovi igrač 1", 11.5)})
+        self.assertEqual({(r["group"], r["line"]) for r in match["periods"]["s1"]},
+                         {("Pobednik", None), ("Ukupno gemova", 9.5)})
+        self.assertEqual(match["leagueId"], "ATP Lyon")
+        self.assertEqual(match["spread"]["line"], 3.5)
+        self.assertEqual(match["total"]["line"], 22.5)
+        self.assertTrue(all(v["merkur"] > v["pinnacle"] for v in values))
+        self.assertIn("1. set", {v["periodLabel"] for v in values})
+
+    def test_match_without_merkur_keeps_pinnacle_main_lines(self):
+        match, values = tennis.shape_match(self.merged(), None)
+        self.assertIsNone(match["merkur"])
+        self.assertEqual(match["total"]["line"], 22.5)
+        self.assertIsNone(match["total"]["merkur"])
+        self.assertEqual(values, [])
+
+    def test_player_names_pair_by_surname_and_initial(self):
+        self.assertEqual(tennis.player_score("Katarzyna Kawa", "K. Kawa"), 1.0)
+        self.assertEqual(tennis.player_score("Stan Wawrinka", "Wawrinka S."), 1.0)
+        self.assertEqual(tennis.player_score("Katarzyna Kawa", "K. Jacquet"), 0.0)  # an initial matches only once
+        self.assertEqual(tennis.player_score("Katarzyna Kawa", "J. Kawa"), 0.0)
+        self.assertEqual(tennis.player_score("Guido Andreozzi / Manuel Guinard", "Andreozzi G./Guinard M."), 1.0)
+
+    def test_pairs_by_players_even_when_kickoff_is_hours_off(self):
+        row = {**self.ROW, "kickOffTime": 1_900_000_000_000 + 5 * 3600_000}
+        pairs = tennis.pair_events([self.merged()], [row])
+        self.assertEqual(pairs["7"][0]["id"], 5)
+        other = {**row, "home": "K. Jacquet", "away": "B. Nakashima"}
+        self.assertEqual(tennis.pair_events([self.merged()], [other]), {})
+
+    def test_competitions_are_tournaments_grouped_by_category(self):
+        state = tennis.TennisState.__new__(tennis.TennisState)
+        comps = state.competitions([{"leagueId": "ITF Women Austin"}, {"leagueId": "ATP Lyon"},
+                                    {"leagueId": "ATP Lyon"}, {"leagueId": "WTA Osaka"}])
+        self.assertEqual([(c["country"], c["name"], c["count"]) for c in comps],
+                         [("ATP", "Lyon", 2), ("WTA", "Osaka", 1), ("ITF žene", "Austin", 1)])
+        self.assertEqual(tennis.tournament("ATP Lyon - Doubles"), "ATP Lyon")
 
 
 class DevigTests(unittest.TestCase):

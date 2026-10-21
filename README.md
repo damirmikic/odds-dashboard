@@ -89,3 +89,13 @@ Pick the basketball icon at the top of the side menu (or open `/?sport=basketbal
 - Competitions are the `COMPETITIONS` list in `basketball.py`: PinnWire `league_id` plus the MerkurXtip `leagueId` (basketball `leagueShort` values are not unique, so the numeric id is used). Add an entry to track another league.
 - MerkurXtip codes: winner `50291/50293`; handicap, total and team-total lines come in numbered sets (`handicapOvertime`, `handicapOvertime2` … in `params`) with the codes listed in `basketball.py`. The board shows the shared line closest to Pinnacle's main line; click a row for every compared line.
 
+
+## Tennis
+
+Pick the tennis icon (or open `/?sport=tennis`). The board is built in `tennis.py` and reuses the basketball state and pane; the MerkurXtip feed is the same URL with the sport letter `T` (`/restapi/custom/offer/sr/sport/T/mob`).
+
+- PinnWire sport 2. A match is two PinnWire events: the main one in sets (winner, set handicap, total sets, 1st set winner) and a side event with `parent_id` in games (game handicap, total games, games per player, 1st set total games). The side events are requested with `include_alt_units=1` in the same single request and folded into the main event, so tennis adds one PinnWire request per refresh.
+- Compared markets: winner, set handicap, total sets (only the 2.5 line, best of three), game handicap, total games, games per player, and for the 1st set the winner and total games. Lines are matched exactly, half-point lines only, nothing is modelled. The board shows the games handicap and total games; the other markets are in the odds modal and the Value list.
+- Competitions are tournaments derived from the PinnWire league names (`ATP Lyon - R16` and `ATP Lyon - Doubles` are both "ATP Lyon"), grouped by ATP, WTA, Challenger and ITF; PinnWire changes the `league_id` every round, so there is no list to maintain.
+- Matches are paired by player names and kickoff within 12 hours, with no competition check (the two books name tournaments differently). MerkurXtip writes initials ("K. Kawa") and its tennis kickoff is often a rough time, up to a few hours from Pinnacle's; the ⏱ tag shows the difference. Pairing needs the surname of every player, and an initial must match a name.
+- MerkurXtip codes are listed in `tennis.py` (`MX_PERIOD`); the line params are `hd2` (set handicap), `handicapGames`, `overUnderGames`/`overUnderGames2`, `homeOverUnderGames`/`awayOverUnderGames` and `overUnderGamesFirstSet`…`5`. Small ITF matches only carry the winner and 1st set winner in the MerkurXtip offer.
