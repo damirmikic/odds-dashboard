@@ -971,8 +971,6 @@ const SPORTS = [
   { key: "football", label: "Fudbal", live: true },
   { key: "basketball", label: "Košarka", live: true },
   { key: "tennis", label: "Tenis", live: true },
-  { key: "hockey", label: "Hokej" },
-  { key: "volleyball", label: "Odbojka" },
 ];
 
 // Line icons (24px grid, currentColor); the `sport-*` classes drive the hover animations in dashboard.css.
@@ -995,18 +993,6 @@ function SportIcon({ sport }) {
       <>
         <circle cx="12" cy="12" r="9" />
         <path d="M5.2 5.2c4.3 3.3 4.3 10.3 0 13.6M18.8 5.2c-4.3 3.3-4.3 10.3 0 13.6" />
-      </>
-    ),
-    hockey: (
-      <>
-        <path d="M6 3l5 13c.5 1.3 1 1.3 2.4 1.3H18" />
-        <ellipse className="puck" cx="15" cy="20.6" rx="3.2" ry="1.2" />
-      </>
-    ),
-    volleyball: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 3c0 5-3.4 8.6-8.4 9.6M20.4 9c-5.4.4-8.6 3-9.9 11.7M6.2 18.6c1.6-4.2 5.6-6.4 11.6-5.6" />
       </>
     ),
   }[sport];

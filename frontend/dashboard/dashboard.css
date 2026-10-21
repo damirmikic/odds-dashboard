@@ -178,9 +178,7 @@ button:disabled { cursor: default; opacity: .45; }
   .sport-btn:hover:not(:disabled) .sport-football,
   .sport-btn.active .sport-football { animation: sport-spin 1.6s cubic-bezier(.4, 0, .2, 1) 1; }
   .sport-btn:hover:not(:disabled) .sport-tennis { animation: sport-spin 1s ease-in-out 1; }
-  .sport-btn:hover:not(:disabled) .sport-volleyball { animation: sport-spin 1.2s ease-in-out 1; }
   .sport-btn:hover:not(:disabled) .sport-basketball { animation: sport-bounce .7s ease-out 1; }
-  .sport-btn:hover:not(:disabled) .sport-hockey .puck { animation: sport-slide .6s ease-in-out 1; }
   .sport-football .ball-core { transform-box: fill-box; transform-origin: center; }
   .sport-btn:hover:not(:disabled) .sport-football .ball-core { animation: sport-core .5s ease-in-out 1; }
 }
