@@ -134,6 +134,11 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.ucl { --badge: #0b2a6f; }
 .comp-badge.uel { --badge: #e86a10; }
 .comp-badge.uecl { --badge: #1f9d55; }
+.comp-badge.ligapt { --badge: #006600; }
+.comp-badge.eredivisie { --badge: #ea6a00; }
+.comp-badge.superlig { --badge: #c8102e; }
+.comp-badge.championship { --badge: #3a3a8c; }
+.comp-badge.bundesliga2 { --badge: #7a1f1f; }
 .tabs button:disabled .comp-badge { opacity: .5; }
 
 /* ---------------------------------------------------------------- layout */

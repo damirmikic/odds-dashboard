@@ -38,6 +38,13 @@ COMPETITIONS = [
     {"id": 2630, "key": "uel", "name": "Liga Evrope", "country": "UEFA", "code": "UEL", "merkur": "UEFA EL"},
     {"id": 214101, "key": "uecl", "name": "Liga konferencija", "country": "UEFA", "code": "UECL",
      "merkur": "UEFA ECFL"},
+    {"id": 2386, "key": "ligapt", "name": "Liga Portugal", "country": "Portugal", "code": "POR", "merkur": "POR LP"},
+    {"id": 1928, "key": "eredivisie", "name": "Eredivisie", "country": "Holandija", "code": "NED", "merkur": "NLD ERE"},
+    {"id": 2592, "key": "superlig", "name": "Süper Lig", "country": "Turska", "code": "TUR", "merkur": "TUR SL"},
+    {"id": 1977, "key": "championship", "name": "Championship", "country": "Engleska", "code": "ENG2",
+     "merkur": "ENG CH"},
+    {"id": 1843, "key": "bundesliga2", "name": "2. Bundesliga", "country": "Nemačka", "code": "GER2",
+     "merkur": "GER 2BL"},
 ]
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
 MERKUR_COMP = {c["merkur"]: c["id"] for c in COMPETITIONS}
