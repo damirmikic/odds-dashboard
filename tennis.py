@@ -148,6 +148,22 @@ def pinnacle_markets(event, period="ft"):
     return out
 
 
+def pinnacle_limits(event, period="ft"):
+    """Pinnacle limits of one period keyed like pinnacle_markets(); the moneyline carries none."""
+    number = dict((key, n) for key, _, n in PERIODS)[period]
+    sets = pw.period(event, number)
+    games = pw.period({"periods": event.get("games")}, number)
+    team = games.get("team_totals") or {}
+    return {
+        "setspreads": bb.line_limits(sets.get("spreads"), "hdp"),
+        "settotals": bb.line_limits(sets.get("totals"), "points"),
+        "spreads": bb.line_limits(games.get("spreads"), "hdp"),
+        "totals": bb.line_limits(games.get("totals"), "points"),
+        "home": bb.line_limits(team.get("home"), "points"),
+        "away": bb.line_limits(team.get("away"), "points"),
+    }
+
+
 def merkur_markets(row, period="ft"):
     """One MerkurXtip tennis offer row -> the same shape as pinnacle_markets(), for one period."""
     raw, params = row.get("odds") or {}, row.get("params") or {}
@@ -178,7 +194,7 @@ def merkur_markets(row, period="ft"):
 
 # ------------------------------------------------------------------------- comparison
 
-def compare(pin, merkur, period="ft"):
+def compare(pin, merkur, period="ft", limits=None):
     """Every market both books price at the same line, as compare rows."""
     rows = []
     for key, group, labels in GROUPS:
@@ -188,7 +204,8 @@ def compare(pin, merkur, period="ft"):
             continue
         for line in sorted(merkur[key]):
             if line in pin[key]:
-                rows.append(bb.compare_row(group, line, labels, merkur[key][line], pin[key][line]))
+                rows.append(bb.compare_row(group, line, labels, merkur[key][line], pin[key][line],
+                                           (limits or {}).get(key, {}).get(line)))
     for r in rows:
         r["period"] = period
     return rows
@@ -273,9 +290,9 @@ def shape_match(event, hit):
     rows, merkur, periods = [], None, {}
     if hit:
         row, score = hit
-        rows = compare(pin, merkur_markets(row))
+        rows = compare(pin, merkur_markets(row), limits=pinnacle_limits(event))
         for key, _, _ in PERIODS[1:]:
-            found = compare(pinnacle_markets(event, key), merkur_markets(row, key), key)
+            found = compare(pinnacle_markets(event, key), merkur_markets(row, key), key, pinnacle_limits(event, key))
             if found:
                 periods[key] = found
         ml_row = next((r for r in rows if r["group"] == "Pobednik"), None)

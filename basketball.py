@@ -153,6 +153,27 @@ def merge_event(old, new):
 
 # ------------------------------------------------------------------------- decoding
 
+def line_limits(lines, key):
+    """{line: Pinnacle limit (max bet)} of a spread/total ladder, over the same lines as pinnacle_markets()."""
+    out = {}
+    for line in (lines or {}).values() if isinstance(lines, dict) else ():
+        if isinstance(line, dict) and pw.allowed_line(pw._num(line.get(key)), "totals"):
+            out[pw._num(line[key])] = line.get("max")
+    return out
+
+
+def pinnacle_limits(event, number=0):
+    """Pinnacle limits of one period keyed like pinnacle_markets(); the moneyline carries none."""
+    markets = pw.period(event, number)
+    team = markets.get("team_totals") or {}
+    return {
+        "spreads": line_limits(markets.get("spreads"), "hdp"),
+        "totals": line_limits(markets.get("totals"), "points"),
+        "home": line_limits(team.get("home"), "points"),
+        "away": line_limits(team.get("away"), "points"),
+    }
+
+
 def pinnacle_markets(event, number=0):
     """Pinnacle prices of one period keyed like merkur_markets(): ml {side: odds}, lines {line: {side: odds}}."""
     markets = pw.period(event, number)
@@ -211,7 +232,7 @@ def merkur_markets(row, period="ft"):
 
 # ------------------------------------------------------------------------- comparison
 
-def compare_row(group, line, labels, merkur, pinnacle):
+def compare_row(group, line, labels, merkur, pinnacle, max_bet=None):
     """Merkur odds against Pinnacle fair odds; ev = Merkur / fair - 1."""
     fair, pin_margin = pw.fair_odds(pinnacle)
     outcomes = [{"key": key, "label": label, "merkur": merkur[key], "pinnacle": pinnacle[key],
@@ -223,6 +244,7 @@ def compare_row(group, line, labels, merkur, pinnacle):
         "outcomes": outcomes,
         "merkurMargin": round((sum(1 / o for o in merkur.values()) - 1) * 100, 2),
         "pinnacleMargin": pin_margin,
+        "maxBet": max_bet,
         "maxEv": max(o["ev"] for o in outcomes),
     }
 
@@ -282,7 +304,7 @@ def model_row(group, line, labels, merkur, p_first, overround):
     }
 
 
-def compare(pin, merkur, period="ft", scale=1.0):
+def compare(pin, merkur, period="ft", scale=1.0, limits=None):
     """Every market both books price, as compare rows; Merkur lines outside Pinnacle's ladder are modelled."""
     rows = []
     for key, group, labels in GROUPS:
@@ -292,7 +314,8 @@ def compare(pin, merkur, period="ft", scale=1.0):
             continue
         for line in sorted(merkur[key]):
             if line in pin[key]:
-                rows.append(compare_row(group, line, labels, merkur[key][line], pin[key][line]))
+                rows.append(compare_row(group, line, labels, merkur[key][line], pin[key][line],
+                                        (limits or {}).get(key, {}).get(line)))
                 continue
             model = model_probability(pin[key], key, line, scale)
             if model:
@@ -415,11 +438,12 @@ def shape_match(event, hit):
     if hit:
         row, score = hit
         decoded = merkur_markets(row)
-        rows = compare(pin, decoded)
+        rows = compare(pin, decoded, limits=pinnacle_limits(event))
         stale = stale_gaps(pin, decoded)
         for key, _, number, scale in PERIODS[1:]:
             if pw.period(event, number):
-                found = compare(pinnacle_markets(event, number), merkur_markets(row, key), key, scale)
+                found = compare(pinnacle_markets(event, number), merkur_markets(row, key), key, scale,
+                                pinnacle_limits(event, number))
                 if found:
                     periods[key] = found
         ml_row = next((r for r in rows if r["group"] == "Pobednik"), None)

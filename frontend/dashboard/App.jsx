@@ -1273,7 +1273,7 @@ function BbDetail({ match, periodKey = "ft" }) {
       {!rows.length && <p className="muted">Nema tržišta koja postoje kod obe kuće.</p>}
       <table className="lines mx-table">
         <thead>
-          <tr><th>Tržište</th><th>Linija</th><th>Ishod</th><th>Fer</th><th>PIN</th><th>MX</th><th>Razlika</th></tr>
+          <tr><th>Tržište</th><th>Linija</th><th>Ishod</th><th>Fer</th><th>PIN</th><th>MX</th><th>Razlika</th><th title="Pinnacle limit (max bet) tržišta">Max bet</th></tr>
         </thead>
         <tbody>
           {rows.flatMap((r) => r.outcomes.map((o, i) => (
@@ -1285,6 +1285,7 @@ function BbDetail({ match, periodKey = "ft" }) {
               <td>{fmtOdds(o.pinnacle)}</td>
               <td><span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}>{fmt2(o.merkur)}</span></td>
               <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
+              <td className="mx-maxbet">{i === 0 ? fmtLimit(r.maxBet) || "—" : ""}</td>
             </tr>
           )))}
         </tbody>
