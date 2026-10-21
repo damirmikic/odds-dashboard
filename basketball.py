@@ -1,8 +1,8 @@
 """Basketball board: Pinnacle (PinnWire sport 3) against the MerkurXtip basketball offer.
 
-Only full-game markets are compared, overtime included (MerkurXtip calls them "EKS INING"):
-winner, handicap, total points and team totals. Lines are matched exactly, so whole-number lines
-(which refund on a push at both books) are used as well as half-point ones.
+Full-game markets (overtime included, MerkurXtip calls them "EKS INING"), the 1st half and the 1st quarter are
+compared: winner, handicap, total points and team totals. Lines are matched exactly and only half-point lines
+(x.5) are used: whole-number lines refund on a push, which a two-way fair price does not account for.
 """
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ def pinnacle_markets(event, number=0):
     def by_line(lines, key, sides):
         out = {}
         for line in (lines or {}).values() if isinstance(lines, dict) else ():
-            if isinstance(line, dict) and pw._num(line.get(key)) is not None:
+            if isinstance(line, dict) and pw.allowed_line(pw._num(line.get(key)), "totals"):
                 prices = pw.priced(line, sides)
                 if len(prices) == len(sides):
                     out[pw._num(line[key])] = prices
@@ -193,7 +193,7 @@ def merkur_markets(row, period="ft"):
         for key, first, second in sets:
             line = mx._param_line(params, key)
             prices = mx._pick(raw, dict(zip(sides, (first, second))))
-            if line is not None and prices and line not in out:
+            if pw.allowed_line(line, "totals") and prices and line not in out:
                 out[line] = prices
         return out
 

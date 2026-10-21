@@ -85,7 +85,7 @@ During frontend development, run the Python server in one terminal and `npm run 
 Pick the basketball icon at the top of the side menu (or open `/?sport=basketball`). It has its own board, built in `basketball.py`:
 
 - PinnWire sport 3 against the MerkurXtip basketball offer (`/restapi/custom/offer/sr/sport/B/mob`). Both are cached and refreshed like football (delta requests), so basketball adds one PinnWire request per refresh.
-- Compared markets are full game with overtime: winner, handicap, total points and home/away team totals. Lines are matched exactly, and whole-number lines are kept (a push refunds at both books). Quarters and halves are not compared yet.
+- Compared markets are full game with overtime: winner, handicap, total points and home/away team totals. Lines are matched exactly and only half-point lines (x.5) are used; whole-number lines are dropped because a push refunds the stake. Quarters and halves are not compared yet.
 - Competitions are the `COMPETITIONS` list in `basketball.py`: PinnWire `league_id` plus the MerkurXtip `leagueId` (basketball `leagueShort` values are not unique, so the numeric id is used). Add an entry to track another league.
 - MerkurXtip codes: winner `50291/50293`; handicap, total and team-total lines come in numbered sets (`handicapOvertime`, `handicapOvertime2` … in `params`) with the codes listed in `basketball.py`. The board shows the shared line closest to Pinnacle's main line; click a row for every compared line.
 
