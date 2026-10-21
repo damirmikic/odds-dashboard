@@ -47,6 +47,22 @@ COMPETITIONS = [
      "merkur": "ENG CH"},
     {"id": 1843, "key": "bundesliga2", "name": "2. Bundesliga", "country": "Nemačka", "code": "GER2",
      "merkur": "GER 2BL"},
+    {"id": 1817, "key": "jupiler", "name": "Jupiler Pro League", "country": "Belgija", "code": "BEL",
+     "merkur": "BEL PL"},
+    {"id": 210697, "key": "ligaarg", "name": "Liga Profesional", "country": "Argentina", "code": "ARG",
+     "merkur": "ARG LPF"},
+    {"id": 1913, "key": "superligadk", "name": "Superliga", "country": "Danska", "code": "DEN", "merkur": "DNK SL"},
+    {"id": 2517, "key": "superligach", "name": "Super League", "country": "Švajcarska", "code": "SUI",
+     "merkur": "SWI SL"},
+    {"id": 2432, "key": "laliga2", "name": "La Liga 2", "country": "Španija", "code": "ESP2", "merkur": "ESP LL2"},
+    {"id": 1834, "key": "brasileirao", "name": "Serie A", "country": "Brazil", "code": "BRA", "merkur": "BRA SA"},
+    {"id": 2374, "key": "ekstraklasa", "name": "Ekstraklasa", "country": "Poljska", "code": "POL",
+     "merkur": "POL EK"},
+    {"id": 2395, "key": "liga1ro", "name": "Liga 1", "country": "Rumunija", "code": "ROU", "merkur": "ROM SL"},
+    {"id": 2333, "key": "eliteserien", "name": "Eliteserien", "country": "Norveška", "code": "NOR",
+     "merkur": "NOR ES"},
+    {"id": 2421, "key": "scotprem", "name": "Premiership", "country": "Škotska", "code": "SCO", "merkur": "SCO PL"},
+    {"id": 2663, "key": "mls", "name": "MLS", "country": "SAD", "code": "MLS", "merkur": "USA MLS"},
 ]
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
 MERKUR_COMP = {c["merkur"]: c["id"] for c in COMPETITIONS}
