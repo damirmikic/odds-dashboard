@@ -77,6 +77,30 @@ MAX_MODEL_GAP = {"spreads": 4.0, "totals": 5.0, "home": 4.0, "away": 4.0}  # poi
 STALE_GAP = 2.0  # MerkurXtip main line this far from Pinnacle's: the offer lags
 NORMAL = NormalDist()
 
+# (key, label, PinnWire period number, spread of the margin/total relative to the full game).
+# PinnWire numbers basketball periods 0 = game, 1 = 1st half, 3 = 1st quarter; it quotes the quarter only close to
+# the start, so a quarter is compared once it appears.
+PERIODS = [("ft", "Ceo meč", 0, 1.0), ("ht", "1. poluvreme", 1, 0.71), ("q1", "1. četvrtina", 3, 0.5)]
+# MerkurXtip codes per period: winner (draw no bet for the half and the quarter) and sets of
+# (line param, home/over code, away/under code).
+MX_PERIOD = {
+    "ft": {"ml": ML, "spreads": SPREADS, "totals": TOTALS, "home": TEAM_TOTALS["home"], "away": TEAM_TOTALS["away"]},
+    "ht": {
+        "ml": ("611", "612"),
+        "spreads": [("hd2wp1", "53903", "53904")],
+        "totals": [("overUnderP", "50979", "50980")],
+        "home": [("homeOverUnderFirstHalf", "50983", "50982")],
+        "away": [("awayOverUnderFirstHalf", "50985", "50984")],
+    },
+    "q1": {
+        "ml": ("50025", "50026"),
+        "spreads": [("handicapFirstPeriod", "602", "603")],
+        "totals": [("overUnderFirstPeriod", "598", "599")],
+        "home": [("homeOverUnderFirstPeriod", "50028", "50027")],
+        "away": [("awayOverUnderFirstPeriod", "50030", "50029")],
+    },
+}
+
 GROUPS = [
     # key in pinnacle_markets()/merkur_markets(), group label, outcome sides
     ("ml", "Pobednik", (("home", "1"), ("away", "2"))),
@@ -129,9 +153,9 @@ def merge_event(old, new):
 
 # ------------------------------------------------------------------------- decoding
 
-def pinnacle_markets(event):
-    """Full-game Pinnacle prices keyed like merkur_markets(): ml {side: odds}, lines {line: {side: odds}}."""
-    markets = pw.period(event, 0)
+def pinnacle_markets(event, number=0):
+    """Pinnacle prices of one period keyed like merkur_markets(): ml {side: odds}, lines {line: {side: odds}}."""
+    markets = pw.period(event, number)
 
     def by_line(lines, key, sides):
         out = {}
@@ -159,9 +183,10 @@ def pinnacle_markets(event):
     return out
 
 
-def merkur_markets(row):
-    """One MerkurXtip basketball offer row -> the same shape as pinnacle_markets()."""
+def merkur_markets(row, period="ft"):
+    """One MerkurXtip basketball offer row -> the same shape as pinnacle_markets(), for one period."""
     raw, params = row.get("odds") or {}, row.get("params") or {}
+    codes = MX_PERIOD[period]
 
     def lines(sets, sides):
         out = {}
@@ -173,13 +198,14 @@ def merkur_markets(row):
         return out
 
     return {
-        "ml": mx._pick(raw, dict(zip(("home", "away"), ML))),
-        "spreads": lines(SPREADS, ("home", "away")),
-        "totals": lines(TOTALS, ("over", "under")),
-        "home": lines(TEAM_TOTALS["home"], ("over", "under")),
-        "away": lines(TEAM_TOTALS["away"], ("over", "under")),
+        "ml": mx._pick(raw, dict(zip(("home", "away"), codes["ml"]))),
+        "spreads": lines(codes["spreads"], ("home", "away")),
+        "totals": lines(codes["totals"], ("over", "under")),
+        "home": lines(codes["home"], ("over", "under")),
+        "away": lines(codes["away"], ("over", "under")),
         # MerkurXtip's own main lines: the first set of each market (params without a number suffix)
-        "main": {"spreads": mx._param_line(params, SPREADS[0][0]), "totals": mx._param_line(params, TOTALS[0][0])},
+        "main": {"spreads": mx._param_line(params, codes["spreads"][0][0]),
+                 "totals": mx._param_line(params, codes["totals"][0][0])},
     }
 
 
@@ -217,7 +243,7 @@ def ladder_points(lines, key):
     return points
 
 
-def model_probability(lines, key, line):
+def model_probability(lines, key, line, scale=1.0):
     """(P(first side), overround) at a line Pinnacle does not quote, or None when it is too far from the ladder."""
     points = ladder_points(lines, key)
     t = -line if key == "spreads" else line
@@ -225,9 +251,9 @@ def model_probability(lines, key, line):
         return None
     near = sorted(points, key=lambda pt: abs(pt[0] - t))
     t0, z0, _, margin = near[0]
-    if abs(t0 - t) > MAX_MODEL_GAP[key]:
+    if abs(t0 - t) > MAX_MODEL_GAP[key] * scale:
         return None
-    sigma = SIGMA[key]
+    sigma = SIGMA[key] * scale
     fit = near[:4]
     if len(fit) >= 3:  # least squares of probit against t over the lines nearest to the target
         mean_t = sum(pt[0] for pt in fit) / len(fit)
@@ -256,7 +282,7 @@ def model_row(group, line, labels, merkur, p_first, overround):
     }
 
 
-def compare(pin, merkur):
+def compare(pin, merkur, period="ft", scale=1.0):
     """Every market both books price, as compare rows; Merkur lines outside Pinnacle's ladder are modelled."""
     rows = []
     for key, group, labels in GROUPS:
@@ -268,9 +294,11 @@ def compare(pin, merkur):
             if line in pin[key]:
                 rows.append(compare_row(group, line, labels, merkur[key][line], pin[key][line]))
                 continue
-            model = model_probability(pin[key], key, line)
+            model = model_probability(pin[key], key, line, scale)
             if model:
                 rows.append(model_row(group, line, labels, merkur[key][line], *model))
+    for r in rows:
+        r["period"] = period
     return rows
 
 
@@ -325,30 +353,34 @@ def board_cell(group_rows, pin_lines, sides):
 
 def value_items(match_id, rows, stale=None):
     """Every outcome where the MerkurXtip price beats the Pinnacle price, one item each."""
+    labels = {key: label for key, label, _, _ in PERIODS}
     items = []
     for r in rows:
         for o in r["outcomes"]:
             if o["merkur"] <= o["pinnacle"]:
                 continue
+            period = r.get("period", "ft")
             items.append({
-                "matchId": match_id, "group": r["group"], "line": r["line"], "key": o["key"],
+                "matchId": match_id, "period": period, "periodLabel": labels[period], "group": r["group"], "line": r["line"], "key": o["key"],
                 "label": o["label"], "merkur": o["merkur"], "pinnacle": o["pinnacle"], "fair": o["fair"],
                 "ev": o["ev"], "overPinnacle": round(o["merkur"] / o["pinnacle"] - 1, 4),
                 "merkurMargin": r["merkurMargin"], "pinnacleMargin": r["pinnacleMargin"],
                 "modeled": bool(r.get("modeled")),
                 # MerkurXtip main line vs Pinnacle's, when this outcome is the side that gap favours
-                "stale": gap if (gap := (stale or {}).get(r["group"])) and favours(r["group"], gap, o["key"]) else None,
+                "stale": gap if (period == "ft" and (gap := (stale or {}).get(r["group"]))
+                                 and favours(r["group"], gap, o["key"])) else None,
             })
     return pw.best_per_line_market(items)
 
 
 def best_edge(rows):
     best = None
+    prefixes = {"ft": "", "ht": "1.pol ", "q1": "1.čet "}
     for r in rows:
         for o in r["outcomes"]:
             if best is None or o["ev"] > best["ev"]:
                 market = r["group"] + ("" if r["line"] is None else f" {r['line']:g}")
-                best = {"ev": o["ev"], "label": f"{market} {o['label']}"}
+                best = {"ev": o["ev"], "label": f"{prefixes[r.get('period', 'ft')]}{market} {o['label']}"}
     return best
 
 
@@ -379,19 +411,24 @@ def shape_match(event, hit):
     """Board entry of one Pinnacle event, plus its value items from the paired MerkurXtip row."""
     pin = pinnacle_markets(event)
     ml_fair, margin = pw.fair_odds(pin["ml"]) if pin["ml"] else ({}, None)
-    rows, merkur, stale = [], None, {}
+    rows, merkur, stale, periods = [], None, {}, {}
     if hit:
         row, score = hit
         decoded = merkur_markets(row)
         rows = compare(pin, decoded)
         stale = stale_gaps(pin, decoded)
+        for key, _, number, scale in PERIODS[1:]:
+            if pw.period(event, number):
+                found = compare(pinnacle_markets(event, number), merkur_markets(row, key), key, scale)
+                if found:
+                    periods[key] = found
         ml_row = next((r for r in rows if r["group"] == "Pobednik"), None)
         merkur = {
             "id": row.get("id"), "home": row.get("home", ""), "away": row.get("away", ""), "score": score,
             "kickoffDiff": round(((row.get("kickOffTime") or 0) - event_ts(event)) / 60000),
             "ml": {o["key"]: {"odds": o["merkur"], "ev": o["ev"]} for o in ml_row["outcomes"]} if ml_row else None,
-            "best": best_edge(rows),
-            "compared": len(rows),
+            "best": best_edge(rows + [r for found in periods.values() for r in found]),
+            "compared": len(rows) + sum(len(found) for found in periods.values()),
             "stale": [{"group": g, "gap": gap} for g, gap in stale.items()],
         }
     match = {
@@ -408,8 +445,10 @@ def shape_match(event, hit):
         "total": board_cell([r for r in rows if r["group"] == "Ukupno poena" and not r.get("modeled")], pin["totals"], ("over", "under")),
         "merkur": merkur,
         "rows": rows,
+        "periods": periods,
     }
-    return match, value_items(event.get("event_id"), rows, stale)
+    every_row = rows + [r for found in periods.values() for r in found]
+    return match, value_items(event.get("event_id"), every_row, stale)
 
 
 class BasketballState:

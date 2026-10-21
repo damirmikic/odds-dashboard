@@ -156,6 +156,12 @@ button:disabled { cursor: default; opacity: .45; }
 .sport-btn:hover:not(:disabled), .sport-btn.active { color: var(--text); }
 .sport-btn.active { background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--accent); }
 .sport-btn:disabled { opacity: .5; }
+.sport-btn { position: relative; }
+.sport-count {
+  position: absolute; top: 1px; right: 3px; min-width: 18px; padding: 1px 5px; border-radius: 9px;
+  background: var(--panel-2); color: var(--muted); font-size: 10px; font-weight: 800; line-height: 1.3; text-align: center;
+}
+.sport-btn.active .sport-count { background: var(--accent); color: var(--accent-ink); }
 .sport-icon { transition: color .2s; transform-origin: 50% 50%; }
 .sport-btn.active .sport-icon { color: var(--accent); }
 @keyframes sport-spin { to { transform: rotate(360deg); } }
@@ -500,3 +506,4 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 }
 .missing-hint { text-align: left; white-space: nowrap; }
 .missing-hint small { margin-left: 4px; color: var(--faint); }
+.mx-table .mx-fair-cell { background: var(--panel-2); color: var(--text); font-weight: 800; }

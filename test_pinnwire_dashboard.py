@@ -649,5 +649,31 @@ class PrematchRowTests(unittest.TestCase):
         self.assertTrue(mx.is_prematch({"live": False, "kickOffTime": 500}, now_ms=1000))
 
 
+class BasketballPeriodTests(unittest.TestCase):
+    ROW = {"odds": {"611": 1.6, "612": 2.2, "53903": 1.85, "53904": 1.85, "50979": 1.9, "50980": 1.8,
+                    "598": 1.88, "599": 1.82, "602": 1.9, "603": 1.8, "50025": 1.7, "50026": 2.1},
+           "params": {"hd2wp1": "-1.5", "overUnderP": "86.5", "handicapFirstPeriod": "0.5",
+                      "overUnderFirstPeriod": "42.5"}}
+
+    def test_first_half_codes(self):
+        half = bb.merkur_markets(self.ROW, "ht")
+        self.assertEqual(half["ml"], {"home": 1.6, "away": 2.2})
+        self.assertEqual(half["spreads"], {-1.5: {"home": 1.85, "away": 1.85}})
+        self.assertEqual(half["totals"], {86.5: {"over": 1.9, "under": 1.8}})
+
+    def test_first_quarter_codes(self):
+        quarter = bb.merkur_markets(self.ROW, "q1")
+        self.assertEqual(quarter["ml"], {"home": 1.7, "away": 2.1})
+        self.assertEqual(quarter["spreads"], {0.5: {"home": 1.9, "away": 1.8}})
+        self.assertEqual(quarter["totals"], {42.5: {"over": 1.88, "under": 1.82}})
+
+    def test_period_rows_carry_their_period_into_value_items(self):
+        pin = {"ml": None, "spreads": {}, "totals": {86.5: {"over": 1.95, "under": 1.85}}, "home": {}, "away": {}}
+        rows = bb.compare(pin, bb.merkur_markets(self.ROW, "ht"), "ht", 0.71)
+        self.assertEqual({r["period"] for r in rows}, {"ht"})
+        items = bb.value_items(1, rows)
+        self.assertTrue(all(i["period"] == "ht" and i["periodLabel"] == "1. poluvreme" for i in items))
+
+
 if __name__ == "__main__":
     unittest.main()

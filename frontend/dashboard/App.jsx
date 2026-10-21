@@ -600,7 +600,7 @@ function ValueTable({ values, matchesById, competitions, selectedId, onSelect, o
                   {v.derived && <DerivedTag />}
                   {v.modeled && <ModeledTag />}
                   {v.stale != null && <StaleTag gap={v.stale} />}
-                  {v.period === "ht" && <small>1. poluvreme</small>}
+                  {v.period && v.period !== "ft" && <small>{v.periodLabel || "1. poluvreme"}</small>}
                 </td>
                 <td className="value-side">{v.label}</td>
                 <td className="mc-odds mc-click mc-group" onClick={oddsClick}>
@@ -671,7 +671,7 @@ function MerkurComparison({ merkur, periodKey, home, away }) {
                     </th>
                   )}
                   <td className="mx-side">{sideLabel(row.group, o.label)}</td>
-                  <td className="muted">{fmtOdds(o.fair)}</td>
+                  <td className="mx-fair-cell">{fmtOdds(o.fair)}</td>
                   <td>{fmtOdds(o.pinnacle)}</td>
                   <td>
                     <span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}><b>{fmtOdds(o.merkur)}</b></span>
@@ -1018,7 +1018,7 @@ function SportIcon({ sport }) {
   );
 }
 
-function SideMenu({ sport, onSport, groups, all, onPick, label }) {
+function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, label }) {
   return (
     <aside className="sidebar">
       <div className="sport-switch" role="tablist" aria-label="Sport">
@@ -1033,6 +1033,7 @@ function SideMenu({ sport, onSport, groups, all, onPick, label }) {
             onClick={() => onSport(item.key)}
             title={item.live ? item.label : `${item.label} — uskoro`}
           >
+            {sportCounts?.[item.key] != null && <b className="sport-count">{sportCounts[item.key]}</b>}
             <SportIcon sport={item.key} />
             <span>{item.label}</span>
           </button>
@@ -1234,8 +1235,10 @@ function BbLineCells({ cell, sides, signed }) {
   );
 }
 
-function BbDetail({ match }) {
-  const rows = match.rows || [];
+const BB_PERIOD_LABELS = { ft: "Ceo meč", ht: "1. poluvreme", q1: "1. četvrtina" };
+
+function BbDetail({ match, periodKey = "ft" }) {
+  const rows = (periodKey === "ft" ? match.rows : match.periods?.[periodKey]) || [];
   if (!match.merkur) return <p className="muted bb-detail">Meč nije u ponudi MerkurXtip (ili nije uparen).</p>;
   const modeled = rows.filter((r) => r.modeled).length;
   return (
@@ -1257,7 +1260,7 @@ function BbDetail({ match }) {
               <td>{i === 0 ? r.group : ""}</td>
               <td>{i === 0 && r.line != null ? fmtLine(r.line, r.group === "Hendikep") : ""}{i === 0 && r.modeled && <ModeledTag />}</td>
               <td>{r.group === "Hendikep" ? (o.key === "home" ? match.home : match.away) : o.label}</td>
-              <td>{fmtOdds(o.fair)}</td>
+              <td className="mx-fair-cell">{fmtOdds(o.fair)}</td>
               <td>{fmtOdds(o.pinnacle)}</td>
               <td><span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}>{fmt2(o.merkur)}</span></td>
               <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
@@ -1271,6 +1274,7 @@ function BbDetail({ match }) {
 
 function BbOddsModal({ matchId, boardMatch, onClose, onCalls }) {
   const [detail, setDetail] = useState(null);
+  const [periodKey, setPeriodKey] = useState("ft");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -1295,6 +1299,7 @@ function BbOddsModal({ matchId, boardMatch, onClose, onCalls }) {
   }, [onClose]);
 
   const match = detail?.match || boardMatch;
+  const periodKeys = ["ft", ...Object.keys(match?.periods || {})];
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" role="dialog" aria-modal="true" aria-label="Uporedne kvote" onClick={(e) => e.stopPropagation()}>
@@ -1305,10 +1310,24 @@ function BbOddsModal({ matchId, boardMatch, onClose, onCalls }) {
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Zatvori">✕</button>
         </header>
+        <div className="segmented" role="tablist">
+          {periodKeys.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={periodKey === key}
+              className={periodKey === key ? "active" : ""}
+              onClick={() => setPeriodKey(key)}
+            >
+              {BB_PERIOD_LABELS[key]}
+            </button>
+          ))}
+        </div>
         {error && <p className="state error" role="alert">{error}</p>}
         {!detail && !error && <p className="state">Učitavam kvote…</p>}
         {detail?.error && <p className="state error">{detail.error} Prikazane su kvote iz liste ponude.</p>}
-        {detail && <BbDetail match={detail.match} />}
+        {detail && <BbDetail match={detail.match} periodKey={periodKey} />}
         {detail?.fetchedAt && <p className="muted bb-fetched">MerkurXtip {clockFmt.format(new Date(detail.fetchedAt))}</p>}
       </div>
     </div>
@@ -1406,7 +1425,7 @@ function BbCompareTable({ matches, competitions, selectedId, onOpen }) {
   );
 }
 
-function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport, setCallsToday }) {
+function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport, sportCounts, setCallsToday }) {
   const [competition, setCompetition] = useState(() => readStored("pb.bb.competition", "all"));
   const [view, setView] = useState(() => (
     ["value", "missing"].includes(new URLSearchParams(window.location.search).get("view"))
@@ -1514,6 +1533,7 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
       <SideMenu
         sport={sport}
         onSport={onSport}
+        sportCounts={sportCounts}
         groups={menuGroups}
         all={allItem}
         onPick={(item) => (inValue
@@ -1699,11 +1719,12 @@ export default function App() {
   const basketball = sport === "basketball";
   const reload = basketball ? loadBasketball : loadBoard;
   useEffect(() => writeStored("pb.sport", sport), [sport]);
-  // each sport's board is fetched the first time it is opened
+  // both boards are loaded up front so the sport icons can show their match counts
   useEffect(() => {
-    if (basketball && apiKeySet && !bbBoard && !bbLoading && !bbError) loadBasketball();
-    if (!basketball && apiKeySet && !board && !loading && !error) loadBoard();
-  }, [basketball, apiKeySet, bbBoard, bbLoading, bbError, board, loading, error, loadBasketball, loadBoard]);
+    if (apiKeySet && !bbBoard && !bbLoading && !bbError) loadBasketball();
+    if (apiKeySet && !board && !loading && !error) loadBoard();
+  }, [apiKeySet, bbBoard, bbLoading, bbError, board, loading, error, loadBasketball, loadBoard]);
+  const sportCounts = { football: board?.matches.length, basketball: bbBoard?.matches.length };
 
   useEffect(() => {
     requestJson("/api/status")
@@ -1927,6 +1948,7 @@ export default function App() {
           setQuery={setQuery}
           sport={sport}
           onSport={setSport}
+          sportCounts={sportCounts}
           setCallsToday={setCallsToday}
         />
       )}
@@ -1937,6 +1959,7 @@ export default function App() {
             <SideMenu
               sport={sport}
               onSport={setSport}
+              sportCounts={sportCounts}
               groups={menuGroups}
               all={allItem}
               onPick={(item) => (view === "value"
