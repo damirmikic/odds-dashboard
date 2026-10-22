@@ -4,7 +4,7 @@ const LOCALE = "sr-Latn-RS";
 const timeFmt = new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit" });
 const clockFmt = new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const dayFmt = new Intl.DateTimeFormat(LOCALE, { weekday: "long", day: "numeric", month: "long" });
-const AUTO_OPTIONS = [0, 15, 30, 60, 120, 300];
+const AUTO_OPTIONS = [0, 3, 5, 10, 15, 30, 60, 120, 300];
 const DROP_OPTIONS = [2, 3, 5, 10];
 const fmtAuto = (sec) => (!sec ? "isklj." : sec < 60 ? `${sec} sek` : `${sec / 60} min`);
 const DAY_FILTERS = [
@@ -1886,7 +1886,7 @@ export default function App() {
   const [competition, setCompetition] = useState(() => readStored("pb.competition", "all"));
   const [dayFilter, setDayFilter] = useState(() => readStored("pb.day", "all"));
   const [query, setQuery] = useState("");
-  const [autoSeconds, setAutoSeconds] = useState(() => readStored("pb.autoSec", 15));
+  const [autoSeconds, setAutoSeconds] = useState(() => readStored("pb.autoSec", 5));
   const [dropAlerts, setDropAlerts] = useState(() => readStored("pb.dropAlerts", true));
   const [dropPct, setDropPct] = useState(() => readStored("pb.dropPct", 3));
   const [dropEdge, setDropEdge] = useState(() => readStored("pb.dropEdge", false));

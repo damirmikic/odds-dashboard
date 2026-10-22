@@ -60,7 +60,7 @@ The dashboard is a Progressive Web App. In Chrome or Edge, open http://127.0.0.1
 
 PinnWire has no league filter, so one request returns all soccer fixtures. The first load takes that full snapshot. **Osveži** sends `since=<last>` and merges only events that changed since the previous response. A full snapshot is taken at least hourly, or on demand with **Pun reload**. **Osveži meč** in the detail panel requests only that event.
 
-The dashboard runs on the **Pro + Drops** plan (10 requests per second, SSE drop stream). Auto-refresh defaults to 15 s. On the trial plan (20 requests per minute, 100 per day) set it to 15 minutes or slower; drop alerts need a plan with drops. The top bar shows today's request count.
+The dashboard runs on the **Pro + Drops** plan (10 requests per second, SSE drop stream). Auto-refresh defaults to 5 s (options from 3 s; the next delta request starts after the previous one finishes). On the trial plan (20 requests per minute, 100 per day) set it to 15 minutes or slower; drop alerts need a plan with drops. The top bar shows today's request count.
 
 ## Drop alerts
 
