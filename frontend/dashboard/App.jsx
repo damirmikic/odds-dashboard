@@ -995,6 +995,12 @@ function SportIcon({ sport }) {
         <path d="M12 3v18M3 12h18M5.6 5.6c3.4 3.4 3.4 9.4 0 12.8M18.4 5.6c-3.4 3.4-3.4 9.4 0 12.8" />
       </>
     ),
+    alerts: (
+      <>
+        <path d="M6 16V11a6 6 0 0 1 12 0v5l1.6 2H4.4z" />
+        <path d="M10 21h4" />
+      </>
+    ),
     tennis: (
       <>
         <circle cx="12" cy="12" r="9" />
@@ -1010,7 +1016,7 @@ function SportIcon({ sport }) {
   );
 }
 
-function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, label }) {
+function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, label, alerts }) {
   return (
     <aside className="sidebar">
       <div className="sport-switch" role="tablist" aria-label="Sport">
@@ -1030,8 +1036,22 @@ function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, label }) {
             <span>{item.label}</span>
           </button>
         ))}
+        {alerts && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={alerts.active}
+            className={`sport-btn${alerts.active ? " active" : ""}`}
+            onClick={alerts.onOpen}
+            title="Padovi Pinnacle kvota"
+          >
+            {alerts.count > 0 && <b className="sport-count">{alerts.count}</b>}
+            <SportIcon sport="alerts" />
+            <span>Alerti</span>
+          </button>
+        )}
       </div>
-      <nav aria-label={label}>
+      {all && <nav aria-label={label}>
         <button type="button" className={`side-item${all.active ? " active" : ""}`} onClick={() => onPick(all)}>
           <b>{all.label}</b> <span>{all.count}</span>
         </button>
@@ -1054,7 +1074,7 @@ function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, label }) {
             ))}
           </div>
         ))}
-      </nav>
+      </nav>}
     </aside>
   );
 }
@@ -1450,7 +1470,7 @@ function BbCompareTable({ sport, matches, competitions, selectedId, onOpen }) {
   );
 }
 
-function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport, sportCounts, setCallsToday }) {
+function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport, sportCounts, setCallsToday, alertsTab }) {
   const cfg = SPORT_VIEWS[sport];
   const store = (name) => `pb.${cfg.store}.${name}`;
   const [competition, setCompetition] = useState(() => readStored(store("competition"), "all"));
@@ -1562,6 +1582,7 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
       <SideMenu
         sport={sport}
         onSport={onSport}
+        alerts={alertsTab}
         sportCounts={sportCounts}
         groups={menuGroups}
         all={allItem}
@@ -1730,42 +1751,54 @@ function beep() {
 const DROP_MARKETS = { moneyline: "Pobednik", spread: "Hendikep", total: "Ukupno" };
 const DROP_SIDES = { home: "1", draw: "X", away: "2", over: "V", under: "M" };
 
-// Polls PinnWire's drops endpoint and reports prematch drops of at least `threshold` percent on matches of this board.
-function useDropAlerts(sport, board, enabled, threshold, apiKeySet) {
+// Polls PinnWire's drops endpoint for every sport and keeps the prematch drops of at least `threshold` percent
+// that belong to matches on the loaded boards. `toasts` are the ones not yet seen; `alerts` is the history.
+function useDropAlerts(boards, enabled, threshold, apiKeySet) {
   const seen = useRef(new Set());
-  const boardRef = useRef(board);
-  boardRef.current = board;
+  const boardsRef = useRef(boards);
+  boardsRef.current = boards;
   const [alerts, setAlerts] = useState([]);
+  const [toasts, setToasts] = useState([]);
+  const notify = useRef(enabled);
+  notify.current = enabled;
   useEffect(() => {
     seen.current = new Set();
     setAlerts([]);
-  }, [sport]);
+    setToasts([]);
+  }, [threshold]);
   useEffect(() => {
-    if (!enabled || !apiKeySet) return undefined;
+    if (!apiKeySet) return undefined;
     let stop = false;
     const poll = async () => {
-      try {
-        const data = await requestJson(`/api/drops?sport=${sport}&min=${threshold}&age=300`);
-        const matches = new Map((boardRef.current?.matches || []).map((m) => [String(m.id), m]));
-        const found = [];
-        for (const d of data.drops || []) {
-          const match = matches.get(String(d.event_id));
-          const id = `${d.event_id}:${d.market}:${d.period}:${d.side}:${d.points}:${d.to}:${d.alerted}`;
-          if (!match || seen.current.has(id)) continue;
-          seen.current.add(id);
-          const line = d.points != null && d.market !== "moneyline" ? ` ${fmtLine(d.points, d.market === "spread")}` : "";
-          found.push({
-            id, matchId: match.id, match: `${match.home} – ${match.away}`,
-            label: `${DROP_MARKETS[d.market] || d.market}${line} ${DROP_SIDES[d.side] || d.side}`,
-            from: d.from, to: d.to, pct: d.drop_pct, nvp: d.nvp,
-          });
+      const found = [];
+      for (const sport of Object.keys(boardsRef.current)) {
+        if (!boardsRef.current[sport]?.matches) continue;
+        try {
+          const data = await requestJson(`/api/drops?sport=${sport}&min=${threshold}&age=300`);
+          const matches = new Map(boardsRef.current[sport].matches.map((m) => [String(m.id), m]));
+          for (const d of data.drops || []) {
+            const match = matches.get(String(d.event_id));
+            const id = `${d.event_id}:${d.market}:${d.period}:${d.side}:${d.points}:${d.to}:${d.alerted}`;
+            if (!match || seen.current.has(id)) continue;
+            seen.current.add(id);
+            const line = d.points != null && d.market !== "moneyline" ? ` ${fmtLine(d.points, d.market === "spread")}` : "";
+            found.push({
+              id, sport, matchId: match.id, match: `${match.home} – ${match.away}`, league: match.leagueName || d.league,
+              starts: match.starts, at: Date.now() - (d.age_s || 0) * 1000,
+              market: DROP_MARKETS[d.market] || d.market, line, side: DROP_SIDES[d.side] || d.side,
+              from: d.from, to: d.to, pct: d.drop_pct, nvp: d.nvp,
+            });
+          }
+        } catch {
+          /* the next poll retries */
         }
-        if (!stop && found.length) {
-          setAlerts((list) => [...found, ...list].slice(0, 30));
-          beep();
-        }
-      } catch {
-        /* the next poll retries */
+      }
+      if (stop || !found.length) return;
+      found.sort((x, y) => y.at - x.at);
+      setAlerts((list) => [...found, ...list].slice(0, 300));
+      if (notify.current) {
+        setToasts((list) => [...found, ...list].slice(0, 30));
+        beep();
       }
     };
     poll();
@@ -1774,9 +1807,72 @@ function useDropAlerts(sport, board, enabled, threshold, apiKeySet) {
       stop = true;
       clearInterval(timer);
     };
-  }, [sport, enabled, threshold, apiKeySet]);
-  const dismiss = useCallback((id) => setAlerts((list) => (id ? list.filter((a) => a.id !== id) : [])), []);
-  return { alerts, dismiss };
+  }, [threshold, apiKeySet]);
+  const dismiss = useCallback((id) => setToasts((list) => (id ? list.filter((a) => a.id !== id) : [])), []);
+  const clear = useCallback(() => {
+    setAlerts([]);
+    setToasts([]);
+  }, []);
+  return { alerts, toasts, dismiss, clear };
+}
+
+const DROP_LEVELS = [1, 2, 3, 5, 7.5, 10, 15];
+const dropTimeFmt = new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+function AlertsPage({ alerts, threshold, setThreshold, notify, setNotify, onClear, onOpen }) {
+  const [sportFilter, setSportFilter] = useState("all");
+  const shown = alerts.filter((a) => sportFilter === "all" || a.sport === sportFilter);
+  return (
+    <div className="alerts-page">
+      <div className="filters">
+        <label className="auto" title="Prikazuju se samo padovi Pinnacle kvote od najmanje ovoliko procenata">
+          Minimalni pad
+          <select value={threshold} onChange={(e) => setThreshold(Number(e.target.value))}>
+            {DROP_LEVELS.map((p) => <option key={p} value={p}>≥ {p}%</option>)}
+          </select>
+        </label>
+        <div className="segmented">
+          {[["all", "Svi"], ["football", "Fudbal"], ["basketball", "Košarka"], ["tennis", "Tenis"]].map(([key, label]) => (
+            <button key={key} type="button" className={sportFilter === key ? "active" : ""} onClick={() => setSportFilter(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <label className="auto" title="Skočna kartica i zvuk kad stigne novi pad">
+          <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+          Obaveštenja i zvuk
+        </label>
+        <button type="button" className="button ghost" onClick={onClear} disabled={!alerts.length}>Obriši listu</button>
+      </div>
+      {!shown.length ? (
+        <p className="state">Nema padova od {threshold}% ili više. Lista se osvežava na 15 s i čuva dok je stranica otvorena.</p>
+      ) : (
+        <div className="board-scroll">
+          <table className="board alerts-table">
+            <thead>
+              <tr><th>Vreme</th><th>Meč</th><th>Tržište</th><th>Kvota</th><th>Pad</th><th>Fer</th><th>Prednost</th></tr>
+            </thead>
+            <tbody>
+              {shown.map((a) => (
+                <tr key={a.id} className="match-row" onClick={() => onOpen(a)}>
+                  <td>{dropTimeFmt.format(new Date(a.at))}</td>
+                  <td className="col-match">
+                    <b>{a.match}</b>
+                    <span className="row-league">{a.league} · {fmtKickoffShort(new Date(a.starts))}</span>
+                  </td>
+                  <td>{a.market}{a.line} <b>{a.side}</b></td>
+                  <td>{fmtOdds(a.from)} → <b>{fmtOdds(a.to)}</b></td>
+                  <td className="drop-pct">−{a.pct.toFixed(1)}%</td>
+                  <td>{a.nvp ? fmtOdds(a.nvp) : "—"}</td>
+                  <td>{a.nvp ? fmtEv(a.to / a.nvp - 1) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function App() {
@@ -1794,6 +1890,7 @@ export default function App() {
   const [autoSeconds, setAutoSeconds] = useState(() => readStored("pb.autoSec", 15));
   const [dropAlerts, setDropAlerts] = useState(() => readStored("pb.dropAlerts", true));
   const [dropPct, setDropPct] = useState(() => readStored("pb.dropPct", 3));
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const [view, setView] = useState(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("view");
     return ["compare", "pinnacle", "value", "missing"].includes(fromUrl) ? fromUrl : readStored("pb.view", "compare");
@@ -1834,7 +1931,17 @@ export default function App() {
   const reload = pane ? pane.load : loadBoard;
   const cur = pane ? pane.board : board;
   const curLoading = pane ? pane.loading : loading;
-  const drops = useDropAlerts(sport, cur, dropAlerts, dropPct, apiKeySet);
+  const drops = useDropAlerts({ football: board, basketball: bb.board, tennis: tn.board }, dropAlerts, dropPct, apiKeySet);
+  const pickSport = useCallback((key) => {
+    setAlertsOpen(false);
+    setSport(key);
+  }, []);
+  const alertsTab = { count: drops.alerts.length, active: alertsOpen, onOpen: () => setAlertsOpen(true) };
+  const openAlert = useCallback((a) => {
+    setAlertsOpen(false);
+    setSport(a.sport);
+    if (a.sport === "football") setSelectedId(String(a.matchId));
+  }, []);
   useEffect(() => writeStored("pb.sport", sport), [sport]);
   // all boards are loaded up front so the sport icons can show their match counts
   useEffect(() => {
@@ -1991,7 +2098,7 @@ export default function App() {
         <div className="brand">
           <span className="logo" aria-hidden="true">P</span>
           <div>
-            <strong>Pinnacle Board</strong>
+            <strong>Xtip Monitor</strong>
             <small>{SPORT_VIEWS[sport]?.label || "Fudbal"} · Pinnacle vs MerkurXtip</small>
           </div>
         </div>
@@ -2018,7 +2125,7 @@ export default function App() {
 
         <div className="actions">
           {pwa.canInstall && (
-            <button type="button" className="button ghost" onClick={pwa.install} title="Instaliraj Pinnacle Board kao aplikaciju">
+            <button type="button" className="button ghost" onClick={pwa.install} title="Instaliraj Xtip Monitor kao aplikaciju">
               ⤓ Instaliraj
             </button>
           )}
@@ -2026,13 +2133,6 @@ export default function App() {
             Auto
             <select value={autoSeconds} onChange={(e) => setAutoSeconds(Number(e.target.value))}>
               {AUTO_OPTIONS.map((m) => <option key={m} value={m}>{fmtAuto(m)}</option>)}
-            </select>
-          </label>
-          <label className="auto" title="Obaveštenje kad Pinnacle kvota padne za izabrani procenat (PinnWire /api/drops, proverava se na 15 s)">
-            <input type="checkbox" checked={dropAlerts} onChange={(e) => setDropAlerts(e.target.checked)} />
-            Alert pada
-            <select value={dropPct} onChange={(e) => setDropPct(Number(e.target.value))} disabled={!dropAlerts}>
-              {DROP_OPTIONS.map((p) => <option key={p} value={p}>≥ {p}%</option>)}
             </select>
           </label>
           <button type="button" className="button primary" onClick={() => reload("refresh")} disabled={!apiKeySet || curLoading}>
@@ -2063,7 +2163,24 @@ export default function App() {
 
       {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); bb.reset(); tn.reset(); reload("full"); }} />}
 
-      {apiKeySet && pane && (
+      {apiKeySet && alertsOpen && (
+        <div className="shell">
+          <SideMenu sport="" onSport={pickSport} sportCounts={sportCounts} alerts={alertsTab} />
+          <div className="content">
+        <AlertsPage
+          alerts={drops.alerts}
+          threshold={dropPct}
+          setThreshold={setDropPct}
+          notify={dropAlerts}
+          setNotify={setDropAlerts}
+          onClear={drops.clear}
+          onOpen={openAlert}
+        />
+          </div>
+        </div>
+      )}
+
+      {apiKeySet && !alertsOpen && pane && (
         <BasketballPane
           key={sport}
           board={pane.board}
@@ -2074,18 +2191,20 @@ export default function App() {
           query={query}
           setQuery={setQuery}
           sport={sport}
-          onSport={setSport}
+          onSport={pickSport}
+          alertsTab={alertsTab}
           sportCounts={sportCounts}
           setCallsToday={setCallsToday}
         />
       )}
 
-      {apiKeySet && !twoWay && (
+      {apiKeySet && !alertsOpen && !twoWay && (
         <>
           <div className="shell">
             <SideMenu
               sport={sport}
-              onSport={setSport}
+              onSport={pickSport}
+              alerts={alertsTab}
               sportCounts={sportCounts}
               groups={menuGroups}
               all={allItem}
@@ -2272,20 +2391,20 @@ export default function App() {
         </>
       )}
 
-      {drops.alerts.length > 0 && (
+      {drops.toasts.length > 0 && !alertsOpen && (
         <div className="drop-alerts" role="alert">
-          <button type="button" className="button ghost" onClick={() => drops.dismiss()}>Obriši sve ({drops.alerts.length})</button>
-          {drops.alerts.map((a) => (
+          <button type="button" className="button ghost" onClick={() => drops.dismiss()}>Obriši sve ({drops.toasts.length})</button>
+          {drops.toasts.map((a) => (
             <button
               key={a.id}
               type="button"
               className="drop-alert"
-              onClick={() => { drops.dismiss(a.id); setSelectedId(String(a.matchId)); }}
+              onClick={() => { drops.dismiss(a.id); openAlert(a); }}
               title="Klik za zatvaranje"
             >
               <b>▼ {a.match}</b>
               <span>
-                {a.label}: {fmtOdds(a.from)} → {fmtOdds(a.to)} (−{a.pct.toFixed(1)}%)
+                {a.market}{a.line} {a.side}: {fmtOdds(a.from)} → {fmtOdds(a.to)} (−{a.pct.toFixed(1)}%)
                 {a.nvp ? ` · fer ${fmtOdds(a.nvp)}, prednost ${fmtEv(a.to / a.nvp - 1)}` : ""}
               </span>
             </button>

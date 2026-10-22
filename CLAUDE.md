@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-"Pinnacle Board": a local dashboard comparing Pinnacle prematch odds (via the PinnWire API) with the public MerkurXtip offer, for football (top leagues, UEFA, a few second divisions) basketball (NBA, European and national leagues) and tennis (ATP, WTA, Challenger, ITF). `README.md` documents the user-facing behaviour in detail (comparison rules, line filtering, derived handicaps, PWA, request budget, basketball, tennis) — read it before changing comparison logic.
+"Xtip Monitor": a local dashboard comparing Pinnacle prematch odds (via the PinnWire API) with the public MerkurXtip offer, for football (top leagues, UEFA, a few second divisions) basketball (NBA, European and national leagues) and tennis (ATP, WTA, Challenger, ITF). `README.md` documents the user-facing behaviour in detail (comparison rules, line filtering, derived handicaps, PWA, request budget, basketball, tennis) — read it before changing comparison logic.
 
 ## Commands
 

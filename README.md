@@ -1,4 +1,4 @@
-# Pinnacle Board
+# Xtip Monitor
 
 A local dashboard of Pinnacle prematch prices from [PinnWire](https://pinnwire.com/docs.html), compared with MerkurXtip odds, for the top 5 leagues and the UEFA club competitions: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League and Conference League.
 

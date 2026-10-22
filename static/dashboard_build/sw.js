@@ -1,4 +1,4 @@
-/* Pinnacle Board service worker.
+/* Xtip Monitor service worker.
  *
  * - App shell (index.html, manifest, icons) is precached; hashed /assets/* are cached on first use.
  * - Navigations: network first, cached shell when offline.
@@ -6,7 +6,7 @@
  *   an "X-PB-Cache: <time saved>" header so the page can say the odds are not live.
  * - Everything else (POST /api/config, other origins) passes through untouched.
  */
-const VERSION = "pb-v1";
+const VERSION = "pb-v2";
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 const API_CACHE = `${VERSION}-api`;
