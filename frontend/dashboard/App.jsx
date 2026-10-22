@@ -1728,6 +1728,12 @@ function beep() {
 
 const DROP_MARKETS = { moneyline: "Pobednik", spread: "Hendikep", total: "Ukupno" };
 const DROP_SIDES = { home: "1", draw: "X", away: "2", over: "V", under: "M" };
+const DROP_PERIODS = { football: { 1: "1. pol. " }, basketball: { 1: "1. pol. ", 3: "1. čet. " }, tennis: { 1: "1. set " } };
+
+// One alert per match, market, period and side: of several drops on different lines the one with the largest
+// MerkurXtip edge stays (without a MerkurXtip price, the largest drop).
+const dropRank = (a) => a.mxEv ?? -Infinity;
+const dropBetter = (a, b) => (dropRank(a) !== dropRank(b) ? dropRank(a) > dropRank(b) : a.pct > b.pct);
 
 // Polls the server's buffer of PinnWire's SSE drop stream (local, no PinnWire request) for every sport and keeps
 // the prematch drops of at least `threshold` percent that belong to matches on the loaded boards, with the
@@ -1735,6 +1741,7 @@ const DROP_SIDES = { home: "1", draw: "X", away: "2", over: "V", under: "M" };
 // `alerts` is the history.
 function useDropAlerts(boards, enabled, threshold, apiKeySet, edgeOnly) {
   const seen = useRef(new Set());
+  const groups = useRef(new Map()); // alert group -> the alert shown for it
   const boardsRef = useRef(boards);
   boardsRef.current = boards;
   const [alerts, setAlerts] = useState([]);
@@ -1746,6 +1753,7 @@ function useDropAlerts(boards, enabled, threshold, apiKeySet, edgeOnly) {
   edgeRef.current = edgeOnly;
   useEffect(() => {
     seen.current = new Set();
+    groups.current = new Map();
     setAlerts([]);
     setToasts([]);
   }, [threshold]);
@@ -1767,10 +1775,11 @@ function useDropAlerts(boards, enabled, threshold, apiKeySet, edgeOnly) {
             if (!match || seen.current.has(id)) continue;
             seen.current.add(id);
             const line = d.points != null && d.market !== "moneyline" ? ` ${fmtLine(d.points, d.market === "spread")}` : "";
+            const period = d.period ? DROP_PERIODS[sport]?.[d.period] ?? `P${d.period} ` : "";
             found.push({
-              id, sport, matchId: match.id, match: `${match.home} – ${match.away}`, league: match.leagueName || d.league,
+              id, group: `${sport}:${match.id}:${d.market}:${d.period}:${d.side}`, sport, matchId: match.id, match: `${match.home} – ${match.away}`, league: match.leagueName || d.league,
               starts: match.starts, at: Date.now() - (d.age_s || 0) * 1000,
-              market: DROP_MARKETS[d.market] || d.market, line, side: DROP_SIDES[d.side] || d.side,
+              market: period + (DROP_MARKETS[d.market] || d.market), line, side: DROP_SIDES[d.side] || d.side,
               from: d.from, to: d.to, pct: d.drop_pct, nvp: d.nvp,
               mx: d.merkur?.odds ?? null, mxEv: d.merkur?.ev ?? null,
             });
@@ -1781,10 +1790,22 @@ function useDropAlerts(boards, enabled, threshold, apiKeySet, edgeOnly) {
       }
       if (stop || !found.length) return;
       found.sort((x, y) => y.at - x.at);
-      setAlerts((list) => [...found, ...list].slice(0, 300));
-      const fresh = edgeRef.current ? found.filter((a) => a.mxEv > 0) : found;
+      const shown = [];
+      for (const a of found) {
+        const current = groups.current.get(a.group);
+        if (current && !dropBetter(a, current)) continue;
+        groups.current.set(a.group, a);
+        const at = shown.findIndex((x) => x.group === a.group);
+        if (at >= 0) shown.splice(at, 1);
+        shown.push(a);
+      }
+      if (!shown.length) return;
+      const replaced = new Set(shown.map((a) => a.group));
+      const keep = (list) => list.filter((a) => !replaced.has(a.group));
+      setAlerts((list) => [...shown, ...keep(list)].slice(0, 300));
+      const fresh = edgeRef.current ? shown.filter((a) => a.mxEv > 0) : shown;
       if (notify.current && fresh.length) {
-        setToasts((list) => [...fresh, ...list].slice(0, 30));
+        setToasts((list) => [...fresh, ...keep(list)].slice(0, 30));
         beep();
       }
     };
@@ -1797,6 +1818,7 @@ function useDropAlerts(boards, enabled, threshold, apiKeySet, edgeOnly) {
   }, [threshold, apiKeySet]);
   const dismiss = useCallback((id) => setToasts((list) => (id ? list.filter((a) => a.id !== id) : [])), []);
   const clear = useCallback(() => {
+    groups.current = new Map();
     setAlerts([]);
     setToasts([]);
   }, []);
