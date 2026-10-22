@@ -91,6 +91,12 @@ class PinnWireAPI:
                         include_alt_units=1 if alt_units else None)
         return data if isinstance(data, dict) else {}
 
+    def drops(self, sport_id, min_drop_pct=3, max_age_sec=300):
+        """Recent prematch dropping-odds events (PinnWire keeps ~3 h): [{event_id, market, side, from, to, nvp, ...}]."""
+        data = self.get("/api/drops", mode="prematch", sport_id=sport_id, min_drop_pct=min_drop_pct,
+                        max_age_sec=max_age_sec, markets="moneyline,spread,total", periods="0", limit=500)
+        return data.get("drops") or [] if isinstance(data, dict) else []
+
     def prematch_event(self, event_id):
         data = self.get("/kit/v1/prematch/markets", event_id=event_id)
         events = data.get("events") or [] if isinstance(data, dict) else []

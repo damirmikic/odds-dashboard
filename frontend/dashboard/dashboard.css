@@ -548,3 +548,16 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .missing-hint { text-align: left; white-space: nowrap; }
 .missing-hint small { margin-left: 4px; color: var(--faint); }
 .mx-table .mx-fair-cell { background: var(--panel-2); color: var(--text); font-weight: 800; }
+
+.drop-alerts {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50;
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+  max-width: min(360px, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto;
+}
+.drop-alert {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%;
+  padding: 8px 10px; border: 1px solid var(--line); border-left: 3px solid #d64545; border-radius: 6px;
+  background: var(--panel-2); color: inherit; font: inherit; font-size: 12px; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.drop-alert span { color: var(--muted); }

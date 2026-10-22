@@ -767,6 +767,28 @@ BB_STATE = bb.BasketballState(STATE.history, current_api_key)
 TN_STATE = tennis.TennisState(STATE.history, current_api_key)
 
 
+DROP_SPORTS = {"football": pw.SOCCER, "basketball": bb.SPORT_ID, "tennis": tennis.SPORT_ID}
+
+
+def drops_response(query):
+    """Recent PinnWire dropping-odds events for one sport (the UI keeps those of events on its board)."""
+    sport = (query.get("sport") or ["football"])[0]
+    if sport not in DROP_SPORTS:
+        raise LookupError("Nepoznat sport.")
+    try:
+        min_pct = max(0.5, float((query.get("min") or ["3"])[0]))
+        max_age = min(3 * 3600, max(10, int((query.get("age") or ["300"])[0])))
+    except ValueError:
+        raise LookupError("Neispravni parametri.")
+    api = STATE.get_api()
+    before = api.calls
+    try:
+        drops = api.drops(DROP_SPORTS[sport], min_drop_pct=min_pct, max_age_sec=max_age)
+    finally:
+        STATE.history.count_calls(api.calls - before)
+    return {"drops": drops, "callsToday": STATE.history.calls_today()}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "PinnWireDashboard/1.0"
     static_root = STATIC
@@ -817,6 +839,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/status":
                 return self.send_json(200, {"apiKeySet": bool(current_api_key()),
                                             "callsToday": STATE.history.calls_today()})
+            if path == "/api/drops":
+                return self.send_json(200, drops_response(query))
             if path.startswith("/api/basketball/match/"):
                 event_id = unquote(path[len("/api/basketball/match/"):].strip("/"))
                 if not event_id.isdigit():

@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const LOCALE = "sr-Latn-RS";
 const timeFmt = new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit" });
 const clockFmt = new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const dayFmt = new Intl.DateTimeFormat(LOCALE, { weekday: "long", day: "numeric", month: "long" });
-const AUTO_OPTIONS = [0, 2, 5, 15, 30];
+const AUTO_OPTIONS = [0, 15, 30, 60, 120, 300];
+const DROP_OPTIONS = [2, 3, 5, 10];
+const fmtAuto = (sec) => (!sec ? "isklj." : sec < 60 ? `${sec} sek` : `${sec / 60} min`);
 const DAY_FILTERS = [
   ["all", "Sve"],
   ["today", "Danas"],
@@ -1711,19 +1713,87 @@ function useSportBoard(sport, setCallsToday, setApiKeySet) {
   return { board, loading, error, load, reset };
 }
 
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    osc.frequency.value = 880;
+    osc.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+    osc.onended = () => ctx.close();
+  } catch {
+    /* audio unavailable */
+  }
+}
+
+const DROP_MARKETS = { moneyline: "Pobednik", spread: "Hendikep", total: "Ukupno" };
+const DROP_SIDES = { home: "1", draw: "X", away: "2", over: "V", under: "M" };
+
+// Polls PinnWire's drops endpoint and reports prematch drops of at least `threshold` percent on matches of this board.
+function useDropAlerts(sport, board, enabled, threshold, apiKeySet) {
+  const seen = useRef(new Set());
+  const boardRef = useRef(board);
+  boardRef.current = board;
+  const [alerts, setAlerts] = useState([]);
+  useEffect(() => {
+    seen.current = new Set();
+    setAlerts([]);
+  }, [sport]);
+  useEffect(() => {
+    if (!enabled || !apiKeySet) return undefined;
+    let stop = false;
+    const poll = async () => {
+      try {
+        const data = await requestJson(`/api/drops?sport=${sport}&min=${threshold}&age=300`);
+        const matches = new Map((boardRef.current?.matches || []).map((m) => [String(m.id), m]));
+        const found = [];
+        for (const d of data.drops || []) {
+          const match = matches.get(String(d.event_id));
+          const id = `${d.event_id}:${d.market}:${d.period}:${d.side}:${d.points}:${d.to}:${d.alerted}`;
+          if (!match || seen.current.has(id)) continue;
+          seen.current.add(id);
+          const line = d.points != null && d.market !== "moneyline" ? ` ${fmtLine(d.points, d.market === "spread")}` : "";
+          found.push({
+            id, matchId: match.id, match: `${match.home} – ${match.away}`,
+            label: `${DROP_MARKETS[d.market] || d.market}${line} ${DROP_SIDES[d.side] || d.side}`,
+            from: d.from, to: d.to, pct: d.drop_pct, nvp: d.nvp,
+          });
+        }
+        if (!stop && found.length) {
+          setAlerts((list) => [...found, ...list].slice(0, 30));
+          beep();
+        }
+      } catch {
+        /* the next poll retries */
+      }
+    };
+    poll();
+    const timer = setInterval(poll, 15000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, [sport, enabled, threshold, apiKeySet]);
+  const dismiss = useCallback((id) => setAlerts((list) => (id ? list.filter((a) => a.id !== id) : [])), []);
+  return { alerts, dismiss };
+}
+
 export default function App() {
   const [apiKeySet, setApiKeySet] = useState(null);
   const [sport, setSport] = useState(initialSport);
   const [board, setBoard] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [callsToday, setCallsToday] = useState(0);
+  const [, setCallsToday] = useState(0);
   const bb = useSportBoard("basketball", setCallsToday, setApiKeySet);
   const tn = useSportBoard("tennis", setCallsToday, setApiKeySet);
   const [competition, setCompetition] = useState(() => readStored("pb.competition", "all"));
   const [dayFilter, setDayFilter] = useState(() => readStored("pb.day", "all"));
   const [query, setQuery] = useState("");
-  const [autoMinutes, setAutoMinutes] = useState(() => readStored("pb.auto", 0));
+  const [autoSeconds, setAutoSeconds] = useState(() => readStored("pb.autoSec", 15));
+  const [dropAlerts, setDropAlerts] = useState(() => readStored("pb.dropAlerts", true));
+  const [dropPct, setDropPct] = useState(() => readStored("pb.dropPct", 3));
   const [view, setView] = useState(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("view");
     return ["compare", "pinnacle", "value", "missing"].includes(fromUrl) ? fromUrl : readStored("pb.view", "compare");
@@ -1762,6 +1832,9 @@ export default function App() {
   const twoWay = sport === "basketball" || sport === "tennis";
   const pane = sport === "basketball" ? bb : sport === "tennis" ? tn : null;
   const reload = pane ? pane.load : loadBoard;
+  const cur = pane ? pane.board : board;
+  const curLoading = pane ? pane.loading : loading;
+  const drops = useDropAlerts(sport, cur, dropAlerts, dropPct, apiKeySet);
   useEffect(() => writeStored("pb.sport", sport), [sport]);
   // all boards are loaded up front so the sport icons can show their match counts
   useEffect(() => {
@@ -1784,14 +1857,16 @@ export default function App() {
   }, [loadBoard]);
 
   useEffect(() => {
-    if (!autoMinutes || !apiKeySet) return undefined;
-    const timer = setInterval(() => reload("refresh"), autoMinutes * 60000);
-    return () => clearInterval(timer);
-  }, [autoMinutes, apiKeySet, reload]);
+    if (!autoSeconds || !apiKeySet || curLoading) return undefined;
+    const timer = setTimeout(() => reload("refresh"), autoSeconds * 1000);
+    return () => clearTimeout(timer);
+  }, [autoSeconds, apiKeySet, reload, curLoading, cur?.fetchedAt]);
 
   useEffect(() => writeStored("pb.competition", competition), [competition]);
   useEffect(() => writeStored("pb.day", dayFilter), [dayFilter]);
-  useEffect(() => writeStored("pb.auto", autoMinutes), [autoMinutes]);
+  useEffect(() => writeStored("pb.autoSec", autoSeconds), [autoSeconds]);
+  useEffect(() => writeStored("pb.dropAlerts", dropAlerts), [dropAlerts]);
+  useEffect(() => writeStored("pb.dropPct", dropPct), [dropPct]);
   useEffect(() => writeStored("pb.view", view), [view]);
   useEffect(() => writeStored("pb.edge", edgeFilter), [edgeFilter]);
   useEffect(() => writeStored("pb.tolerance", tolerance), [tolerance]);
@@ -1909,8 +1984,6 @@ export default function App() {
     ? { id: null, key: "all", label: "Sve lige", count: levelValues.length, active: valueLeague === "all" }
     : { id: null, key: "all", label: "Sve", count: inMissing ? missingTotal : totalCount, active: competition === "all" };
 
-  const cur = pane ? pane.board : board;
-  const curLoading = pane ? pane.loading : loading;
 
   return (
     <div className="app">
@@ -1941,7 +2014,6 @@ export default function App() {
               {cur.merkur.error && <em>· greška</em>}
             </span>
           )}
-          <span title="Broj PinnWire zahteva danas (trial: 100/dan, 20/min)">API danas: <b>{callsToday}</b></span>
         </div>
 
         <div className="actions">
@@ -1952,8 +2024,15 @@ export default function App() {
           )}
           <label className="auto">
             Auto
-            <select value={autoMinutes} onChange={(e) => setAutoMinutes(Number(e.target.value))}>
-              {AUTO_OPTIONS.map((m) => <option key={m} value={m}>{m ? `${m} min` : "isklj."}</option>)}
+            <select value={autoSeconds} onChange={(e) => setAutoSeconds(Number(e.target.value))}>
+              {AUTO_OPTIONS.map((m) => <option key={m} value={m}>{fmtAuto(m)}</option>)}
+            </select>
+          </label>
+          <label className="auto" title="Obaveštenje kad Pinnacle kvota padne za izabrani procenat (PinnWire /api/drops, proverava se na 15 s)">
+            <input type="checkbox" checked={dropAlerts} onChange={(e) => setDropAlerts(e.target.checked)} />
+            Alert pada
+            <select value={dropPct} onChange={(e) => setDropPct(Number(e.target.value))} disabled={!dropAlerts}>
+              {DROP_OPTIONS.map((p) => <option key={p} value={p}>≥ {p}%</option>)}
             </select>
           </label>
           <button type="button" className="button primary" onClick={() => reload("refresh")} disabled={!apiKeySet || curLoading}>
@@ -2191,6 +2270,27 @@ export default function App() {
             </div>
           </div>
         </>
+      )}
+
+      {drops.alerts.length > 0 && (
+        <div className="drop-alerts" role="alert">
+          <button type="button" className="button ghost" onClick={() => drops.dismiss()}>Obriši sve ({drops.alerts.length})</button>
+          {drops.alerts.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              className="drop-alert"
+              onClick={() => { drops.dismiss(a.id); setSelectedId(String(a.matchId)); }}
+              title="Klik za zatvaranje"
+            >
+              <b>▼ {a.match}</b>
+              <span>
+                {a.label}: {fmtOdds(a.from)} → {fmtOdds(a.to)} (−{a.pct.toFixed(1)}%)
+                {a.nvp ? ` · fer ${fmtOdds(a.nvp)}, prednost ${fmtEv(a.to / a.nvp - 1)}` : ""}
+              </span>
+            </button>
+          ))}
+        </div>
       )}
 
       <footer>Kvote: Pinnacle preko PinnWire · Kvote se mogu promeniti u svakom trenutku.</footer>
