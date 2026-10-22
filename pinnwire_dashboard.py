@@ -443,6 +443,10 @@ def goals_line(match, totals_rows):
     return None
 
 
+# Pinnacle and MerkurXtip sometimes differ by hours on kickoff (e.g. Colombian evening games); names and league still have to match
+PAIR_WINDOW = 6 * 60
+
+
 def pair_inputs(events, offer):
     pin = [{"id": str(e["event_id"]), "comp": e["league_id"], "home": e.get("home", ""),
             "away": e.get("away", ""), "ts": event_ts(e)} for e in events]
@@ -454,16 +458,16 @@ def pair_inputs(events, offer):
 
 def pair_events(events, offer):
     pin, mer = pair_inputs(events, offer)
-    return {pid: (m["row"], score) for pid, (m, score) in mx.pair(pin, mer).items()}
+    return {pid: (m["row"], score) for pid, (m, score) in mx.pair(pin, mer, PAIR_WINDOW).items()}
 
 
 def unpaired_hints(events, offer):
     """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
     pin, mer = pair_inputs(events, offer)
-    paired = mx.pair(pin, mer)
+    paired = mx.pair(pin, mer, PAIR_WINDOW)
     ts = {p["id"]: p["ts"] for p in pin}
     return {pid: {"home": m["home"], "away": m["away"], "score": score, "kickoffDiff": round((m["ts"] - ts[pid]) / 60000)}
-            for pid, (m, score) in mx.closest_unpaired(pin, mer, paired).items()}
+            for pid, (m, score) in mx.closest_unpaired(pin, mer, paired, PAIR_WINDOW).items()}
 
 
 # ------------------------------------------------------------------------- state

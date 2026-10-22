@@ -25,7 +25,8 @@ COMPETITIONS = [
     {"id": 377, "key": "eurocup", "name": "Evrokup", "country": "Evropa", "code": "EC", "mx_id": 2313955},
     {"id": 197844, "key": "bcl", "name": "Liga šampiona (FIBA)", "country": "Evropa", "code": "BCL",
      "mx_id": 2403750},
-    {"id": 367, "key": "fibaec", "name": "FIBA Europe Cup", "country": "Evropa", "code": "FEC", "mx_id": 2403767},
+    {"id": 367, "key": "fibaec", "name": "FIBA Europe Cup", "country": "Evropa", "code": "FEC", "mx_id": 2403767,
+     "mx_extra": (2325961,)},  # some rounds are listed under the generic "International" league
     {"id": 223698, "key": "enbl", "name": "ENBL", "country": "Evropa", "code": "ENBL", "mx_id": 2360673},
     {"id": 374, "key": "vtb", "name": "VTB liga", "country": "Evropa", "code": "VTB", "mx_id": 2314880},
     {"id": 210890, "key": "aba2", "name": "ABA liga 2", "country": "Evropa", "code": "ABA2", "mx_id": 2315349},
@@ -48,7 +49,7 @@ COMPETITIONS = [
     {"id": 238365, "key": "rus", "name": "Superliga", "country": "Rusija", "code": "RUS", "mx_id": 2339821},
 ]
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
-MX_COMP = {c["mx_id"]: c["id"] for c in COMPETITIONS}
+MX_COMP = {mid: c["id"] for c in COMPETITIONS for mid in (c["mx_id"], *c.get("mx_extra", ()))}
 
 ML = ("50291", "50293")  # winner incl. overtime: home, away
 # Each set is (line param, home/over code, away/under code); the param holds the home-side line.
