@@ -13,6 +13,7 @@ import os
 import threading
 import time
 import webbrowser
+from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
@@ -252,6 +253,8 @@ COMPARE_GROUPS = [
     ("spreads", "Hendikep", (("home", "1"), ("away", "2"))),
 ]
 OU_SIDES = (("over", "Više"), ("under", "Manje"))
+# compare row group -> PinnWire drop market, for the MerkurXtip price on a drop alert
+DROP_GROUPS = {"1X2": "moneyline", "Hendikep": "spread", "Ukupno golova": "total"}
 
 
 def pinnacle_lines(event, number):
@@ -552,6 +555,7 @@ class DashboardState:
         self.merkur = merkur or mx.OfferCache()
         self.merkur_lock = threading.Lock()
         self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
+        self.quotes = {}  # PinnWire event id -> (board match id, MerkurXtip prices by drop_key), from the last board
         self.mx_track = {}  # merkur match id -> {last, prev, changedAt}: 1X2 movement this session
         self.goal_track = {}  # "pin|mx:<id>:<line>" -> {last, prev, changedAt}: board goal line movement
         self.fetch_lock = threading.Lock()
@@ -636,7 +640,7 @@ class DashboardState:
         hints = unpaired_hints(events, offer)
         self.pairs = pairs
         by_id = {str(e["event_id"]): e for e in events}
-        values = []
+        values, quotes = [], {}
         for m in matches:
             hit = pairs.get(str(m["id"]))
             m["merkur"] = merkur_summary(hit[0], by_id[str(m["id"])], hit[1]) if hit else None
@@ -645,7 +649,9 @@ class DashboardState:
                 m["merkur"].update(self.track_merkur(m["merkur"]))
             m["goals"] = goals_line(m, m["merkur"].pop("totals") if m["merkur"] else None)
             if m["merkur"]:
-                values.extend(value_items(m, m["merkur"].pop("rows")))
+                rows = m["merkur"].pop("rows")
+                values.extend(value_items(m, rows))
+                quotes[str(m["id"])] = (m["id"], pw.quote_index({0: rows["ft"], 1: rows["ht"]}, DROP_GROUPS))
             if m["goals"]:
                 m["goals"].update(self.track_goals(m))
         self.mx_track = {k: v for k, v in self.mx_track.items()
@@ -657,6 +663,7 @@ class DashboardState:
         kept = {m["id"] for m in matches}
         values = [v for v in values if v["matchId"] in kept]
         matches.sort(key=lambda m: (m["starts"], m["home"]))
+        self.quotes = quotes
         counts = {}
         for m in matches:
             counts[m["leagueId"]] = counts.get(m["leagueId"], 0) + 1
@@ -768,25 +775,106 @@ TN_STATE = tennis.TennisState(STATE.history, current_api_key)
 
 
 DROP_SPORTS = {"football": pw.SOCCER, "basketball": bb.SPORT_ID, "tennis": tennis.SPORT_ID}
+DROP_RECHECK = 15  # seconds PinnWire holds a drop and re-reads the price before pushing it (drops that bounce back are dropped)
+DROP_KEEP = 3 * 3600  # seconds of drops kept for the UI, like PinnWire's own /api/drops buffer
+
+
+class DropFeed:
+    """Background reader of PinnWire's prematch SSE drop stream. It keeps every drop of at least 1 %
+    (the UI filters by its own threshold) and does not use REST requests."""
+
+    def __init__(self, key_fn, sports=tuple(DROP_SPORTS.values())):
+        self.key_fn = key_fn
+        self.sports = set(sports)
+        self.lock = threading.Lock()
+        self.drops = deque(maxlen=20000)
+        self.connected = False
+        self.error = ""
+        self.since = ""
+        self.thread = None
+        self.generation = 0  # bumped by reconnect() so the stream with the old key stops
+
+    def start(self):
+        with self.lock:
+            if self.thread is None:
+                self.thread = threading.Thread(target=self.run, name="pinnwire-drops", daemon=True)
+                self.thread.start()
+
+    def reconnect(self):
+        with self.lock:
+            self.generation += 1
+
+    def add(self, frames):
+        kept = [d for d in map(pw.normalize_drop, frames) if d and d["sport_id"] in self.sports]
+        with self.lock:
+            self.drops.extend(kept)
+            cutoff = time.time() - DROP_KEEP
+            while self.drops and self.drops[0]["alerted"] < cutoff:
+                self.drops.popleft()
+        return len(kept)
+
+    def recent(self, sport_id, min_pct, max_age):
+        cutoff = time.time() - max_age
+        with self.lock:
+            return [d for d in self.drops
+                    if d["sport_id"] == sport_id and d["drop_pct"] >= min_pct and d["alerted"] >= cutoff]
+
+    def status(self):
+        return {"connected": self.connected, "error": self.error, "since": self.since}
+
+    def run(self):
+        wait = 1
+        while True:
+            key = self.key_fn()
+            if not key:
+                time.sleep(5)
+                continue
+            generation = self.generation
+            try:
+                stream = pw.PinnWireAPI(key).drop_stream(min_drop=1, recheck=DROP_RECHECK,
+                                                         stop=lambda: self.generation != generation)
+                for frames in stream:
+                    if not self.connected:
+                        self.connected, self.error, self.since, wait = True, "", utc_stamp(), 1
+                    self.add(frames)
+                self.error = ""
+            except PermissionError as exc:
+                self.error, wait = str(exc), 60
+            except RuntimeError as exc:
+                self.error = str(exc)
+            self.connected = False
+            if self.generation == generation:
+                time.sleep(wait)
+                wait = min(wait * 2, 30)
+
+
+DROPS = DropFeed(current_api_key)
+DROP_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE}
 
 
 def drops_response(query):
-    """Recent PinnWire dropping-odds events for one sport (the UI keeps those of events on its board)."""
+    """Recent prematch drops of one sport from the SSE buffer, each with the board match it belongs to and,
+    for paired matches, the MerkurXtip price of the same outcome (`merkur / nvp - 1` is its edge)."""
     sport = (query.get("sport") or ["football"])[0]
     if sport not in DROP_SPORTS:
         raise LookupError("Nepoznat sport.")
     try:
-        min_pct = max(0.5, float((query.get("min") or ["3"])[0]))
-        max_age = min(3 * 3600, max(10, int((query.get("age") or ["300"])[0])))
+        min_pct = max(1.0, float((query.get("min") or ["3"])[0]))
+        max_age = min(DROP_KEEP, max(10, int((query.get("age") or ["300"])[0])))
     except ValueError:
         raise LookupError("Neispravni parametri.")
-    api = STATE.get_api()
-    before = api.calls
-    try:
-        drops = api.drops(DROP_SPORTS[sport], min_drop_pct=min_pct, max_age_sec=max_age)
-    finally:
-        STATE.history.count_calls(api.calls - before)
-    return {"drops": drops, "callsToday": STATE.history.calls_today()}
+    quotes = DROP_STATES[sport].quotes
+    now = time.time()
+    out = []
+    for d in DROPS.recent(DROP_SPORTS[sport], min_pct, max_age):
+        match_id, index = quotes.get(str(d["event_id"]), (None, {}))
+        quote = index.get(pw.drop_key(d["market"], d["period"], d["side"], d["points"]))
+        merkur = None
+        if quote:
+            fair = d["nvp"] or quote["fair"]
+            merkur = {"odds": quote["merkur"], "ev": round(quote["merkur"] / fair - 1, 4)}
+        out.append({**d, "match_id": match_id, "age_s": max(0, round(now - d["alerted"])), "merkur": merkur})
+    return {"drops": out, "stream": DROPS.status(), "callsToday": STATE.history.calls_today()}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -884,6 +972,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE.reset()
             BB_STATE.reset()
             TN_STATE.reset()
+            DROPS.reconnect()
             return self.send_json(200, {"apiKeySet": True})
         except (ValueError, json.JSONDecodeError) as exc:
             return self.send_error_json(400, str(exc))
@@ -912,6 +1001,7 @@ def main():
     host = "127.0.0.1" if args.host in ("0.0.0.0", "") else args.host
     url = f"http://{host}:{args.port}"
     print(f"PinnWire Dashboard: {url}  (Ctrl+C to stop)")
+    DROPS.start()
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:

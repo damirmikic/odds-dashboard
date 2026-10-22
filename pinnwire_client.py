@@ -4,6 +4,7 @@ Docs: https://pinnwire.com/docs.html · https://pinnwire.com/llms-full.txt
 """
 from __future__ import annotations
 
+import json
 import math
 import time
 
@@ -91,11 +92,37 @@ class PinnWireAPI:
                         include_alt_units=1 if alt_units else None)
         return data if isinstance(data, dict) else {}
 
-    def drops(self, sport_id, min_drop_pct=3, max_age_sec=300):
-        """Recent prematch dropping-odds events (PinnWire keeps ~3 h): [{event_id, market, side, from, to, nvp, ...}]."""
-        data = self.get("/api/drops", mode="prematch", sport_id=sport_id, min_drop_pct=min_drop_pct,
-                        max_age_sec=max_age_sec, markets="moneyline,spread,total", periods="0", limit=500)
-        return data.get("drops") or [] if isinstance(data, dict) else []
+    def drop_stream(self, min_drop=1, recheck=None, stop=None):
+        """Prematch drops pushed by PinnWire's SSE stream (plans with drops; not counted as REST requests).
+
+        Yields one list of raw drop frames per `data:` line until the connection ends or `stop()` is true;
+        `recheck` makes PinnWire hold each drop that many seconds and send it only if it still holds."""
+        params = {"min_drop": min_drop, "recheck": recheck}
+        try:
+            r = self.s.get(f"{BASE}/odds-drop-prematch", params={k: v for k, v in params.items() if v is not None},
+                           headers={"Accept": "text/event-stream"}, stream=True, timeout=(10, 90))
+        except requests.RequestException as e:
+            raise RuntimeError(self._mask(f"/odds-drop-prematch: {e}"))
+        with r:
+            if r.status_code in (401, 403):
+                error = self._body(r).get("error") or r.status_code
+                raise PermissionError(f"PinnWire ne dozvoljava drop stream ovom ključu ({error}).")
+            if r.status_code != 200:
+                raise RuntimeError(self._mask(f"/odds-drop-prematch -> HTTP {r.status_code}"))
+            try:
+                for line in r.iter_lines(decode_unicode=True):
+                    if stop and stop():
+                        return
+                    if not line or not line.startswith("data:"):
+                        continue  # ":ka" keep-alives and blank separators
+                    try:
+                        frame = json.loads(line[5:])
+                    except ValueError:
+                        continue
+                    if isinstance(frame, list):
+                        yield [d for d in frame if isinstance(d, dict)]
+            except requests.RequestException as e:
+                raise RuntimeError(self._mask(f"/odds-drop-prematch: {e}"))
 
     def prematch_event(self, event_id):
         data = self.get("/kit/v1/prematch/markets", event_id=event_id)
@@ -165,6 +192,60 @@ def _power(q):
             break
     k = 0.5 * (lo + hi)
     return [x ** k for x in q]
+
+
+DROP_MARKETS = ("moneyline", "spread", "total")  # team_total drops do not say which team
+
+
+def normalize_drop(raw):
+    """An SSE drop frame in the /api/drops field names; None for drops the dashboard does not use."""
+    market = raw.get("market_type") or raw.get("market")
+    if market not in DROP_MARKETS or raw.get("is_live"):
+        return None
+    try:
+        return {
+            "event_id": int(raw.get("id") or raw.get("event_id")),
+            "sport_id": int(raw.get("sport_id")),
+            "league": raw.get("league") or "",
+            "home": raw.get("home") or "",
+            "away": raw.get("away") or "",
+            "market": market,
+            "period": int(raw.get("period") or 0),
+            "side": raw.get("outcome") or raw.get("side"),
+            "points": _num(raw.get("points")),
+            "from": float(raw.get("from_price") or raw.get("from")),
+            "to": float(raw.get("to_price") or raw.get("to")),
+            "drop_pct": float(raw.get("drop_pct") or 0),
+            "nvp": _num(raw.get("nvp")),
+            "starts": raw.get("starts") or "",
+            "alerted": int(raw.get("alerted") or time.time()),
+        }
+    except (TypeError, ValueError):
+        return None
+
+
+def drop_key(market, period, side, points):
+    """Key of a drop's outcome in quote_index(). Rows keep spreads as the home handicap, while a drop
+    on the away side carries the away line (away +4 is hdp -4)."""
+    line = None if market == "moneyline" else _num(points)
+    if market == "spread" and side == "away" and line is not None:
+        line = -line
+    return market, int(period), line, side
+
+
+def quote_index(rows_by_period, markets):
+    """{drop_key: MerkurXtip outcome} of compare rows; `rows_by_period` is {PinnWire period number: rows},
+    `markets` maps a row group to its drop market (groups not listed are skipped)."""
+    out = {}
+    for number, rows in rows_by_period.items():
+        for r in rows:
+            market = markets.get(r["group"])
+            if market is None or r.get("modeled"):
+                continue
+            line = None if market == "moneyline" else _num(r["line"])
+            for o in r["outcomes"]:
+                out[(market, int(number), line, o["key"])] = {"merkur": o["merkur"], "fair": o["fair"]}
+    return out
 
 
 def best_per_line_market(items):

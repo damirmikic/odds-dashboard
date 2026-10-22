@@ -324,6 +324,20 @@ def shape_match(event, hit):
     return match, value_items(event.get("event_id"), every_row)
 
 
+# compare row group -> PinnWire drop market; sets markets drop on the main event, games markets on the games event
+MAIN_DROPS = {"Pobednik": "moneyline", "Hendikep setova": "spread", "Ukupno setova": "total"}
+GAMES_DROPS = {"Hendikep gemova": "spread", "Ukupno gemova": "total"}
+
+
+def drop_quotes(event, match):
+    """{PinnWire event id: (board match id, quote index)} for the main and the games event of one match."""
+    rows = bb.rows_by_period(match, {key: number for key, _, number in PERIODS})
+    out = {str(event["event_id"]): (match["id"], pw.quote_index(rows, MAIN_DROPS))}
+    if event.get("games_id"):
+        out[str(event["games_id"])] = (match["id"], pw.quote_index(rows, GAMES_DROPS))
+    return out
+
+
 class TennisState(bb.BasketballState):
     sport_id = SPORT_ID
     offer_path = OFFER_PATH
@@ -336,7 +350,7 @@ class TennisState(bb.BasketballState):
             if is_main(raw) and raw.get("event_id"):
                 part = raw
             elif is_games(raw):
-                part = {"event_id": raw["parent_id"], "games": raw.get("periods") or {}}
+                part = {"event_id": raw["parent_id"], "games": raw.get("periods") or {}, "games_id": raw["event_id"]}
             else:
                 continue
             key = str(part["event_id"])
@@ -361,6 +375,9 @@ class TennisState(bb.BasketballState):
 
     def offered(self, offer):
         return sum(1 for r in offer if mx.is_prematch(r))
+
+    def drop_quotes(self, event, match):
+        return drop_quotes(event, match)
 
     def competitions(self, matches):
         counts = {}

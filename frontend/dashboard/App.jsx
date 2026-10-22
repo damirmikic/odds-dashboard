@@ -333,16 +333,6 @@ function fmtLimit(value) {
   return `€${Math.round(value)}`;
 }
 
-// Favourite = outcome with the shortest Pinnacle fair odds.
-function favorite(match) {
-  let best = null;
-  for (const [side, label] of ML_SIDES) {
-    const fair = match.ml?.[side]?.fair;
-    if (fair && (!best || fair < best.fair)) best = { side, label, fair };
-  }
-  return best;
-}
-
 function pinnacleClass(odds, prev) {
   const move = movement(odds, prev);
   return move === "up" ? "pin-up" : move === "down" ? "pin-down" : "";
@@ -366,13 +356,12 @@ function merkurTitle(odds, pinnacle, fair, ev, prev) {
   ].filter(Boolean).join(" · ");
 }
 
-function CompareRow({ match, tolerance, selected, onSelect, onOdds, pinStamp, mxStamp }) {
+function CompareRow({ match, selected, onSelect, onOdds, pinStamp, mxStamp }) {
   const x = match.merkur;
   // colour only moves from the latest refresh
   const pinPrev = pinStamp && match.changedAt === pinStamp ? match.prev : null;
   const mxPrev = mxStamp && x?.changedAt === mxStamp ? x.prev : null;
   const kickoff = new Date(match.starts);
-  const fav = favorite(match);
   const limit = fmtLimit(match.ah?.max || match.ou?.max);
   const oddsClick = (event) => {
     event.stopPropagation();
@@ -390,14 +379,6 @@ function CompareRow({ match, tolerance, selected, onSelect, onOdds, pinStamp, mx
           <b>{match.home}</b> <span>vs</span> <b>{match.away}</b>
         </div>
         <div className="mc-league">{match.leagueName}</div>
-      </td>
-      <td className="mc-max" title={fav ? `Fer ${fmtOdds(fav.fair)} × (1 + ${tolerance}%)` : undefined}>
-        {fav ? (
-          <>
-            <b>{fmt2(fav.fair * (1 + tolerance / 100))}</b>
-            <small>{fav.label}</small>
-          </>
-        ) : "—"}
       </td>
       {ML_SIDES.map(([side], i) => (
         <td key={`f${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={oddsClick}>{fmt2(match.ml?.[side]?.fair)}</td>
@@ -481,14 +462,13 @@ function GoalCells({ goals, pinStamp, mxStamp, onClick }) {
   );
 }
 
-function CompareTable({ matches, tolerance, selectedId, onSelect, onOdds, pinStamp, mxStamp }) {
+function CompareTable({ matches, selectedId, onSelect, onOdds, pinStamp, mxStamp }) {
   return (
     <div className="board-scroll mc-wrap">
       <table className="mc-board">
         <thead>
           <tr>
             <th rowSpan={2} className="mc-match">Meč</th>
-            <th className="mc-max">Max kvota</th>
             <th colSpan={3} className="mc-group">Pinnacle no-vig</th>
             <th colSpan={3} className="mc-group">Pinnacle</th>
             <th colSpan={3} className="mc-group">MerkurXtip</th>
@@ -498,7 +478,6 @@ function CompareTable({ matches, tolerance, selectedId, onSelect, onOdds, pinSta
             <th colSpan={2} className="mc-group">MerkurXtip</th>
           </tr>
           <tr className="mc-sub">
-            <th className="mc-max">fav <small>+{tolerance}%</small></th>
             {["f", "p", "m"].map((group) =>
               ML_SIDES.map(([side, label], i) => (
                 <th key={`${group}${side}`} className={i === 0 ? "mc-group" : ""}>{label}</th>
@@ -519,7 +498,6 @@ function CompareTable({ matches, tolerance, selectedId, onSelect, onOdds, pinSta
             <CompareRow
               key={match.id}
               match={match}
-              tolerance={tolerance}
               selected={String(match.id) === selectedId}
               onSelect={onSelect}
               onOdds={onOdds}
@@ -1751,16 +1729,21 @@ function beep() {
 const DROP_MARKETS = { moneyline: "Pobednik", spread: "Hendikep", total: "Ukupno" };
 const DROP_SIDES = { home: "1", draw: "X", away: "2", over: "V", under: "M" };
 
-// Polls PinnWire's drops endpoint for every sport and keeps the prematch drops of at least `threshold` percent
-// that belong to matches on the loaded boards. `toasts` are the ones not yet seen; `alerts` is the history.
-function useDropAlerts(boards, enabled, threshold, apiKeySet) {
+// Polls the server's buffer of PinnWire's SSE drop stream (local, no PinnWire request) for every sport and keeps
+// the prematch drops of at least `threshold` percent that belong to matches on the loaded boards, with the
+// MerkurXtip price of the same outcome. `toasts` are the ones not yet seen (only Merkur edges with `edgeOnly`);
+// `alerts` is the history.
+function useDropAlerts(boards, enabled, threshold, apiKeySet, edgeOnly) {
   const seen = useRef(new Set());
   const boardsRef = useRef(boards);
   boardsRef.current = boards;
   const [alerts, setAlerts] = useState([]);
   const [toasts, setToasts] = useState([]);
+  const [stream, setStream] = useState(null);
   const notify = useRef(enabled);
   notify.current = enabled;
+  const edgeRef = useRef(edgeOnly);
+  edgeRef.current = edgeOnly;
   useEffect(() => {
     seen.current = new Set();
     setAlerts([]);
@@ -1775,9 +1758,11 @@ function useDropAlerts(boards, enabled, threshold, apiKeySet) {
         if (!boardsRef.current[sport]?.matches) continue;
         try {
           const data = await requestJson(`/api/drops?sport=${sport}&min=${threshold}&age=300`);
+          setStream(data.stream || null);
           const matches = new Map(boardsRef.current[sport].matches.map((m) => [String(m.id), m]));
           for (const d of data.drops || []) {
-            const match = matches.get(String(d.event_id));
+            // tennis games markets drop on a side event; the server maps it to the board match
+            const match = matches.get(String(d.match_id ?? d.event_id));
             const id = `${d.event_id}:${d.market}:${d.period}:${d.side}:${d.points}:${d.to}:${d.alerted}`;
             if (!match || seen.current.has(id)) continue;
             seen.current.add(id);
@@ -1787,6 +1772,7 @@ function useDropAlerts(boards, enabled, threshold, apiKeySet) {
               starts: match.starts, at: Date.now() - (d.age_s || 0) * 1000,
               market: DROP_MARKETS[d.market] || d.market, line, side: DROP_SIDES[d.side] || d.side,
               from: d.from, to: d.to, pct: d.drop_pct, nvp: d.nvp,
+              mx: d.merkur?.odds ?? null, mxEv: d.merkur?.ev ?? null,
             });
           }
         } catch {
@@ -1796,13 +1782,14 @@ function useDropAlerts(boards, enabled, threshold, apiKeySet) {
       if (stop || !found.length) return;
       found.sort((x, y) => y.at - x.at);
       setAlerts((list) => [...found, ...list].slice(0, 300));
-      if (notify.current) {
-        setToasts((list) => [...found, ...list].slice(0, 30));
+      const fresh = edgeRef.current ? found.filter((a) => a.mxEv > 0) : found;
+      if (notify.current && fresh.length) {
+        setToasts((list) => [...fresh, ...list].slice(0, 30));
         beep();
       }
     };
     poll();
-    const timer = setInterval(poll, 15000);
+    const timer = setInterval(poll, 3000);
     return () => {
       stop = true;
       clearInterval(timer);
@@ -1813,15 +1800,16 @@ function useDropAlerts(boards, enabled, threshold, apiKeySet) {
     setAlerts([]);
     setToasts([]);
   }, []);
-  return { alerts, toasts, dismiss, clear };
+  return { alerts, toasts, dismiss, clear, stream };
 }
 
 const DROP_LEVELS = [1, 2, 3, 5, 7.5, 10, 15];
+const DROP_RECHECK = 15; // seconds, DROP_RECHECK in pinnwire_dashboard.py
 const dropTimeFmt = new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-function AlertsPage({ alerts, threshold, setThreshold, notify, setNotify, onClear, onOpen }) {
+function AlertsPage({ alerts, threshold, setThreshold, notify, setNotify, edgeOnly, setEdgeOnly, stream, onClear, onOpen }) {
   const [sportFilter, setSportFilter] = useState("all");
-  const shown = alerts.filter((a) => sportFilter === "all" || a.sport === sportFilter);
+  const shown = alerts.filter((a) => (sportFilter === "all" || a.sport === sportFilter) && (!edgeOnly || a.mxEv > 0));
   return (
     <div className="alerts-page">
       <div className="filters">
@@ -1842,15 +1830,25 @@ function AlertsPage({ alerts, threshold, setThreshold, notify, setNotify, onClea
           <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
           Obaveštenja i zvuk
         </label>
+        <label className="auto" title="Prikaži i javi samo padove gde je MerkurXtip kvota iznad nove Pinnacle fer kvote">
+          <input type="checkbox" checked={edgeOnly} onChange={(e) => setEdgeOnly(e.target.checked)} />
+          Samo gde Merkur kasni
+        </label>
         <button type="button" className="button ghost" onClick={onClear} disabled={!alerts.length}>Obriši listu</button>
       </div>
+      {stream && !stream.connected && (
+        <p className="state">Drop stream nije povezan{stream.error ? `: ${stream.error}` : ""}. Ponovo se povezuje…</p>
+      )}
       {!shown.length ? (
-        <p className="state">Nema padova od {threshold}% ili više. Lista se osvežava na 15 s i čuva dok je stranica otvorena.</p>
+        <p className="state">
+          Nema padova od {threshold}% ili više{edgeOnly ? " sa Merkur prednošću" : ""}. Padovi stižu uživo preko PinnWire
+          streama (posle {DROP_RECHECK} s provere da kvota nije vraćena) i čuvaju se dok je stranica otvorena.
+        </p>
       ) : (
         <div className="board-scroll">
           <table className="board alerts-table">
             <thead>
-              <tr><th>Vreme</th><th>Meč</th><th>Tržište</th><th>Kvota</th><th>Pad</th><th>Fer</th><th>Prednost</th></tr>
+              <tr><th>Vreme</th><th>Meč</th><th>Tržište</th><th>Pinnacle</th><th>Pad</th><th>Fer</th><th>Merkur</th><th>Prednost</th></tr>
             </thead>
             <tbody>
               {shown.map((a) => (
@@ -1864,7 +1862,8 @@ function AlertsPage({ alerts, threshold, setThreshold, notify, setNotify, onClea
                   <td>{fmtOdds(a.from)} → <b>{fmtOdds(a.to)}</b></td>
                   <td className="drop-pct">−{a.pct.toFixed(1)}%</td>
                   <td>{a.nvp ? fmtOdds(a.nvp) : "—"}</td>
-                  <td>{a.nvp ? fmtEv(a.to / a.nvp - 1) : "—"}</td>
+                  <td>{a.mx != null ? <b>{fmtOdds(a.mx)}</b> : "—"}</td>
+                  <td>{a.mxEv != null ? <span className={`ev-chip ${evClass(a.mxEv)}`}>{fmtEv(a.mxEv)}</span> : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -1890,13 +1889,13 @@ export default function App() {
   const [autoSeconds, setAutoSeconds] = useState(() => readStored("pb.autoSec", 15));
   const [dropAlerts, setDropAlerts] = useState(() => readStored("pb.dropAlerts", true));
   const [dropPct, setDropPct] = useState(() => readStored("pb.dropPct", 3));
+  const [dropEdge, setDropEdge] = useState(() => readStored("pb.dropEdge", false));
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [view, setView] = useState(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("view");
     return ["compare", "pinnacle", "value", "missing"].includes(fromUrl) ? fromUrl : readStored("pb.view", "compare");
   });
   const [edgeFilter, setEdgeFilter] = useState(() => readStored("pb.edge", "all"));
-  const [tolerance, setTolerance] = useState(() => readStored("pb.tolerance", 1));
   const [valueLevel, setValueLevel] = useState(() => readStored("pb.valueLevel2", "fair"));
   const [valueLeague, setValueLeague] = useState("all");
   const [valueGroup, setValueGroup] = useState(() => readStored("pb.valueGroup", "all"));
@@ -1931,7 +1930,7 @@ export default function App() {
   const reload = pane ? pane.load : loadBoard;
   const cur = pane ? pane.board : board;
   const curLoading = pane ? pane.loading : loading;
-  const drops = useDropAlerts({ football: board, basketball: bb.board, tennis: tn.board }, dropAlerts, dropPct, apiKeySet);
+  const drops = useDropAlerts({ football: board, basketball: bb.board, tennis: tn.board }, dropAlerts, dropPct, apiKeySet, dropEdge);
   const pickSport = useCallback((key) => {
     setAlertsOpen(false);
     setSport(key);
@@ -1974,9 +1973,9 @@ export default function App() {
   useEffect(() => writeStored("pb.autoSec", autoSeconds), [autoSeconds]);
   useEffect(() => writeStored("pb.dropAlerts", dropAlerts), [dropAlerts]);
   useEffect(() => writeStored("pb.dropPct", dropPct), [dropPct]);
+  useEffect(() => writeStored("pb.dropEdge", dropEdge), [dropEdge]);
   useEffect(() => writeStored("pb.view", view), [view]);
   useEffect(() => writeStored("pb.edge", edgeFilter), [edgeFilter]);
-  useEffect(() => writeStored("pb.tolerance", tolerance), [tolerance]);
   useEffect(() => writeStored("pb.valueLevel2", valueLevel), [valueLevel]);
   useEffect(() => writeStored("pb.valueGroup", valueGroup), [valueGroup]);
 
@@ -2173,6 +2172,9 @@ export default function App() {
           setThreshold={setDropPct}
           notify={dropAlerts}
           setNotify={setDropAlerts}
+          edgeOnly={dropEdge}
+          setEdgeOnly={setDropEdge}
+          stream={drops.stream}
           onClear={drops.clear}
           onOpen={openAlert}
         />
@@ -2269,21 +2271,6 @@ export default function App() {
                   </select>
                 </label>
               )}
-              {view === "compare" && (
-                <label className="auto" title="Max kvota = Pinnacle fer kvota favorita × (1 + tolerancija)">
-                  Tolerancija
-                  <input
-                    className="tolerance"
-                    type="number"
-                    min="-10"
-                    max="20"
-                    step="0.1"
-                    value={tolerance}
-                    onChange={(e) => setTolerance(Number(e.target.value) || 0)}
-                  />
-                  %
-                </label>
-              )}
               <div className="segmented">
                 {DAY_FILTERS.map(([key, label]) => (
                   <button key={key} type="button" className={dayFilter === key ? "active" : ""} onClick={() => setDayFilter(key)}>
@@ -2334,7 +2321,6 @@ export default function App() {
                 {!!filtered.length && view === "compare" && (
                   <CompareTable
                     matches={filtered}
-                    tolerance={tolerance}
                     pinStamp={board.fetchedAt}
                     mxStamp={board.merkur?.fetchedAt}
                     selectedId={oddsId}
@@ -2398,14 +2384,16 @@ export default function App() {
             <button
               key={a.id}
               type="button"
-              className="drop-alert"
+              className={`drop-alert${a.mxEv > 0 ? " edge" : ""}`}
               onClick={() => { drops.dismiss(a.id); openAlert(a); }}
               title="Klik za zatvaranje"
             >
               <b>▼ {a.match}</b>
               <span>
                 {a.market}{a.line} {a.side}: {fmtOdds(a.from)} → {fmtOdds(a.to)} (−{a.pct.toFixed(1)}%)
-                {a.nvp ? ` · fer ${fmtOdds(a.nvp)}, prednost ${fmtEv(a.to / a.nvp - 1)}` : ""}
+                {a.mx != null
+                  ? ` · Merkur ${fmtOdds(a.mx)}, prednost ${fmtEv(a.mxEv)}`
+                  : a.nvp ? ` · fer ${fmtOdds(a.nvp)}` : ""}
               </span>
             </button>
           ))}

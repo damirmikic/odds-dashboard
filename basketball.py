@@ -476,6 +476,24 @@ def shape_match(event, hit):
     return match, value_items(event.get("event_id"), every_row, stale)
 
 
+# compare row group -> PinnWire drop market, for the MerkurXtip price on a drop alert
+DROP_GROUPS = {"Pobednik": "moneyline", "Hendikep": "spread", "Ukupno poena": "total"}
+
+
+def rows_by_period(match, periods):
+    """Every compare row of a board match grouped by PinnWire period number; `periods` maps key -> number."""
+    out = {}
+    for r in match["rows"] + [r for found in match["periods"].values() for r in found]:
+        out.setdefault(periods[r.get("period", "ft")], []).append(r)
+    return out
+
+
+def drop_quotes(event, match):
+    """{PinnWire event id: (board match id, quote index)} of one board match."""
+    rows = rows_by_period(match, {key: number for key, _, number, _ in PERIODS})
+    return {str(event["event_id"]): (match["id"], pw.quote_index(rows, DROP_GROUPS))}
+
+
 class BasketballState:
     """PinnWire snapshot + MerkurXtip offer for one sport. TennisState overrides the hook methods below."""
 
@@ -491,6 +509,7 @@ class BasketballState:
         self.merkur = mx.OfferCache(mx.MerkurAPI(offer_path=self.offer_path))
         self.merkur_lock = threading.Lock()
         self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
+        self.quotes = {}  # PinnWire event id -> (board match id, MerkurXtip prices by drop_key), from the last board
         self.api = None
         self.api_key = None
         self.events = None
@@ -521,6 +540,9 @@ class BasketballState:
 
     def offered(self, offer):
         return sum(1 for r in offer if r.get("leagueId") in MX_COMP and mx.is_prematch(r))
+
+    def drop_quotes(self, event, match):
+        return drop_quotes(event, match)
 
     def competitions(self, matches):
         counts = {}
@@ -613,15 +635,18 @@ class BasketballState:
         pairs = self.pair(events, offer)
         self.pairs = pairs
         hints = self.hints(events, offer)
-        matches, values = [], []
+        matches, values, quotes = [], [], {}
         for event in events:
             match, items = self.shape(event, pairs.get(str(event["event_id"])))
             match["hint"] = hints.get(str(event["event_id"]))
+            if match["merkur"]:
+                quotes.update(self.drop_quotes(event, match))
             # a match without any Pinnacle price is not worth a row
             if match["ml"] or match["spread"] or match["total"]:
                 matches.append(match)
                 values.extend(items)
         matches.sort(key=lambda m: (m["starts"], m["home"]))
+        self.quotes = quotes
         return {
             "competitions": self.competitions(matches),
             "matches": matches,

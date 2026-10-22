@@ -797,5 +797,59 @@ class BasketballPeriodTests(unittest.TestCase):
         self.assertTrue(all(i["period"] == "ht" and i["periodLabel"] == "1. poluvreme" for i in items))
 
 
+class DropTests(unittest.TestCase):
+    FRAME = {"id": 1637470980, "sport_id": 3, "home": "San Antonio Spurs", "away": "Houston Rockets", "league": "NBA",
+             "sport": "Basketball", "sect": "Spread", "market_type": "spread", "period": 0, "outcome": "away",
+             "points": 4, "from_price": 1.625, "to_price": 1.599, "drop_pct": 1.6, "nvp": 1.655,
+             "starts": "2030-10-24T01:40:00Z", "is_live": False, "alerted": 1792706473}
+
+    def test_sse_frame_gets_rest_field_names(self):
+        d = pw.normalize_drop(self.FRAME)
+        self.assertEqual((d["event_id"], d["market"], d["side"], d["points"], d["from"], d["to"]),
+                         (1637470980, "spread", "away", 4.0, 1.625, 1.599))
+
+    def test_team_total_and_live_drops_are_skipped(self):
+        self.assertIsNone(pw.normalize_drop({**self.FRAME, "market_type": "team_total"}))
+        self.assertIsNone(pw.normalize_drop({**self.FRAME, "is_live": True}))
+
+    def test_away_spread_drop_uses_the_home_handicap(self):
+        self.assertEqual(pw.drop_key("spread", 0, "away", 4), ("spread", 0, -4.0, "away"))
+        self.assertEqual(pw.drop_key("spread", 0, "home", -4), ("spread", 0, -4.0, "home"))
+        self.assertEqual(pw.drop_key("moneyline", 1, "home", None), ("moneyline", 1, None, "home"))
+
+    def test_quote_index_matches_compare_rows(self):
+        rows = dash.compare_period(kit_event(), {"ml": {"home": 2.5, "draw": 3.2, "away": 2.8},
+                                                 "spreads": {-0.5: {"home": 2.5, "away": 1.5}}}, 0)
+        index = pw.quote_index({0: rows}, dash.DROP_GROUPS)
+        self.assertEqual(index[pw.drop_key("moneyline", 0, "draw", None)]["merkur"], 3.2)
+        self.assertEqual(index[pw.drop_key("spread", 0, "away", 0.5)]["merkur"], 1.5)
+
+    def test_tennis_games_drop_finds_the_parent_match(self):
+        event = tennis.TennisState.incoming(None, {"events": [
+            TennisTests.main_event(), TennisTests.games_event()]})[0]
+        match, _ = tennis.shape_match(event, (TennisTests.ROW, 1.0))
+        quotes = tennis.drop_quotes(event, match)
+        self.assertEqual(quotes["8"][0], 7)
+        self.assertEqual(quotes["8"][1][pw.drop_key("spread", 0, "home", 3.5)]["merkur"], 1.72)
+        self.assertEqual(quotes["7"][1][pw.drop_key("moneyline", 0, "home", None)]["merkur"], 2.4)
+
+    def test_drops_response_adds_match_and_merkur_edge(self):
+        feed = dash.DropFeed(lambda: "")
+        now = int(dash.time.time())
+        feed.add([{**self.FRAME, "alerted": now}, {**self.FRAME, "sport_id": 99, "alerted": now}])
+        key = pw.drop_key("spread", 0, "away", 4)
+        old_feed, old_quotes = dash.DROPS, dash.BB_STATE.quotes
+        dash.DROPS, dash.BB_STATE.quotes = feed, {"1637470980": (1637470980, {key: {"merkur": 1.72, "fair": 1.7}})}
+        try:
+            body = dash.drops_response({"sport": ["basketball"], "min": ["1"]})
+            above = dash.drops_response({"sport": ["basketball"], "min": ["5"]})
+        finally:
+            dash.DROPS, dash.BB_STATE.quotes = old_feed, old_quotes
+        [drop] = body["drops"]
+        self.assertEqual(drop["match_id"], 1637470980)
+        self.assertEqual(drop["merkur"], {"odds": 1.72, "ev": round(1.72 / 1.655 - 1, 4)})
+        self.assertEqual(above["drops"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
