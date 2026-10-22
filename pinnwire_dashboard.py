@@ -19,6 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 import basketball as bb
+import clv
 import tennis
 import merkur_client as mx
 import pinnwire_client as pw
@@ -28,6 +29,7 @@ DATA = os.path.join(ROOT, "data")
 STATIC = os.path.join(ROOT, "static", "dashboard_build")
 CONFIG_PATH = os.path.join(DATA, "pinnwire_config.json")
 HISTORY_PATH = os.path.join(DATA, "dashboard_history.json")
+CLV_PATH = os.path.join(DATA, "clv.sqlite3")
 
 # PinnWire league_id -> display info; order is the tab order in the UI.
 # `merkur` is the MerkurXtip `leagueShort` of the same competition.
@@ -556,6 +558,7 @@ class DashboardState:
         self.merkur_lock = threading.Lock()
         self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
         self.quotes = {}  # PinnWire event id -> (board match id, MerkurXtip prices by drop_key), from the last board
+        self.clv = None  # ClvStore that records value signals and closing lines at every board
         self.mx_track = {}  # merkur match id -> {last, prev, changedAt}: 1X2 movement this session
         self.goal_track = {}  # "pin|mx:<id>:<line>" -> {last, prev, changedAt}: board goal line movement
         self.fetch_lock = threading.Lock()
@@ -640,7 +643,7 @@ class DashboardState:
         hints = unpaired_hints(events, offer)
         self.pairs = pairs
         by_id = {str(e["event_id"]): e for e in events}
-        values, quotes = [], {}
+        values, quotes, clv_rows = [], {}, {}
         for m in matches:
             hit = pairs.get(str(m["id"]))
             m["merkur"] = merkur_summary(hit[0], by_id[str(m["id"])], hit[1]) if hit else None
@@ -652,6 +655,7 @@ class DashboardState:
                 rows = m["merkur"].pop("rows")
                 values.extend(value_items(m, rows))
                 quotes[str(m["id"])] = (m["id"], pw.quote_index({0: rows["ft"], 1: rows["ht"]}, DROP_GROUPS))
+                clv_rows[m["id"]] = [("ft", r) for r in rows["ft"]] + [("ht", r) for r in rows["ht"]]
             if m["goals"]:
                 m["goals"].update(self.track_goals(m))
         self.mx_track = {k: v for k, v in self.mx_track.items()
@@ -664,6 +668,10 @@ class DashboardState:
         values = [v for v in values if v["matchId"] in kept]
         matches.sort(key=lambda m: (m["starts"], m["home"]))
         self.quotes = quotes
+        if self.clv:
+            self.clv.observe("football", [
+                {"id": m["id"], "home": m["home"], "away": m["away"], "league": m["leagueName"], "starts": m["starts"],
+                 "rows": clv_rows[m["id"]]} for m in matches if m["id"] in clv_rows])
         counts = {}
         for m in matches:
             counts[m["leagueId"]] = counts.get(m["leagueId"], 0) + 1
@@ -851,6 +859,69 @@ class DropFeed:
 DROPS = DropFeed(current_api_key)
 DROP_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE}
 
+CLV_REFRESH = 30  # seconds between background boards when nobody refreshes in the browser
+CLV_REFRESH_SOON = 10  # ... while a signalled match starts within 15 minutes, to catch its closing line
+
+
+class ClvWorker:
+    """Keeps boards fresh without a browser so the closing line of every signal is recorded before kickoff.
+    A board refreshed by the UI counts too: only sports not observed for a while are fetched."""
+
+    def __init__(self, store, states):
+        self.store = store
+        self.states = states
+        self.started = False
+
+    def start(self):
+        if not self.started:
+            self.started = True
+            threading.Thread(target=self.run, name="clv-worker", daemon=True).start()
+
+    def run(self):
+        while True:
+            interval = CLV_REFRESH_SOON if self.store.soon() else CLV_REFRESH
+            self.tick(interval)
+            time.sleep(2)
+
+    def tick(self, interval):
+        if not current_api_key():
+            return
+        for sport, state in self.states.items():
+            if time.time() - self.store.last_seen.get(sport, 0) < interval:
+                continue
+            try:
+                state.board(refresh=True)
+            except (PermissionError, LookupError, RuntimeError):
+                self.store.last_seen[sport] = time.time()  # retry after one interval, not in a tight loop
+            except Exception as exc:  # the worker must outlive a parsing bug in one sport
+                self.store.last_seen[sport] = time.time()
+                print(f"clv worker {sport}: {exc!r}")
+
+
+CLV = None  # opened by start_clv(), so importing this module (tests) never touches data/clv.sqlite3
+
+
+def start_clv(path=CLV_PATH):
+    """Open the CLV store, hand it to the three states and start the background worker."""
+    global CLV
+    CLV = clv.ClvStore(path)
+    for state in DROP_STATES.values():
+        state.clv = CLV
+    ClvWorker(CLV, DROP_STATES).start()
+
+
+def clv_response(query):
+    if CLV is None:
+        raise LookupError("CLV baza nije otvorena.")
+    sport = (query.get("sport") or [""])[0] or None
+    if sport is not None and sport not in DROP_STATES:
+        raise LookupError("Nepoznat sport.")
+    try:
+        days = min(365, max(1, int((query.get("days") or ["30"])[0])))
+    except ValueError:
+        raise LookupError("Neispravni parametri.")
+    return CLV.stats(sport=sport, days=days)
+
 
 def drops_response(query):
     """Recent prematch drops of one sport from the SSE buffer, each with the board match it belongs to and,
@@ -927,6 +998,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/status":
                 return self.send_json(200, {"apiKeySet": bool(current_api_key()),
                                             "callsToday": STATE.history.calls_today()})
+            if path == "/api/clv":
+                return self.send_json(200, clv_response(query))
             if path == "/api/drops":
                 return self.send_json(200, drops_response(query))
             if path.startswith("/api/basketball/match/"):
@@ -1002,6 +1075,7 @@ def main():
     url = f"http://{host}:{args.port}"
     print(f"PinnWire Dashboard: {url}  (Ctrl+C to stop)")
     DROPS.start()
+    start_clv()
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:

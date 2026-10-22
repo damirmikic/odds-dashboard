@@ -1,6 +1,7 @@
 import unittest
 
 import basketball as bb
+import clv
 import merkur_client as mx
 import pinnwire_client as pw
 import pinnwire_dashboard as dash
@@ -849,6 +850,61 @@ class DropTests(unittest.TestCase):
         self.assertEqual(drop["match_id"], 1637470980)
         self.assertEqual(drop["merkur"], {"odds": 1.72, "ev": round(1.72 / 1.655 - 1, 4)})
         self.assertEqual(above["drops"], [])
+
+
+class ClvTests(unittest.TestCase):
+    @staticmethod
+    def match(merkur, fair=2.0, starts="2030-08-28T19:30:00Z", line=2.5, **row):
+        outcome = {"key": "over", "label": "Više", "merkur": merkur, "pinnacle": 1.9, "fair": fair,
+                   "ev": merkur / fair - 1}
+        return [{"id": 7, "home": "A", "away": "B", "league": "Liga", "starts": starts,
+                 "rows": [("ft", {"group": "Ukupno golova", "line": line, "outcomes": [outcome], **row})]}]
+
+    def setUp(self):
+        self.store = clv.ClvStore()
+
+    def test_only_edges_above_the_threshold_become_signals(self):
+        self.assertEqual(self.store.observe("football", self.match(2.02), "2030-08-28T10:00:00Z"), 0)
+        self.assertEqual(self.store.observe("football", self.match(2.10), "2030-08-28T10:00:30Z"), 1)
+
+    def test_signal_keeps_first_price_and_closing_follows_the_latest_board(self):
+        self.store.observe("football", self.match(2.10), "2030-08-28T10:00:00Z")
+        self.store.observe("football", self.match(2.30, fair=2.2), "2030-08-28T19:20:00Z")
+        stats = self.store.stats(now="2030-08-28T20:00:00Z")
+        [row] = stats["recent"]
+        self.assertEqual((row["merkur"], row["close_fair"], row["clv"]), (2.10, 2.2, round(2.10 / 2.2 - 1, 4)))
+        self.assertEqual(stats["total"]["n"], 1)
+        self.assertEqual(stats["total"]["positive"], 0)
+
+    def test_stale_closing_line_is_not_counted(self):
+        self.store.observe("football", self.match(2.10), "2030-08-28T10:00:00Z")
+        stats = self.store.stats(now="2030-08-28T20:00:00Z")
+        self.assertEqual((stats["total"]["n"], stats["unclosed"], stats["recent"][0]["clv"]), (0, 1, None))
+
+    def test_modelled_rows_and_started_matches_are_skipped(self):
+        self.assertEqual(self.store.observe("basketball", self.match(2.5, modeled=True), "2030-08-28T10:00:00Z"), 0)
+        self.assertEqual(self.store.observe("football", self.match(2.5), "2030-08-28T20:00:00Z"), 0)
+
+    def test_groups_and_pending_counts(self):
+        self.store.observe("football", self.match(2.10), "2030-08-28T10:00:00Z")
+        self.store.observe("football", self.match(2.4, line=3.5, starts="2030-09-01T19:30:00Z"), "2030-08-28T10:00:00Z")
+        self.store.observe("football", self.match(2.10, fair=2.0), "2030-08-28T19:25:00Z")
+        stats = self.store.stats(now="2030-08-28T20:00:00Z")
+        self.assertEqual((stats["pending"], stats["total"]["n"]), (1, 1))
+        self.assertEqual(stats["byLeague"][0]["name"], "Liga")
+        self.assertEqual(stats["byGroup"][0]["name"], "Ukupno golova")
+
+    def test_soon_flags_a_signal_close_to_kickoff(self):
+        self.store.observe("football", self.match(2.10), "2030-08-28T10:00:00Z")
+        early = clv.datetime(2030, 8, 28, 19, 20, tzinfo=clv.timezone.utc)
+        self.assertTrue(self.store.soon(15, now=early))
+        self.assertFalse(self.store.soon(15, now=early - clv.timedelta(hours=2)))
+
+    def test_state_board_reports_to_the_store(self):
+        state = make_state(FakeAPI([event(1)]))
+        state.clv = self.store
+        state.board()
+        self.assertIn("football", self.store.last_seen)
 
 
 if __name__ == "__main__":

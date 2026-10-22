@@ -494,12 +494,20 @@ def drop_quotes(event, match):
     return {str(event["event_id"]): (match["id"], pw.quote_index(rows, DROP_GROUPS))}
 
 
+def clv_matches(matches):
+    """Board matches with a MerkurXtip pair in the shape ClvStore.observe() takes."""
+    return [{"id": m["id"], "home": m["home"], "away": m["away"], "league": m["leagueName"], "starts": m["starts"],
+             "rows": [(r.get("period", "ft"), r) for r in m["rows"] + [r for found in m["periods"].values() for r in found]]}
+            for m in matches if m["merkur"]]
+
+
 class BasketballState:
     """PinnWire snapshot + MerkurXtip offer for one sport. TennisState overrides the hook methods below."""
 
     sport_id = SPORT_ID
     offer_path = OFFER_PATH
     alt_units = False  # ask PinnWire for the side-market events too
+    clv_name = "basketball"
 
     def __init__(self, history, key_fn):
         self.history = history  # shared with the football state: only its request counter is used
@@ -509,6 +517,7 @@ class BasketballState:
         self.merkur = mx.OfferCache(mx.MerkurAPI(offer_path=self.offer_path))
         self.merkur_lock = threading.Lock()
         self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
+        self.clv = None  # ClvStore that records value signals and closing lines at every board
         self.quotes = {}  # PinnWire event id -> (board match id, MerkurXtip prices by drop_key), from the last board
         self.api = None
         self.api_key = None
@@ -647,6 +656,8 @@ class BasketballState:
                 values.extend(items)
         matches.sort(key=lambda m: (m["starts"], m["home"]))
         self.quotes = quotes
+        if self.clv:
+            self.clv.observe(self.clv_name, clv_matches(matches))
         return {
             "competitions": self.competitions(matches),
             "matches": matches,

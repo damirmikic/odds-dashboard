@@ -70,6 +70,12 @@ For a paired match each drop carries the MerkurXtip price of the same outcome (f
 
 Opening and previous 1X2 prices are stored in `data/dashboard_history.json`, so they survive restarts. "Opening" is the first price the dashboard saw, not Pinnacle's opening line.
 
+## CLV (closing line value)
+
+PinnWire has no historical data, so the dashboard builds its own. The first time an outcome shows a MerkurXtip price at least 2% above Pinnacle's fair price (`MIN_EV` in `clv.py`; modelled basketball lines are skipped), it is stored as a **signal** in `data/clv.sqlite3` (SQLite, git-ignored). Every later board updates that outcome's latest Pinnacle fair and MerkurXtip price until kickoff, and the last one seen is the closing line. **CLV = MerkurXtip price at the signal / closing fair price − 1**; above zero means MerkurXtip offered more than Pinnacle finally thought fair, which is the only check that the value was real without waiting for results.
+
+A background worker refreshes the three boards every 30 s (10 s while a signalled match starts within 15 minutes) when nobody refreshes in the browser, so closing lines are recorded with the UI closed. A signal counts only if its closing line was seen at most 30 minutes before kickoff; the others are listed as "bez zatvaranja". The page is **Alerti → CLV**: totals, then by sport, market and league, then the last 200 signals. `/api/clv?days=&sport=` serves it.
+
 ## Project layout
 
 | File | Purpose |

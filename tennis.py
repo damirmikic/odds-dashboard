@@ -339,6 +339,7 @@ def drop_quotes(event, match):
 
 
 class TennisState(bb.BasketballState):
+    clv_name = "tennis"
     sport_id = SPORT_ID
     offer_path = OFFER_PATH
     alt_units = True
