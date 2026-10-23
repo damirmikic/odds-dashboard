@@ -77,6 +77,45 @@ function writeStored(key, value) {
   }
 }
 
+function useStickyHeaderOffsets() {
+  useEffect(() => {
+    const app = document.querySelector(".app");
+    if (!app) return;
+
+    const root = document.documentElement;
+    const resizeObserver = new ResizeObserver(update);
+    const mutationObserver = new MutationObserver(update);
+    const observed = new Set();
+
+    function update() {
+      const topbar = app.querySelector(".topbar");
+      const filters = app.querySelector(".filters");
+      for (const element of [topbar, filters]) {
+        if (element && !observed.has(element)) {
+          observed.add(element);
+          resizeObserver.observe(element);
+        }
+      }
+
+      const topbarHeight = topbar?.getBoundingClientRect().height || 0;
+      const filtersHeight = filters?.getBoundingClientRect().height || 0;
+      root.style.setProperty("--sticky-topbar-height", `${topbarHeight}px`);
+      root.style.setProperty("--sticky-filters-height", `${filtersHeight}px`);
+    }
+
+    mutationObserver.observe(app, { childList: true, subtree: true });
+    window.addEventListener("resize", update);
+    update();
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", update);
+      root.style.removeProperty("--sticky-topbar-height");
+      root.style.removeProperty("--sticky-filters-height");
+    };
+  }, []);
+}
+
 function dayKey(date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
@@ -2073,6 +2112,7 @@ function ClvPage() {
 }
 
 export default function App() {
+  useStickyHeaderOffsets();
   const [apiKeySet, setApiKeySet] = useState(null);
   const [sport, setSport] = useState(initialSport);
   const [board, setBoard] = useState(null);
