@@ -35,7 +35,8 @@ HISTORY_PATH = os.path.join(DATA, "dashboard_history.json")
 CLV_PATH = os.path.join(DATA, "clv.sqlite3")
 
 # PinnWire league_id -> display info; order is the tab order in the UI.
-# `merkur` is the MerkurXtip `leagueShort` of the same competition.
+# `merkur` is the MerkurXtip `leagueShort` of the same competition, or its numeric `leagueId` when the
+# offer has no `leagueShort` for it.
 COMPETITIONS = [
     {"id": 1980, "key": "epl", "name": "Premier League", "country": "Engleska", "code": "ENG", "merkur": "ENG PL"},
     {"id": 2196, "key": "laliga", "name": "La Liga", "country": "Španija", "code": "ESP", "merkur": "ESP LL"},
@@ -155,6 +156,27 @@ COMPETITIONS = [
      "merkur": "POR U23"},
     {"id": 211248, "key": "sau2", "name": "Divizija 2", "country": "Saudijska Arabija", "code": "KSA2",
      "merkur": "Saudi Arabia"},
+    {"id": 194738, "key": "austriabw", "name": "Bundesliga (žene)", "country": "Austrija", "code": "AUTW", "merkur": "AUT BLW"},
+    {"id": 1786, "key": "autrw", "name": "Regionalliga zapad", "country": "Austrija", "code": "AUT3W", "merkur": "AUT RW"},
+    {"id": 1818, "key": "belcpl", "name": "Challenger Pro liga", "country": "Belgija", "code": "BEL2", "merkur": "BEL CPL"},
+    {"id": 209638, "key": "belu21", "name": "Pro liga U21", "country": "Belgija", "code": "BELU21", "merkur": "BEL U21"},
+    {"id": 200752, "key": "cafcc", "name": "Kup konfederacije (kval.)", "country": "CAF", "code": "CAFCC", "merkur": "CAF CC"},
+    {"id": 9441, "key": "fnlcz", "name": "FNL", "country": "Češka", "code": "CZE2", "merkur": "CZE D2"},
+    {"id": 191393, "key": "dnk2", "name": "2. divizija", "country": "Danska", "code": "DEN2", "merkur": "DNK 2D"},
+    {"id": 209095, "key": "fro1", "name": "1. Deild", "country": "Farska Ostrva", "code": "FRO", "merkur": "FRO 1D"},
+    {"id": 2033, "key": "fraw", "name": "Division 1 (žene)", "country": "Francuska", "code": "FRAW", "merkur": "FRA PLW"},
+    {"id": 1845, "key": "gerbw", "name": "Bundesliga (žene)", "country": "Nemačka", "code": "GERW", "merkur": "GER BLW"},
+    {"id": 197088, "key": "islbw", "name": "Besta deild (žene)", "country": "Island", "code": "ISLW", "merkur": "ICE BDW"},
+    {"id": 201890, "key": "ltu1", "name": "1 Lyga", "country": "Litvanija", "code": "LTU", "merkur": "LTU IL"},
+    {"id": 218533, "key": "ned3", "name": "Derde Divisie", "country": "Holandija", "code": "NED3", "merkur": "NLD DD"},
+    {"id": 286332, "key": "nor3", "name": "3. divizija", "country": "Norveška", "code": "NOR3", "merkur": "NOR 3D"},
+    {"id": 196861, "key": "norw", "name": "Toppserien (žene)", "country": "Norveška", "code": "NORW", "merkur": "NOR TSW"},
+    {"id": 285670, "key": "sle", "name": "Premier liga", "country": "Sijera Leone", "code": "SLE", "merkur": "SLE PD"},
+    {"id": 210303, "key": "svk3", "name": "3. liga", "country": "Slovačka", "code": "SVK3", "merkur": "SVK 3L"},
+    {"id": 2468, "key": "espw", "name": "Primera Division (žene)", "country": "Španija", "code": "ESPW", "merkur": "ESP PDW"},
+    {"id": 1903, "key": "swew", "name": "Damallsvenskan", "country": "Švedska", "code": "SWEW", "merkur": "SWE ALW"},
+    {"id": 2626, "key": "uae2", "name": "Divizija 2", "country": "UAE", "code": "UAE", "merkur": "UAE D2"},
+    {"id": 242216, "key": "uslw", "name": "USL Super League (žene)", "country": "SAD", "code": "USLW", "merkur": "USA SLW"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
@@ -181,6 +203,11 @@ HIDDEN_MISSING_LEAGUES = {
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
 # `merkur_also`: further MerkurXtip leagues that PinnWire quotes under the same league_id
 MERKUR_COMP = {m: c["id"] for c in COMPETITIONS for m in [c["merkur"], *c.get("merkur_also", [])]}
+
+
+def merkur_comp(row):
+    """PinnWire league_id of a MerkurXtip offer row's competition, None when it is not tracked."""
+    return MERKUR_COMP.get(row.get("leagueShort")) or MERKUR_COMP.get(row.get("leagueId"))
 # Explicit types: on Windows `mimetypes` reads the registry, where .js is sometimes text/plain,
 # which breaks module scripts and service worker registration.
 STATIC_TYPES = {
@@ -546,9 +573,9 @@ PAIR_WINDOW = 6 * 60
 def pair_inputs(events, offer):
     pin = [{"id": str(e["event_id"]), "comp": e["league_id"], "home": e.get("home", ""),
             "away": e.get("away", ""), "ts": event_ts(e)} for e in events]
-    mer = [{"id": r["id"], "comp": MERKUR_COMP[r["leagueShort"]], "home": r.get("home", ""),
+    mer = [{"id": r["id"], "comp": merkur_comp(r), "home": r.get("home", ""),
             "away": r.get("away", ""), "ts": merkur_ts(r), "row": r}
-           for r in offer if r.get("leagueShort") in MERKUR_COMP and mx.is_prematch(r)]
+           for r in offer if merkur_comp(r) and mx.is_prematch(r)]
     return pin, mer
 
 
@@ -833,7 +860,7 @@ class DashboardState:
                 "fetchedAt": self.merkur.stamp,
                 "error": self.merkur.error,
                 "paired": sum(1 for m in matches if m["merkur"]),
-                "offered": sum(1 for r in offer if r.get("leagueShort") in MERKUR_COMP and mx.is_prematch(r)),
+                "offered": sum(1 for r in offer if merkur_comp(r) and mx.is_prematch(r)),
             },
         }
 

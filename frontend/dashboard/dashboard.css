@@ -181,6 +181,13 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.zafch { --badge: #1c8a3c; }
 .comp-badge.poru23 { --badge: #006600; }
 .comp-badge.sau2 { --badge: #0a7a3d; }
+.comp-badge.austriabw, .comp-badge.autrw, .comp-badge.gerbw, .comp-badge.fraw, .comp-badge.islbw, .comp-badge.norw,
+.comp-badge.espw, .comp-badge.swew, .comp-badge.uslw { --badge: #8d3a9b; }
+.comp-badge.belcpl, .comp-badge.belu21 { --badge: #c8102e; }
+.comp-badge.cafcc { --badge: #1c8a3c; }
+.comp-badge.fnlcz { --badge: #7a2e8c; }
+.comp-badge.dnk2, .comp-badge.fro1 { --badge: #b3202a; }
+.comp-badge.ltu1, .comp-badge.nor3, .comp-badge.ned3, .comp-badge.sle, .comp-badge.svk3, .comp-badge.uae2 { --badge: #3a5a78; }
 .comp-badge.gercup { --badge: #8a1c1c; }
 .comp-badge.isralef, .comp-badge.isrll { --badge: #1f6fb4; }
 .comp-badge.engnl, .comp-badge.engnln, .comp-badge.engnls { --badge: #4a3a8c; }
