@@ -78,6 +78,7 @@ button:disabled { cursor: default; opacity: .45; }
 @keyframes pulse { 50% { opacity: .3; } }
 .actions { display: flex; align-items: center; gap: 8px; }
 .auto { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.auto .range-input { width: 56px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: inherit; }
 .auto select { padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); }
 
 .button {

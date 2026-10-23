@@ -531,6 +531,46 @@ function valuePasses(value, level, group) {
   return group === "all" || value.group === group;
 }
 
+// Competitions kept by the "samo top lige" switch, per sport (tennis has no fixed list: ATP and WTA tours).
+const TOP_LEAGUES = {
+  football: new Set(["epl", "laliga", "seriea", "bundesliga", "ligue1", "ucl", "uel", "uecl", "eredivisie", "ligapt",
+    "championship", "superlig", "jupiler", "libertadores", "brasileirao", "mls", "gercup", "eflcup", "superligasrb"]),
+  basketball: new Set(["nba", "euroleague", "eurocup", "bcl"]),
+  hockey: new Set(["nhl", "khl", "liiga", "del", "nla"]),
+};
+
+function isTopLeague(sport, comp) {
+  if (!comp) return false;
+  if (sport === "tennis") return comp.badge === "atp" || comp.badge === "wta";
+  return (TOP_LEAGUES[sport] || new Set()).has(comp.key);
+}
+
+// Range of the difference vs fair price in percent; an empty bound is open.
+function rangePasses(value, min, max) {
+  const pct = value.ev * 100;
+  return (min === "" || pct >= Number(min)) && (max === "" || pct <= Number(max));
+}
+
+function ValueRange({ min, max, setMin, setMax, topOnly, setTopOnly }) {
+  return (
+    <>
+      <label className="auto" title="Razlika MerkurXtip kvote u odnosu na Pinnacle fer kvotu, u procentima">
+        Razlika od
+        <input type="number" step="0.5" className="range-input" placeholder="−∞" value={min}
+          onChange={(e) => setMin(e.target.value)} />
+        do
+        <input type="number" step="0.5" className="range-input" placeholder="+∞" value={max}
+          onChange={(e) => setMax(e.target.value)} />
+        %
+      </label>
+      <label className="auto" title="Samo najjača takmičenja">
+        <input type="checkbox" checked={topOnly} onChange={(e) => setTopOnly(e.target.checked)} />
+        samo top lige
+      </label>
+    </>
+  );
+}
+
 function ValueTable({ values, matchesById, competitions, selectedId, onSelect, onOdds }) {
   const byComp = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
   return (
@@ -1484,6 +1524,9 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
   const [valueLevel, setValueLevel] = useState(() => readStored(store("valueLevel"), "fair"));
   const [valueGroup, setValueGroup] = useState(() => readStored(store("valueGroup"), "all"));
   const [showModeled, setShowModeled] = useState(() => readStored(store("modeled"), false));
+  const [evMin, setEvMin] = useState(() => readStored(store("evMin"), ""));
+  const [evMax, setEvMax] = useState(() => readStored(store("evMax"), ""));
+  const [topOnly, setTopOnly] = useState(() => readStored(store("topOnly"), false));
   const [onlyStale, setOnlyStale] = useState(false);
   const [valueLeague, setValueLeague] = useState("all");
   const [oddsId, setOddsId] = useState(() => window.location.hash.replace(/\D/g, ""));
@@ -1493,6 +1536,9 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
   useEffect(() => writeStored(store("valueLevel"), valueLevel), [valueLevel]);
   useEffect(() => writeStored(store("valueGroup"), valueGroup), [valueGroup]);
   useEffect(() => writeStored(store("modeled"), showModeled), [showModeled]);
+  useEffect(() => writeStored(store("evMin"), evMin), [evMin]);
+  useEffect(() => writeStored(store("evMax"), evMax), [evMax]);
+  useEffect(() => writeStored(store("topOnly"), topOnly), [topOnly]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
   const competitions = board?.competitions || [];
@@ -1528,8 +1574,10 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
   );
   const levelValues = useMemo(
     () => bestPerMarket(valueList.filter((v) => bbValuePasses(v, valueLevel, valueGroup, cfg.teamPrefix)))
+      .filter((v) => rangePasses(v, evMin, evMax)
+        && (!topOnly || isTopLeague(sport, compById.get(matchesById.get(v.matchId).leagueId))))
       .sort((a, b) => b.ev - a.ev),
-    [valueList, valueLevel, valueGroup, cfg],
+    [valueList, valueLevel, valueGroup, cfg, evMin, evMax, topOnly, sport, compById, matchesById],
   );
   const valueSummary = useMemo(() => {
     const byLeague = new Map();
@@ -1632,6 +1680,7 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
                   {cfg.valueGroups.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                 </select>
               </label>
+              <ValueRange min={evMin} max={evMax} setMin={setEvMin} setMax={setEvMax} topOnly={topOnly} setTopOnly={setTopOnly} />
               {cfg.modeled && (
                 <>
                   <label className="auto" title="Linije koje Pinnacle nema; fer kvota je procena modelom">
@@ -2050,6 +2099,9 @@ export default function App() {
   const [valueLevel, setValueLevel] = useState(() => readStored("pb.valueLevel2", "fair"));
   const [valueLeague, setValueLeague] = useState("all");
   const [valueGroup, setValueGroup] = useState(() => readStored("pb.valueGroup", "all"));
+  const [evMin, setEvMin] = useState(() => readStored("pb.evMin", ""));
+  const [evMax, setEvMax] = useState(() => readStored("pb.evMax", ""));
+  const [topOnly, setTopOnly] = useState(() => readStored("pb.topOnly", false));
   const [selectedId, setSelectedId] = useState(() => window.location.hash.replace(/\D/g, ""));
   const [oddsId, setOddsId] = useState("");
   const pwa = usePwa();
@@ -2131,6 +2183,9 @@ export default function App() {
   useEffect(() => writeStored("pb.edge", edgeFilter), [edgeFilter]);
   useEffect(() => writeStored("pb.valueLevel2", valueLevel), [valueLevel]);
   useEffect(() => writeStored("pb.valueGroup", valueGroup), [valueGroup]);
+  useEffect(() => writeStored("pb.evMin", evMin), [evMin]);
+  useEffect(() => writeStored("pb.evMax", evMax), [evMax]);
+  useEffect(() => writeStored("pb.topOnly", topOnly), [topOnly]);
 
   const competitions = board?.competitions || [];
   // "Nedostaju" also lists the rest of the PinnWire feed: leagues outside `competitions` that MerkurXtip does not offer
@@ -2168,8 +2223,9 @@ export default function App() {
     });
   }, [board, matchesById, dayFilter, query]);
   const levelValues = useMemo(
-    () => valueList.filter((v) => valuePasses(v, valueLevel, valueGroup)),
-    [valueList, valueLevel, valueGroup],
+    () => valueList.filter((v) => valuePasses(v, valueLevel, valueGroup) && rangePasses(v, evMin, evMax)
+      && (!topOnly || isTopLeague("football", compById.get(matchesById.get(v.matchId).leagueId)))),
+    [valueList, valueLevel, valueGroup, evMin, evMax, topOnly, compById, matchesById],
   );
   // per-competition summary of the outcomes passing the level and market filters
   const valueSummary = useMemo(() => {
@@ -2420,6 +2476,7 @@ export default function App() {
                       {VALUE_GROUPS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                     </select>
                   </label>
+                  <ValueRange min={evMin} max={evMax} setMin={setEvMin} setMax={setEvMax} topOnly={topOnly} setTopOnly={setTopOnly} />
                 </>
               )}
               {view === "compare" && (
