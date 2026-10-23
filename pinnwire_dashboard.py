@@ -144,6 +144,17 @@ COMPETITIONS = [
     {"id": 5593, "key": "uru1", "name": "Primera Division", "country": "Urugvaj", "code": "URU",
      "merkur": "URU 1D"},
     {"id": 8667, "key": "algl1", "name": "Ligue 1", "country": "Alžir", "code": "ALG", "merkur": "ALG L1"},
+    {"id": 228207, "key": "tuu19", "name": "U19 liga", "country": "Turska", "code": "TURU19", "merkur": "TUR U19"},
+    {"id": 198316, "key": "engpdl", "name": "Professional Development League", "country": "Engleska",
+     "code": "PDL", "merkur": "ENG PDL"},
+    {"id": 212294, "key": "alb1", "name": "Prva liga", "country": "Albanija", "code": "ALB", "merkur": "Albania"},
+    {"id": 1881, "key": "cropnl", "name": "Prva NL", "country": "Hrvatska", "code": "CRO2", "merkur": "CRO PNL"},
+    {"id": 212479, "key": "zafch", "name": "Championship", "country": "Južna Afrika", "code": "RSA",
+     "merkur": "South Africa"},
+    {"id": 202276, "key": "poru23", "name": "Liga Revelação U23", "country": "Portugal", "code": "PORU23",
+     "merkur": "POR U23"},
+    {"id": 211248, "key": "sau2", "name": "Divizija 2", "country": "Saudijska Arabija", "code": "KSA2",
+     "merkur": "Saudi Arabia"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
