@@ -108,9 +108,66 @@ COMPETITIONS = [
      "merkur": "CHL PD"},
     {"id": 6417, "key": "csl", "name": "Super League", "country": "Kina", "code": "CHN", "merkur": "CHN SL"},
     {"id": 1880, "key": "hnl", "name": "HNL", "country": "Hrvatska", "code": "CRO", "merkur": "CRO HNL"},
+    {"id": 2067, "key": "gercup", "name": "Kup", "country": "Nemačka", "code": "GERC", "merkur": "GER CUP"},
+    {"id": 10604, "key": "isralef", "name": "Liga Alef", "country": "Izrael", "code": "ISR2", "merkur": "ISR LAN",
+     "merkur_also": ["ISR LAS"]},
+    {"id": 1978, "key": "engnl", "name": "National League", "country": "Engleska", "code": "ENG5",
+     "merkur": "ENG NL"},
+    {"id": 1951, "key": "engnln", "name": "National League North", "country": "Engleska", "code": "ENG6N",
+     "merkur": "ENG NLN"},
+    {"id": 1952, "key": "engnls", "name": "National League South", "country": "Engleska", "code": "ENG6S",
+     "merkur": "ENG NLS"},
+    {"id": 201065, "key": "uslch", "name": "USL Championship", "country": "SAD", "code": "USL",
+     "merkur": "USA CH"},
+    {"id": 217400, "key": "seriecb", "name": "Serie C Grupa B", "country": "Italija", "code": "ITA3",
+     "merkur": "ITA SCB"},
+    {"id": 2159, "key": "j2", "name": "J2 liga", "country": "Japan", "code": "JPN2", "merkur": "JPN J2"},
+    {"id": 1929, "key": "eerste", "name": "Eerste Divisie", "country": "Holandija", "code": "NED2",
+     "merkur": "NLD EER"},
+    {"id": 2578, "key": "tur1l", "name": "1. Liga", "country": "Turska", "code": "TUR2", "merkur": "TUR 1L"},
+    {"id": 2366, "key": "perl1", "name": "Liga 1", "country": "Peru", "code": "PER", "merkur": "PER L1"},
+    {"id": 2368, "key": "pol2", "name": "2. Liga", "country": "Poljska", "code": "POL3", "merkur": "POL D2"},
+    {"id": 35174, "key": "rusfnl", "name": "Prva liga", "country": "Rusija", "code": "RUS2", "merkur": "RUS FNL"},
+    {"id": 5598, "key": "ecuLP", "name": "Serie A", "country": "Ekvador", "code": "ECU", "merkur": "ECU LP"},
+    {"id": 2133, "key": "isrll", "name": "Ligat Leumit", "country": "Izrael", "code": "ISR", "merkur": "ISR LL"},
+    {"id": 207552, "key": "kor2", "name": "K liga 2", "country": "Južna Koreja", "code": "KOR", "merkur": "KOR K2"},
+    {"id": 2331, "key": "nor1", "name": "1. divizija", "country": "Norveška", "code": "NOR2", "merkur": "NOR OL"},
+    {"id": 6633, "key": "pol1", "name": "1. Liga", "country": "Poljska", "code": "POL2", "merkur": "POL D1"},
+    {"id": 2513, "key": "swed1s", "name": "Division 1 Södra", "country": "Švedska", "code": "SWE3",
+     "merkur": "SWE D1S"},
+    {"id": 2476, "key": "superettan", "name": "Superettan", "country": "Švedska", "code": "SWE2",
+     "merkur": "SWE SUP"},
+    {"id": 2650, "key": "ukrpl", "name": "Premijer liga", "country": "Ukrajina", "code": "UKR",
+     "merkur": "UKR PL"},
+    {"id": 5593, "key": "uru1", "name": "Primera Division", "country": "Urugvaj", "code": "URU",
+     "merkur": "URU 1D"},
+    {"id": 8667, "key": "algl1", "name": "Ligue 1", "country": "Alžir", "code": "ALG", "merkur": "ALG L1"},
 ]
+# PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
+HIDDEN_MISSING_LEAGUES = {
+    "Algeria - U20 League",
+    "Algeria - Championship Elite Women",
+    "Thailand - League 1 Women",
+    "North Macedonia - U19 League",
+    "Slovakia - U19 League",
+    "Kenya - Premier League Women",
+    "India - Bangalore Super Division",
+    "China - U20 League",
+    "Georgia - Liga 3",
+    "Jordan - U21 Federation Shield",
+    "Israel - Liga Bet",
+    "South Africa - Super League Women",
+    "Slovenia - U19 League",
+    "India - Mizoram Premier League",
+    "Bolivia - Liga Nacional U19",
+    "Mexico - Liga TDP",
+    "Czech Republic - 4. Liga",
+    "Saudi Arabia - Premier League Women",
+    "Belgium - Division 1 Women",
+}
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
-MERKUR_COMP = {c["merkur"]: c["id"] for c in COMPETITIONS}
+# `merkur_also`: further MerkurXtip leagues that PinnWire quotes under the same league_id
+MERKUR_COMP = {m: c["id"] for c in COMPETITIONS for m in [c["merkur"], *c.get("merkur_also", [])]}
 # Explicit types: on Windows `mimetypes` reads the registry, where .js is sometimes text/plain,
 # which breaks module scripts and service worker registration.
 STATIC_TYPES = {
@@ -778,7 +835,7 @@ class DashboardState:
         out = []
         for e in events:
             key = str(e["event_id"])
-            if key not in missing:
+            if key not in missing or e.get("league_name") in HIDDEN_MISSING_LEAGUES:
                 continue
             m = summary(e, {})
             if m["ml"] or m["ah"] or m["ou"]:
