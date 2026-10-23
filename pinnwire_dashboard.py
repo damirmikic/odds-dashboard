@@ -193,6 +193,18 @@ COMPETITIONS = [
     {"id": 9885, "key": "egypl", "name": "Premier liga", "country": "Egipat", "code": "EGY", "merkur": "EGY PL"},
     {"id": 1982, "key": "eflcup", "name": "EFL kup", "country": "Engleska", "code": "EFLC", "merkur": "ENG EFL"},
     {"id": 8713, "key": "wsl", "name": "Women's Super League", "country": "Engleska", "code": "WSL", "merkur": "ENG WSL"},
+    {"id": 272318, "key": "mexu21", "name": "Liga MX U21", "country": "Meksiko", "code": "MEXU21", "merkur": "MEX U21"},
+    {"id": 286307, "key": "pol3", "name": "3. liga", "country": "Poljska", "code": "POL4", "merkur": "POL D3"},
+    {"id": 201290, "key": "nwsl", "name": "NWSL (žene)", "country": "SAD", "code": "NWSL", "merkur": "USA NWSL"},
+    {"id": 201165, "key": "ligamxw", "name": "Liga MX (žene)", "country": "Meksiko", "code": "MEXW", "merkur": "MEX MXW"},
+    {"id": 10078, "key": "j3", "name": "J3 liga", "country": "Japan", "code": "JPN3", "merkur": "JPN J3"},
+    {"id": 199710, "key": "rou2", "name": "Liga 2", "country": "Rumunija", "code": "ROU2", "merkur": "ROM L2"},
+    {"id": 6418, "key": "kazpl", "name": "Premier liga", "country": "Kazahstan", "code": "KAZ", "merkur": "KAZ PL"},
+    {"id": 187661, "key": "dnkw", "name": "Elitedivisionen (žene)", "country": "Danska", "code": "DENW", "merkur": "DNK ALW",
+     "merkur_also": [2388608]},
+    {"id": 2088, "key": "gtm", "name": "Liga Nacional", "country": "Gvatemala", "code": "GTM", "merkur": "GTM LN"},
+    {"id": 201139, "key": "svk2", "name": "2. liga", "country": "Slovačka", "code": "SVK2", "merkur": "SVK 2L"},
+    {"id": 2253, "key": "botola", "name": "Botola Pro", "country": "Maroko", "code": "MAR", "merkur": "MAR PRO"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
