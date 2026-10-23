@@ -179,6 +179,20 @@ COMPETITIONS = [
     {"id": 1903, "key": "swew", "name": "Damallsvenskan", "country": "Švedska", "code": "SWEW", "merkur": "SWE ALW"},
     {"id": 2626, "key": "uae2", "name": "Divizija 2", "country": "UAE", "code": "UAE", "merkur": "UAE D2"},
     {"id": 242216, "key": "uslw", "name": "USL Super League (žene)", "country": "SAD", "code": "USLW", "merkur": "USA SLW"},
+    {"id": 2387, "key": "poru2", "name": "Liga Portugal 2", "country": "Portugal", "code": "POR2", "merkur": "POR LP2"},
+    {"id": 215919, "key": "jpnwe", "name": "WE liga (žene)", "country": "Japan", "code": "JPNW", "merkur": "JPN NLW"},
+    {"id": 10030, "key": "aleaguew", "name": "A-League (žene)", "country": "Australija", "code": "AUSW", "merkur": "AUS AW",
+     "merkur_also": [2392126]},
+    {"id": 7167, "key": "azepl", "name": "Premier liga", "country": "Azerbejdžan", "code": "AZE", "merkur": "AZE PL"},
+    {"id": 202447, "key": "belamat", "name": "Prva amaterska divizija", "country": "Belgija", "code": "BEL3", "merkur": "BEL ND1"},
+    {"id": 213349, "key": "chnl2", "name": "Yi liga", "country": "Kina", "code": "CHN3", "merkur": "CHN YI"},
+    {"id": 1887, "key": "cypd1", "name": "Prva divizija", "country": "Kipar", "code": "CYP", "merkur": "CYP D1"},
+    {"id": 201192, "key": "cze3", "name": "3. liga (CFL)", "country": "Češka", "code": "CZE3", "merkur": "CZE CFL"},
+    {"id": 214819, "key": "dnk3", "name": "3. divizija", "country": "Danska", "code": "DEN3", "merkur": "DEN 3D"},
+    {"id": 1904, "key": "dnk1", "name": "1. divizija", "country": "Danska", "code": "DEN2D", "merkur": "DNK 1D"},
+    {"id": 9885, "key": "egypl", "name": "Premier liga", "country": "Egipat", "code": "EGY", "merkur": "EGY PL"},
+    {"id": 1982, "key": "eflcup", "name": "EFL kup", "country": "Engleska", "code": "EFLC", "merkur": "ENG EFL"},
+    {"id": 8713, "key": "wsl", "name": "Women's Super League", "country": "Engleska", "code": "WSL", "merkur": "ENG WSL"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
