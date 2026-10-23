@@ -305,6 +305,32 @@ def merge_event(old, new):
 
 # ------------------------------------------------------------------------- shaping
 
+# Largest gap between the draw-no-bet probability of Pinnacle's AH 0 and the one implied by its 1X2 before
+# the AH 0 is treated as stale. Live feed: 1000+ matches sit within 0.02, a handful of low-league fixtures
+# (AH 0 not actually offered on pinnacle.com) are 0.03-0.12 off.
+AH0_MAX_GAP = 0.03
+
+
+def clean_ah0(event):
+    """The event without its full-match AH 0 line when that line contradicts the 1X2 (PinnWire keeps quoting
+    an AH 0 for some small fixtures where Pinnacle does not offer it)."""
+    markets = pw.period(event, 0)
+    spreads = markets.get("spreads") or {}
+    line = next((v for v in spreads.values() if isinstance(v, dict) and pw._num(v.get("hdp")) == 0), None)
+    if line is None:
+        return event
+    ml = pw.priced(markets.get("money_line") or {}, ML_SIDES)
+    ah = pw.priced(line, ("home", "away"))
+    if len(ml) < 3 or len(ah) < 2:
+        return event
+    p = pw.devig(ml)
+    dnb = p["home"] / (p["home"] + p["away"])
+    if abs(pw.devig(ah)["home"] - dnb) <= AH0_MAX_GAP:
+        return event
+    kept = {k: v for k, v in spreads.items() if v is not line}
+    return {**event, "periods": {**event["periods"], "num_0": {**markets, "spreads": kept}}}
+
+
 def money_line(event, number=0):
     prices = pw.priced(pw.period(event, number).get("money_line") or {}, ML_SIDES)
     if len(prices) < 3:
@@ -331,6 +357,7 @@ def team_totals(event, number):
 
 
 def period_detail(event, number):
+    event = clean_ah0(event)
     ml, margin = money_line(event, number)
     return {
         "ml": ml,
@@ -342,6 +369,7 @@ def period_detail(event, number):
 
 
 def summary(event, track):
+    event = clean_ah0(event)
     ml, margin = money_line(event)
     spreads = pw.build_lines(event, "spreads", ("home", "away"), "hdp")
     totals = pw.build_lines(event, "totals", ("over", "under"), "points")
@@ -377,6 +405,7 @@ DROP_GROUPS = {"1X2": "moneyline", "Hendikep": "spread", "Ukupno golova": "total
 
 def pinnacle_lines(event, number):
     """Pinnacle prices of one period keyed like merkur_client.markets()."""
+    event = clean_ah0(event)
     markets = pw.period(event, number)
 
     def by_line(lines, key, sides, market):
@@ -400,6 +429,7 @@ def pinnacle_lines(event, number):
 
 def pinnacle_max(event, number):
     """Pinnacle limit (max bet) per line, shaped like pinnacle_lines(); the 1X2 price carries no limit."""
+    event = clean_ah0(event)
     markets = pw.period(event, number)
 
     def by_line(lines, key, market):
