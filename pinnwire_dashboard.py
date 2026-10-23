@@ -10,8 +10,10 @@ import argparse
 import json
 import mimetypes
 import os
+import re
 import threading
 import time
+import unicodedata
 import webbrowser
 from collections import deque
 from datetime import datetime, timezone
@@ -20,6 +22,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import basketball as bb
 import clv
+import hockey
 import tennis
 import merkur_client as mx
 import pinnwire_client as pw
@@ -493,6 +496,71 @@ def unpaired_hints(events, offer):
             for pid, (m, score) in mx.closest_unpaired(pin, mer, paired, PAIR_WINDOW).items()}
 
 
+# Matches of leagues that are not in COMPETITIONS: the whole PinnWire feed is paired against the whole MerkurXtip
+# offer, so the "missing" view can show what MerkurXtip does not sell. Without a competition check only names and
+# kickoff pair a match, hence the stricter rules.
+OTHER_WINDOW = 3 * 60
+OTHER_MIN_SCORE = 0.75
+# a women's, youth or reserve side never pairs with the senior side of the same club
+SIDE_MARKERS = {"w", "women", "u17", "u18", "u19", "u20", "u21", "u23", "ii", "b", "res", "reserves"}
+
+
+def side_markers(name):
+    text = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
+    return SIDE_MARKERS.intersection(re.findall(r"[a-z0-9]+", text))
+
+
+def other_score(pinnacle, merkur):
+    return 0.0 if side_markers(pinnacle) != side_markers(merkur) else mx.name_score(pinnacle, merkur)
+
+
+def split_league(name):
+    """"England - EFL Cup" -> ("England", "EFL Cup"); names without a country stay whole."""
+    country, sep, league = (name or "").partition(" - ")
+    return (country.strip(), league.strip()) if sep else ("Ostalo", (name or "").strip())
+
+
+def other_competitions(matches):
+    counts = {}
+    for m in matches:
+        counts[m["leagueId"]] = (m["leagueName"], counts.get(m["leagueId"], (None, 0))[1] + 1)
+    out = []
+    for league_id, (name, count) in counts.items():
+        country, league = split_league(name)
+        out.append({"id": league_id, "key": f"x{league_id}", "name": league or name, "country": country,
+                    "code": "•", "badge": "other", "count": count})
+    return sorted(out, key=lambda c: (c["country"], c["name"]))
+
+
+def offered_other(events, rows):
+    """Leagues outside COMPETITIONS whose matches MerkurXtip offers, for adding them: PinnWire league, the
+    MerkurXtip league its matches pair with and how many matches."""
+    league = {str(e["event_id"]): e for e in events}
+    out = {}
+    for pid, row in rows.items():
+        e = league[pid]
+        entry = out.setdefault(e["league_id"], {"leagueId": e["league_id"], "leagueName": e.get("league_name") or "",
+                                                "mxLeagueId": row.get("leagueId"), "mxLeague": row.get("leagueShort") or "",
+                                                "count": 0})
+        entry["count"] += 1
+    return sorted(out.values(), key=lambda x: (-x["count"], x["leagueName"]))
+
+
+def unpaired_other(events, offer, used):
+    """({pinnacle id} unpaired, {pinnacle id: hint}, {pinnacle id: MerkurXtip row} paired) of events outside
+    COMPETITIONS; `used` are MerkurXtip ids already paired within COMPETITIONS."""
+    pin = [{"id": str(e["event_id"]), "comp": "*", "home": e.get("home", ""), "away": e.get("away", ""),
+            "ts": event_ts(e)} for e in events]
+    mer = [{"id": r["id"], "comp": "*", "home": r.get("home", ""), "away": r.get("away", ""),
+            "ts": merkur_ts(r), "row": r} for r in offer if r["id"] not in used and mx.is_prematch(r)]
+    paired = mx.pair(pin, mer, OTHER_WINDOW, OTHER_MIN_SCORE, other_score)
+    ts = {p["id"]: p["ts"] for p in pin}
+    hints = {pid: {"home": m["home"], "away": m["away"], "score": score,
+                   "kickoffDiff": round((m["ts"] - ts[pid]) / 60000)}
+             for pid, (m, score) in mx.closest_unpaired(pin, mer, paired, OTHER_WINDOW, other_score).items()}
+    return {p["id"] for p in pin} - paired.keys(), hints, {pid: m["row"] for pid, (m, _) in paired.items()}
+
+
 # ------------------------------------------------------------------------- state
 
 class History:
@@ -565,7 +633,8 @@ class DashboardState:
         self.api = None
         self.api_key = None
         self.history = history or History()
-        self.events = None  # {event_id str: raw /kit event}, tracked competitions only
+        self.events = None  # {event_id str: raw /kit event}, every main fixture of the feed
+        self.other_cache = None  # (signature, unpaired ids, hints) of leagues outside COMPETITIONS
         self.last = None  # PinnWire cursor for the next delta request
         self.full_at = 0.0
         self.fetched_at = ""
@@ -600,7 +669,7 @@ class DashboardState:
         finally:
             self.history.count_calls(api.calls - before)
         stamp = utc_stamp()
-        incoming = [e for e in data.get("events") or [] if e.get("event_id") and is_tracked(e)]
+        incoming = [e for e in data.get("events") or [] if e.get("event_id") and pw.is_main_fixture(e)]
         with self.lock:
             events = {} if since is None else dict(self.events or {})
             for raw in incoming:
@@ -608,16 +677,17 @@ class DashboardState:
                 events[key] = merge_event(events[key], raw) if key in events and since else raw
             now = utc_now()
             events = {k: e for k, e in events.items() if is_upcoming(e, now)}
-            for key in {str(e["event_id"]) for e in incoming} & events.keys():
+            tracked = {k for k, e in events.items() if is_tracked(e)}
+            for key in {str(e["event_id"]) for e in incoming if is_tracked(e)} & tracked:
                 self.history.observe(events[key], stamp)
             if since is None:
                 self.full_at = time.monotonic()
-            self.history.prune(events.keys())
+            self.history.prune(tracked)
             self.events = events
             self.last = data.get("last") or self.last
             self.fetched_at = stamp
             self.mode = "delta" if since else "full"
-            self.changed = len(incoming)
+            self.changed = sum(1 for e in incoming if is_tracked(e))
         try:
             self.history.save()
         except OSError:
@@ -637,7 +707,9 @@ class DashboardState:
         offer = self.merkur_offer(refresh=refresh or full)
         with self.lock:
             now = utc_now()
-            events = [e for e in (self.events or {}).values() if is_upcoming(e, now)]
+            upcoming = [e for e in (self.events or {}).values() if is_upcoming(e, now)]
+            events = [e for e in upcoming if is_tracked(e)]
+            others = [e for e in upcoming if not is_tracked(e)]
             matches = [summary(e, self.history.track(e["event_id"])) for e in events]
         pairs = pair_events(events, offer)
         hints = unpaired_hints(events, offer)
@@ -675,9 +747,13 @@ class DashboardState:
         counts = {}
         for m in matches:
             counts[m["leagueId"]] = counts.get(m["leagueId"], 0) + 1
+        missing_other = self.missing_other(others, offer, {row["id"] for row, _ in pairs.values()})
         return {
             "competitions": [{**c, "count": counts.get(c["id"], 0)} for c in COMPETITIONS],
             "matches": matches,
+            "otherCompetitions": other_competitions(missing_other),
+            "otherMissing": missing_other,
+            "otherOffered": self.offered_other(),
             "fetchedAt": self.fetched_at,
             "mode": self.mode,
             "changed": self.changed,
@@ -690,6 +766,27 @@ class DashboardState:
                 "offered": sum(1 for r in offer if r.get("leagueShort") in MERKUR_COMP and mx.is_prematch(r)),
             },
         }
+
+    def missing_other(self, events, offer, used):
+        """Board entries of events outside COMPETITIONS that MerkurXtip does not offer (cached until the offer
+        or the set of events changes: the pairing without a competition check is slow)."""
+        signature = (id(offer), frozenset(str(e["event_id"]) for e in events), frozenset(used))
+        if self.other_cache is None or self.other_cache[0] != signature:
+            missing, hints, paired = unpaired_other(events, offer, used)
+            self.other_cache = (signature, missing, hints, offered_other(events, paired))
+        _, missing, hints, _ = self.other_cache
+        out = []
+        for e in events:
+            key = str(e["event_id"])
+            if key not in missing:
+                continue
+            m = summary(e, {})
+            if m["ml"] or m["ah"] or m["ou"]:
+                out.append({**m, "merkur": None, "hint": hints.get(key)})
+        return sorted(out, key=lambda m: (m["starts"], m["home"]))
+
+    def offered_other(self):
+        return self.other_cache[3] if self.other_cache else []
 
     def track_merkur(self, summary_row):
         """Remember MerkurXtip 1X2 between offer fetches; returns {prev, changedAt} for the board."""
@@ -780,9 +877,10 @@ class DashboardState:
 STATE = DashboardState()
 BB_STATE = bb.BasketballState(STATE.history, current_api_key)
 TN_STATE = tennis.TennisState(STATE.history, current_api_key)
+HK_STATE = hockey.HockeyState(STATE.history, current_api_key)
 
 
-DROP_SPORTS = {"football": pw.SOCCER, "basketball": bb.SPORT_ID, "tennis": tennis.SPORT_ID}
+DROP_SPORTS = {"football": pw.SOCCER, "basketball": bb.SPORT_ID, "tennis": tennis.SPORT_ID, "hockey": hockey.SPORT_ID}
 DROP_RECHECK = 15  # seconds PinnWire holds a drop and re-reads the price before pushing it (drops that bounce back are dropped)
 DROP_KEEP = 3 * 3600  # seconds of drops kept for the UI, like PinnWire's own /api/drops buffer
 
@@ -857,7 +955,7 @@ class DropFeed:
 
 
 DROPS = DropFeed(current_api_key)
-DROP_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE}
+DROP_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "hockey": HK_STATE}
 
 CLV_REFRESH = 30  # seconds between background boards when nobody refreshes in the browser
 CLV_REFRESH_SOON = 10  # ... while a signalled match starts within 15 minutes, to catch its closing line
@@ -902,7 +1000,7 @@ CLV = None  # opened by start_clv(), so importing this module (tests) never touc
 
 
 def start_clv(path=CLV_PATH):
-    """Open the CLV store, hand it to the three states and start the background worker."""
+    """Open the CLV store, hand it to the sport states and start the background worker."""
     global CLV
     CLV = clv.ClvStore(path)
     for state in DROP_STATES.values():
@@ -1016,6 +1114,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, TN_STATE.match(event_id))
             if path == "/api/tennis/board":
                 return self.send_json(200, TN_STATE.board(refresh=refresh, full=full))
+            if path.startswith("/api/hockey/match/"):
+                event_id = unquote(path[len("/api/hockey/match/"):].strip("/"))
+                if not event_id.isdigit():
+                    return self.send_error_json(400, "Neispravan ID događaja.")
+                return self.send_json(200, HK_STATE.match(event_id))
+            if path == "/api/hockey/board":
+                return self.send_json(200, HK_STATE.board(refresh=refresh, full=full))
             if path == "/api/board":
                 return self.send_json(200, STATE.board(refresh=refresh, full=full))
             if path.startswith("/api/match/"):
@@ -1045,6 +1150,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE.reset()
             BB_STATE.reset()
             TN_STATE.reset()
+            HK_STATE.reset()
             DROPS.reconnect()
             return self.send_json(200, {"apiKeySet": True})
         except (ValueError, json.JSONDecodeError) as exc:

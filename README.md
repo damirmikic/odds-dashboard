@@ -64,7 +64,7 @@ The dashboard runs on the **Pro + Drops** plan (10 requests per second, SSE drop
 
 ## Drop alerts
 
-The server keeps one connection to PinnWire's prematch drop stream (`/odds-drop-prematch`, SSE, not counted as REST requests) with `min_drop=1` and `recheck=15`: PinnWire holds each drop 15 s and sends it only if the price has not come back. Moneyline, handicap and total drops of football, basketball and tennis are kept for 3 hours (team total drops do not say which team and are skipped). The UI polls the local `/api/drops?sport=` every 3 s and shows the drops of matches on its boards at or above the chosen threshold.
+The server keeps one connection to PinnWire's prematch drop stream (`/odds-drop-prematch`, SSE, not counted as REST requests) with `min_drop=1` and `recheck=15`: PinnWire holds each drop 15 s and sends it only if the price has not come back. Moneyline, handicap and total drops of football, basketball, tennis and hockey are kept for 3 hours (team total drops do not say which team and are skipped). The UI polls the local `/api/drops?sport=` every 3 s and shows the drops of matches on its boards at or above the chosen threshold.
 
 For a paired match each drop carries the MerkurXtip price of the same outcome (from the last board) and its edge `Merkur / nvp − 1`, where `nvp` is PinnWire's no-vig price after the drop. A positive edge means MerkurXtip has not followed the move yet. **Samo gde Merkur kasni** limits the list, the toasts and the sound to those. Spread drops on the away side carry the away line (away +4 is the home handicap −4); tennis games drops come on the games side event and are mapped to the main match.
 
@@ -111,3 +111,17 @@ Pick the tennis icon (or open `/?sport=tennis`). The board is built in `tennis.p
 - Competitions are tournaments derived from the PinnWire league names (`ATP Lyon - R16` and `ATP Lyon - Doubles` are both "ATP Lyon"), grouped by ATP, WTA, Challenger and ITF; PinnWire changes the `league_id` every round, so there is no list to maintain.
 - Matches are paired by player names and kickoff within 12 hours, with no competition check (the two books name tournaments differently). MerkurXtip writes initials ("K. Kawa") and its tennis kickoff is often a rough time, up to a few hours from Pinnacle's; the ⏱ tag shows the difference. Pairing needs the surname of every player, and an initial must match a name.
 - MerkurXtip codes are listed in `tennis.py` (`MX_PERIOD`); the line params are `hd2` (set handicap), `handicapGames`, `overUnderGames`/`overUnderGames2`, `homeOverUnderGames`/`awayOverUnderGames` and `overUnderGamesFirstSet`…`5`. Small ITF matches only carry the winner and 1st set winner in the MerkurXtip offer.
+
+## Ice hockey
+
+Pick the hockey icon (or open `/?sport=hockey`). The board is built in `hockey.py` and reuses the basketball state and pane; the MerkurXtip feed is the same URL with the sport letter `H` (`/restapi/custom/offer/sr/sport/H/mob`).
+
+- PinnWire sport 4, one request per refresh like basketball. Periods: 0 is the whole game with overtime and shootout (two-way winner), 6 is regulation time (60 minutes: three-way winner, handicap, totals, team totals) and 1, 2, 3 are the thirds (two-way winner that refunds a drawn third, handicap, totals). Only the leagues in `COMPETITIONS` are tracked.
+- The board winner is the game winner with overtime (MerkurXtip "P1" / "P2"); the handicap and total columns are the 60 minutes. The odds modal's "Ceo meč" tab adds the 60-minute 1X2, the level handicap (AH 0, MerkurXtip "X vraća ulog") and team goals; the period tabs compare the winner without the draw ("W1"/"W2"), handicap and totals of a third. Lines are matched exactly, half-point lines only (plus AH 0), no model.
+- MerkurXtip codes are listed in `hockey.py` (`MX_PERIOD`); the line params are `hd2w`, `overUnder`…`overUnder4`, `homeOverUnder`/`awayOverUnder` and `handicap…Period`/`overUnder…Period` for the thirds.
+- Pairing is by competition, kickoff (3 h) and team names. MerkurXtip's short names that the token rules cannot pair ("Zurich" for ZSC Lions) go in `hockey.ALIASES`, which applies to hockey only.
+- To add a league find its PinnWire `league_id` in a snapshot and the MerkurXtip `leagueId` in the offer, add the entry to `COMPETITIONS` and a `.comp-badge.<key>` colour in `dashboard.css`. Leagues MerkurXtip does not list at the moment (SHL, OHL) are missing until their `leagueId` can be read from the offer.
+
+## Football "Nedostaju" and the full feed
+
+The football request already returns every league PinnWire quotes (about 1300 matches), so the "Nedostaju" view uses all of it at no extra request cost. Matches of leagues that are not in `COMPETITIONS` (`otherMissing` and `otherCompetitions` in `/api/board`) are paired against the whole MerkurXtip offer by team names and kickoff only (3 h window, name score 0.75, a women's/youth/reserve side never pairs with the senior side); the ones left unpaired are listed under their league, grouped by country in the side menu. Matches of those leagues that MerkurXtip does offer are not shown anywhere. They are never compared, only listed, and the result is cached until the offer or the event set changes because the pairing without a league check takes a couple of seconds.

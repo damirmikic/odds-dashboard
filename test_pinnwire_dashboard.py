@@ -2,6 +2,7 @@ import unittest
 
 import basketball as bb
 import clv
+import hockey
 import merkur_client as mx
 import pinnwire_client as pw
 import pinnwire_dashboard as dash
@@ -665,6 +666,123 @@ class TennisTests(unittest.TestCase):
         self.assertEqual([(c["country"], c["name"], c["count"]) for c in comps],
                          [("ATP", "Lyon", 2), ("WTA", "Osaka", 1), ("ITF žene", "Austin", 1)])
         self.assertEqual(tennis.tournament("ATP Lyon - Doubles"), "ATP Lyon")
+
+
+class HockeyTests(unittest.TestCase):
+    ROW = {
+        "id": 9, "home": "Zurich", "away": "Langnau", "kickOffTime": 1_900_000_000_000, "leagueId": 2313897,
+        "odds": {"50816": 1.6, "50817": 2.4, "1": 2.1, "2": 4.2, "3": 3.6, "264": 1.55, "265": 2.35,
+                 "53877": 2.9, "53878": 1.38, "227": 1.7, "228": 2.05, "356": 1.95, "355": 1.8,
+                 "50761": 1.8, "50762": 2.0, "50505": 1.75, "50504": 2.0},
+        "params": {"hd2w": "-1.5", "overUnder": "5.5", "homeOverUnder": "3.5", "overUnderFirstPeriod": "1.5"},
+    }
+
+    @staticmethod
+    def event():
+        return {"event_id": 4, "league_id": 1532, "league_name": "Switzerland - Nationalliga A", "units": "Regular",
+                "home": "ZSC Lions", "away": "SCL Tigers", "starts": "2030-03-17T17:46:40Z",
+                "periods": {
+                    "num_0": {"money_line": {"home": 1.62, "away": 2.38}, "spreads": {}, "totals": {}},
+                    "num_6": {"money_line": {"home": 2.05, "draw": 4.3, "away": 3.7},
+                              "spreads": {"0": {"hdp": 0, "home": 1.5, "away": 2.5, "max": 200},
+                                          "-1.5": {"hdp": -1.5, "home": 2.75, "away": 1.43, "max": 200},
+                                          "-1": {"hdp": -1, "home": 2.2, "away": 1.7, "max": 200}},
+                              "totals": {"5.5": {"points": 5.5, "over": 1.75, "under": 2.0, "max": 200},
+                                         "6": {"points": 6, "over": 2.0, "under": 1.8, "max": 200}},
+                              "team_totals": {"home": {"3.5": {"points": 3.5, "over": 1.9, "under": 1.85}}, "away": {}}},
+                    "num_1": {"money_line": {"home": 1.85, "away": 2.1},
+                              "totals": {"1.5": {"points": 1.5, "over": 1.7, "under": 2.1, "max": 100}}}}}
+
+    def test_pinnacle_markets_split_game_and_regulation(self):
+        pin = hockey.pinnacle_markets(self.event())
+        self.assertEqual(pin["ml"], {"home": 1.62, "away": 2.38})
+        self.assertEqual(pin["x12"], {"home": 2.05, "draw": 4.3, "away": 3.7})
+        self.assertEqual(set(pin["spreads"]), {0.0, -1.5})  # whole-goal lines other than AH 0 are dropped
+        self.assertEqual(set(pin["totals"]), {5.5})
+        self.assertEqual(set(pin["home"]), {3.5})
+        first = hockey.pinnacle_markets(self.event(), "p1")
+        self.assertEqual(first["ml"], {"home": 1.85, "away": 2.1})
+        self.assertIsNone(first["x12"])
+
+    def test_merkur_markets_decode_regulation_and_period(self):
+        decoded = hockey.merkur_markets(self.ROW)
+        self.assertEqual(decoded["ml"], {"home": 1.6, "away": 2.4})
+        self.assertEqual(decoded["x12"], {"home": 2.1, "draw": 4.2, "away": 3.6})
+        self.assertEqual(decoded["spreads"], {-1.5: {"home": 2.9, "away": 1.38}, 0.0: {"home": 1.55, "away": 2.35}})
+        self.assertEqual(decoded["totals"], {5.5: {"over": 1.7, "under": 2.05}})
+        self.assertEqual(decoded["home"], {3.5: {"over": 1.95, "under": 1.8}})
+        first = hockey.merkur_markets(self.ROW, "p1")
+        self.assertEqual(first["ml"], {"home": 1.8, "away": 2.0})
+        self.assertEqual(first["totals"], {1.5: {"over": 1.75, "under": 2.0}})
+        self.assertIsNone(first["x12"])
+
+    def test_match_compares_winner_x12_level_handicap_and_periods(self):
+        match, values = hockey.shape_match(self.event(), (self.ROW, 1.0))
+        groups = {(r["group"], r["line"]) for r in match["rows"]}
+        self.assertEqual(groups, {("Pobednik", None), ("1X2", None), ("Hendikep", 0.0), ("Hendikep", -1.5),
+                                  ("Ukupno golova", 5.5), ("Golovi domaćin", 3.5)})
+        x12 = next(r for r in match["rows"] if r["group"] == "1X2")
+        self.assertEqual([o["key"] for o in x12["outcomes"]], ["home", "draw", "away"])
+        self.assertEqual({r["group"] for r in match["periods"]["p1"]}, {"Pobednik", "Ukupno golova"})
+        self.assertEqual(match["ml"]["home"]["odds"], 1.62)
+        self.assertEqual(match["merkur"]["ml"]["home"]["odds"], 1.6)
+        self.assertEqual(match["total"]["line"], 5.5)
+        self.assertTrue(all(v["merkur"] > v["pinnacle"] for v in values))
+
+    def test_alias_pairs_a_short_merkur_name(self):
+        self.assertEqual(hockey.name_score("ZSC Lions", "Zurich"), 1.0)
+        self.assertEqual(hockey.name_score("SCL Tigers", "Langnau"), 1.0)
+        late = {**self.ROW, "kickOffTime": bb.event_ts(self.event()) + 4 * 3600 * 1000, "live": False}
+        self.assertEqual(hockey.pair_events([self.event()], [late]), {})  # outside the 3 h window
+        row = {**self.ROW, "kickOffTime": bb.event_ts(self.event()), "live": False}
+        self.assertIn("4", hockey.pair_events([self.event()], [row]))
+
+    def test_only_tracked_leagues_are_kept(self):
+        other = {**self.event(), "event_id": 5, "league_id": 1}
+        out = hockey.HockeyState.incoming(None, {"events": [self.event(), other]})
+        self.assertEqual([e["event_id"] for e in out], [4])
+
+    def test_drop_quotes_use_game_period_for_winner_and_regulation_for_the_rest(self):
+        match, _ = hockey.shape_match(self.event(), (self.ROW, 1.0))
+        quotes = hockey.drop_quotes(self.event(), match)["4"][1]
+        self.assertIn(("moneyline", 0, None, "home"), quotes)
+        self.assertIn(("moneyline", 6, None, "draw"), quotes)
+        self.assertIn(("total", 6, 5.5, "over"), quotes)
+        self.assertIn(("total", 1, 1.5, "over"), quotes)
+
+
+class OtherLeagueTests(unittest.TestCase):
+    @staticmethod
+    def event(event_id, home, away, league_id=999, league="Wales - Cymru Premier"):
+        return {"event_id": event_id, "league_id": league_id, "league_name": league, "home": home, "away": away,
+                "starts": "2030-03-17T17:46:40Z", "units": "Regular",
+                "periods": {"num_0": {"money_line": {"home": 2.0, "draw": 3.4, "away": 3.8}}}}
+
+    def test_pairing_without_competition_and_side_markers(self):
+        events = [self.event(1, "Bala Town", "Penybont"), self.event(2, "Arsenal", "Chelsea"),
+                  self.event(3, "Arsenal W", "Chelsea W")]
+        ts = dash.event_ts(events[0])
+        offer = [{"id": 11, "home": "Bala Town", "away": "Penybont FC", "kickOffTime": ts, "live": False},
+                 {"id": 12, "home": "Arsenal", "away": "Chelsea", "kickOffTime": ts, "live": False}]
+        missing, _, paired = dash.unpaired_other(events, offer, set())
+        self.assertEqual(missing, {"3"})
+        offered = dash.offered_other(events, paired)
+        self.assertEqual([(o["leagueId"], o["count"]) for o in offered], [(999, 2)])  # the women's match is not the senior one MerkurXtip offers
+        missing, _, _ = dash.unpaired_other(events, offer, {12})
+        self.assertEqual(missing, {"2", "3"})  # an offer row already used inside the tracked leagues is not reused
+
+    def test_missing_other_lists_unpaired_events_with_their_league(self):
+        state = dash.DashboardState(history=object(), merkur=FakeMerkurAPI)
+        events = [self.event(1, "Bala Town", "Penybont")]
+        out = state.missing_other(events, [], set())
+        self.assertEqual([m["id"] for m in out], [1])
+        self.assertIsNone(out[0]["merkur"])
+        comps = dash.other_competitions(out)
+        self.assertEqual((comps[0]["country"], comps[0]["name"], comps[0]["key"]), ("Wales", "Cymru Premier", "x999"))
+        self.assertEqual(dash.split_league("NHL"), ("Ostalo", "NHL"))
+
+    def test_untracked_events_stay_out_of_the_tracked_board(self):
+        self.assertFalse(dash.is_tracked(self.event(1, "Bala Town", "Penybont")))
 
 
 class DevigTests(unittest.TestCase):

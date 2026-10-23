@@ -955,6 +955,7 @@ const SPORTS = [
   { key: "football", label: "Fudbal", live: true },
   { key: "basketball", label: "Košarka", live: true },
   { key: "tennis", label: "Tenis", live: true },
+  { key: "hockey", label: "Hokej", live: true },
 ];
 
 // Line icons (24px grid, currentColor); the `sport-*` classes drive the hover animations in dashboard.css.
@@ -983,6 +984,12 @@ function SportIcon({ sport }) {
       <>
         <circle cx="12" cy="12" r="9" />
         <path d="M5.2 5.2c4.3 3.3 4.3 10.3 0 13.6M18.8 5.2c-4.3 3.3-4.3 10.3 0 13.6" />
+      </>
+    ),
+    hockey: (
+      <>
+        <path d="M7 3l6 13h6" />
+        <ellipse cx="8" cy="20" rx="4" ry="1.6" />
       </>
     ),
   }[sport];
@@ -1161,7 +1168,7 @@ function buildMenuGroups({ competitions, valueSummary, activeKey, activeLeague }
 const BB_ML = [["home", "1"], ["away", "2"]];
 const BB_OU = [["over", "V"], ["under", "M"]];
 
-// Per-sport texts and market groups of the two-way sports (basketball and tennis share one pane).
+// Per-sport texts and market groups of the sports that share one pane (basketball, tennis and hockey).
 const SPORT_VIEWS = {
   basketball: {
     label: "Košarka",
@@ -1197,6 +1204,24 @@ const SPORT_VIEWS = {
       ["Hendikep setova", "Hendikep setova"],
       ["Ukupno setova", "Ukupno setova"],
       ["team", "Gemovi igrača"],
+    ],
+  },
+  hockey: {
+    label: "Hokej",
+    store: "hk",
+    winnerNote: "(sa produžecima)",
+    spreadTitle: "Hendikep (60 min)",
+    totalTitle: "Ukupno golova (60 min)",
+    teamPrefix: "Golovi ",
+    periods: { ft: "Ceo meč", p1: "1. period", p2: "2. period", p3: "3. period" },
+    modeled: false,
+    valueGroups: [
+      ["all", "Sva tržišta"],
+      ["Pobednik", "Pobednik"],
+      ["1X2", "1X2 (60 min)"],
+      ["Hendikep", "Hendikep"],
+      ["Ukupno golova", "Ukupno golova"],
+      ["team", "Golovi timova"],
     ],
   },
 };
@@ -1682,7 +1707,7 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
 function initialSport() {
   const fromUrl = new URLSearchParams(window.location.search).get("sport");
   const sport = fromUrl || readStored("pb.sport", "football");
-  return ["basketball", "tennis"].includes(sport) ? sport : "football";
+  return ["basketball", "tennis", "hockey"].includes(sport) ? sport : "football";
 }
 
 // Board of a sport served from /api/<sport>/board; the football board keeps its own loader.
@@ -1728,7 +1753,7 @@ function beep() {
 
 const DROP_MARKETS = { moneyline: "Pobednik", spread: "Hendikep", total: "Ukupno" };
 const DROP_SIDES = { home: "1", draw: "X", away: "2", over: "V", under: "M" };
-const DROP_PERIODS = { football: { 1: "1. pol. " }, basketball: { 1: "1. pol. ", 3: "1. čet. " }, tennis: { 1: "1. set " } };
+const DROP_PERIODS = { football: { 1: "1. pol. " }, basketball: { 1: "1. pol. ", 3: "1. čet. " }, tennis: { 1: "1. set " }, hockey: { 1: "1. per. ", 2: "2. per. ", 3: "3. per. " } };
 
 // One alert per match, market, period and side: of several drops on different lines the one with the largest
 // MerkurXtip edge stays (without a MerkurXtip price, the largest drop).
@@ -1842,7 +1867,7 @@ function AlertsPage({ alerts, threshold, setThreshold, notify, setNotify, edgeOn
           </select>
         </label>
         <div className="segmented">
-          {[["all", "Svi"], ["football", "Fudbal"], ["basketball", "Košarka"], ["tennis", "Tenis"]].map(([key, label]) => (
+          {[["all", "Svi"], ["football", "Fudbal"], ["basketball", "Košarka"], ["tennis", "Tenis"], ["hockey", "Hokej"]].map(([key, label]) => (
             <button key={key} type="button" className={sportFilter === key ? "active" : ""} onClick={() => setSportFilter(key)}>
               {label}
             </button>
@@ -1896,8 +1921,8 @@ function AlertsPage({ alerts, threshold, setThreshold, notify, setNotify, edgeOn
   );
 }
 
-const CLV_SPORTS = { football: "Fudbal", basketball: "Košarka", tennis: "Tenis" };
-const CLV_PERIODS = { ft: "", ht: "1. pol. ", q1: "1. čet. ", s1: "1. set " };
+const CLV_SPORTS = { football: "Fudbal", basketball: "Košarka", tennis: "Tenis", hockey: "Hokej" };
+const CLV_PERIODS = { ft: "", ht: "1. pol. ", q1: "1. čet. ", s1: "1. set ", p1: "1. per. ", p2: "2. per. ", p3: "3. per. " };
 const clvDateFmt = new Intl.DateTimeFormat(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 function ClvTable({ title, rows }) {
@@ -1954,7 +1979,7 @@ function ClvPage() {
           </select>
         </label>
         <div className="segmented">
-          {[["", "Svi"], ["football", "Fudbal"], ["basketball", "Košarka"], ["tennis", "Tenis"]].map(([key, label]) => (
+          {[["", "Svi"], ["football", "Fudbal"], ["basketball", "Košarka"], ["tennis", "Tenis"], ["hockey", "Hokej"]].map(([key, label]) => (
             <button key={key} type="button" className={sport === key ? "active" : ""} onClick={() => setSport(key)}>{label}</button>
           ))}
         </div>
@@ -2007,6 +2032,7 @@ export default function App() {
   const [, setCallsToday] = useState(0);
   const bb = useSportBoard("basketball", setCallsToday, setApiKeySet);
   const tn = useSportBoard("tennis", setCallsToday, setApiKeySet);
+  const hk = useSportBoard("hockey", setCallsToday, setApiKeySet);
   const [competition, setCompetition] = useState(() => readStored("pb.competition", "all"));
   const [dayFilter, setDayFilter] = useState(() => readStored("pb.day", "all"));
   const [query, setQuery] = useState("");
@@ -2050,12 +2076,12 @@ export default function App() {
     }
   }, []);
 
-  const twoWay = sport === "basketball" || sport === "tennis";
-  const pane = sport === "basketball" ? bb : sport === "tennis" ? tn : null;
+  const twoWay = sport !== "football";
+  const pane = { basketball: bb, tennis: tn, hockey: hk }[sport] || null;
   const reload = pane ? pane.load : loadBoard;
   const cur = pane ? pane.board : board;
   const curLoading = pane ? pane.loading : loading;
-  const drops = useDropAlerts({ football: board, basketball: bb.board, tennis: tn.board }, dropAlerts, dropPct, apiKeySet, dropEdge);
+  const drops = useDropAlerts({ football: board, basketball: bb.board, tennis: tn.board, hockey: hk.board }, dropAlerts, dropPct, apiKeySet, dropEdge);
   const pickSport = useCallback((key) => {
     setAlertsOpen(false);
     setSport(key);
@@ -2071,10 +2097,12 @@ export default function App() {
   useEffect(() => {
     if (apiKeySet && !bb.board && !bb.loading && !bb.error) bb.load();
     if (apiKeySet && !tn.board && !tn.loading && !tn.error) tn.load();
+    if (apiKeySet && !hk.board && !hk.loading && !hk.error) hk.load();
     if (apiKeySet && !board && !loading && !error) loadBoard();
-  }, [apiKeySet, bb, tn, board, loading, error, loadBoard]);
+  }, [apiKeySet, bb, tn, hk, board, loading, error, loadBoard]);
   const sportCounts = {
     football: board?.matches.length, basketball: bb.board?.matches.length, tennis: tn.board?.matches.length,
+    hockey: hk.board?.matches.length,
   };
 
   useEffect(() => {
@@ -2105,12 +2133,17 @@ export default function App() {
   useEffect(() => writeStored("pb.valueGroup", valueGroup), [valueGroup]);
 
   const competitions = board?.competitions || [];
-  const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
+  // "Nedostaju" also lists the rest of the PinnWire feed: leagues outside `competitions` that MerkurXtip does not offer
+  const otherCompetitions = board?.otherCompetitions;
+  const allCompetitions = useMemo(() => [...competitions, ...(otherCompetitions || [])], [competitions, otherCompetitions]);
+  const compById = useMemo(() => new Map(allCompetitions.map((c) => [c.id, c])), [allCompetitions]);
+  const otherKeys = useMemo(() => new Set((otherCompetitions || []).map((c) => c.key)), [otherCompetitions]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();
-    return (board?.matches || []).filter((m) => {
-      if (competition !== "all" && compById.get(m.leagueId)?.key !== competition) return false;
+    const pool = view === "missing" ? [...(board?.matches || []), ...(board?.otherMissing || [])] : board?.matches || [];
+    return pool.filter((m) => {
+      if (competition !== "all" && (view !== "missing" && otherKeys.has(competition) ? false : compById.get(m.leagueId)?.key !== competition)) return false;
       if (!inDayFilter(new Date(m.starts), dayFilter)) return false;
       if (view === "missing" && m.merkur) return false;
       if (view === "compare" && edgeFilter !== "all") {
@@ -2122,7 +2155,7 @@ export default function App() {
       }
       return !q || `${m.home} ${m.away} ${m.merkur?.home || ""} ${m.merkur?.away || ""}`.toLocaleLowerCase().includes(q);
     });
-  }, [board, competition, dayFilter, query, compById, view, edgeFilter]);
+  }, [board, competition, dayFilter, query, compById, otherKeys, view, edgeFilter]);
 
   // Value view: all competitions together (the tabs do not apply); day and search filters do.
   const matchesById = useMemo(() => new Map((board?.matches || []).map((m) => [m.id, m])), [board]);
@@ -2180,13 +2213,15 @@ export default function App() {
   const inMissing = view === "missing";
   const missingCounts = useMemo(() => {
     const counts = new Map();
-    for (const m of board?.matches || []) if (!m.merkur) counts.set(m.leagueId, (counts.get(m.leagueId) || 0) + 1);
+    for (const m of [...(board?.matches || []), ...(board?.otherMissing || [])]) {
+      if (!m.merkur) counts.set(m.leagueId, (counts.get(m.leagueId) || 0) + 1);
+    }
     return counts;
   }, [board]);
   const missingTotal = useMemo(() => [...missingCounts.values()].reduce((a, b) => a + b, 0), [missingCounts]);
   const menuCompetitions = useMemo(
-    () => (inMissing ? competitions.map((c) => ({ ...c, count: missingCounts.get(c.id) || 0 })) : competitions),
-    [competitions, inMissing, missingCounts],
+    () => (inMissing ? allCompetitions.map((c) => ({ ...c, count: missingCounts.get(c.id) || 0 })) : competitions),
+    [competitions, allCompetitions, inMissing, missingCounts],
   );
   const menuItem = (c) => {
     const row = inValue ? valueSummary.get(c.id) : null;
@@ -2285,7 +2320,7 @@ export default function App() {
         </div>
       )}
 
-      {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); bb.reset(); tn.reset(); reload("full"); }} />}
+      {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); bb.reset(); tn.reset(); hk.reset(); reload("full"); }} />}
 
       {apiKeySet && alertsOpen && (
         <div className="shell">
@@ -2444,8 +2479,21 @@ export default function App() {
                     {view === "missing" ? missingEmpty(missingTotal, competition !== "all", () => setCompetition("all")) : "Nema mečeva za izabrani filter."}
                   </p>
                 )}
+                {view === "missing" && !!board?.otherOffered?.length && (
+                  <details className="other-offered">
+                    <summary>U ponudi MerkurXtip, a ne pratimo ({board.otherOffered.length} liga)</summary>
+                    <ul>
+                      {board.otherOffered.map((o) => (
+                        <li key={o.leagueId}>
+                          <b>{o.leagueName}</b> · {o.count} {o.count === 1 ? "meč" : "mečeva"}
+                          <small> · PinnWire {o.leagueId} · MerkurXtip {o.mxLeague} ({o.mxLeagueId})</small>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
                 {!!filtered.length && view === "missing" && (
-                  <MissingTable matches={filtered} competitions={competitions} sport="football" />
+                  <MissingTable matches={filtered} competitions={allCompetitions} sport="football" />
                 )}
                 {!!filtered.length && view === "compare" && (
                   <CompareTable
