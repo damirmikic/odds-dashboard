@@ -210,6 +210,7 @@ _STOP = {"w", "fc", "ac", "cf", "sc", "cp", "sv", "fk", "afc", "sk", "nk", "bk",
 ALIASES = {
     "agf": "aarhus",
     "olympiakos": "olympiacos",
+    "wolves u21": "wolverhampton",
     "binh duong": "becamex hcmc",
 }
 

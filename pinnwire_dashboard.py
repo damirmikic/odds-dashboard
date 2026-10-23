@@ -108,6 +108,8 @@ COMPETITIONS = [
      "merkur": "CHL PD"},
     {"id": 6417, "key": "csl", "name": "Super League", "country": "Kina", "code": "CHN", "merkur": "CHN SL"},
     {"id": 1880, "key": "hnl", "name": "HNL", "country": "Hrvatska", "code": "CRO", "merkur": "CRO HNL"},
+    {"id": 197646, "key": "pl2", "name": "Premier League 2", "country": "Engleska", "code": "PL2",
+     "merkur": "ENG PL2"},
     {"id": 2067, "key": "gercup", "name": "Kup", "country": "Nemačka", "code": "GERC", "merkur": "GER CUP"},
     {"id": 10604, "key": "isralef", "name": "Liga Alef", "country": "Izrael", "code": "ISR2", "merkur": "ISR LAN",
      "merkur_also": ["ISR LAS"]},

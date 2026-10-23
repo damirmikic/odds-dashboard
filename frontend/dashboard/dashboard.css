@@ -173,6 +173,7 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.primerach { --badge: #c8372d; }
 .comp-badge.csl { --badge: #d62d20; }
 .comp-badge.hnl { --badge: #2c4ea3; }
+.comp-badge.pl2 { --badge: #5b2a86; }
 .comp-badge.gercup { --badge: #8a1c1c; }
 .comp-badge.isralef, .comp-badge.isrll { --badge: #1f6fb4; }
 .comp-badge.engnl, .comp-badge.engnln, .comp-badge.engnls { --badge: #4a3a8c; }
