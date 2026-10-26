@@ -1576,7 +1576,7 @@ function BbCompareTable({ sport, matches, competitions, selectedId, onOpen }) {
   );
 }
 
-function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport, sportCounts, setCallsToday, alertsTab }) {
+function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport, sportCounts, setCallsToday, alertsTab, openReq }) {
   const cfg = SPORT_VIEWS[sport];
   const store = (name) => `pb.${cfg.store}.${name}`;
   const [competition, setCompetition] = useState(() => readStored(store("competition"), "all"));
@@ -1592,7 +1592,10 @@ function BasketballPane({ board, error, loading, dayFilter, setDayFilter, query,
   const [topOnly, setTopOnly] = useState(() => readStored(store("topOnly"), false));
   const [onlyStale, setOnlyStale] = useState(false);
   const [valueLeague, setValueLeague] = useState("all");
-  const [oddsId, setOddsId] = useState(() => window.location.hash.replace(/\D/g, ""));
+  const [oddsId, setOddsId] = useState(() => openReq?.id || window.location.hash.replace(/\D/g, ""));
+  useEffect(() => {
+    if (openReq) setOddsId(openReq.id);
+  }, [openReq]);
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => writeStored(store("competition"), competition), [competition]);
   useEffect(() => writeStored(store("view"), view), [view]);
@@ -2154,6 +2157,7 @@ export default function App() {
   const [topOnly, setTopOnly] = useState(() => readStored("pb.topOnly", false));
   const [selectedId, setSelectedId] = useState(() => window.location.hash.replace(/\D/g, ""));
   const [oddsId, setOddsId] = useState("");
+  const [paneOpen, setPaneOpen] = useState(null);
   const pwa = usePwa();
   const { theme, toggle: toggleTheme } = useTheme();
 
@@ -2193,7 +2197,9 @@ export default function App() {
   const openAlert = useCallback((a) => {
     setAlertsOpen(false);
     setSport(a.sport);
-    if (a.sport === "football") setSelectedId(String(a.matchId));
+    // the full match opens as the centred odds modal, in every sport
+    if (a.sport === "football") setOddsId(String(a.matchId));
+    else setPaneOpen({ id: String(a.matchId) });
   }, []);
   useEffect(() => writeStored("pb.sport", sport), [sport]);
   // all boards are loaded up front so the sport icons can show their match counts
@@ -2476,6 +2482,7 @@ export default function App() {
           alertsTab={alertsTab}
           sportCounts={sportCounts}
           setCallsToday={setCallsToday}
+          openReq={paneOpen}
         />
       )}
 
@@ -2667,10 +2674,12 @@ export default function App() {
         </>
       )}
 
-      {drops.toasts.length > 0 && !alertsOpen && (
+      {drops.toasts.length > 0 && !alertsOpen && !selectedId && !oddsId && (
         <div className="drop-alerts" role="alert">
-          <button type="button" className="button ghost" onClick={() => drops.dismiss()}>Obriši sve ({drops.toasts.length})</button>
-          {drops.toasts.map((a) => (
+          <button type="button" className="button drop-clear" onClick={() => drops.dismiss()}>
+            Obriši sve ({drops.toasts.length})
+          </button>
+          {drops.toasts.slice(0, 3).map((a) => (
             <button
               key={a.id}
               type="button"
