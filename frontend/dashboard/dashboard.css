@@ -714,3 +714,8 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .other-offered small { color: var(--muted, inherit); opacity: .7; }
 
 .missing-sort { padding: 8px 20px 0; color: var(--muted); font-size: 12px; }
+
+/* a new drop alert blinks for a few seconds instead of playing a sound */
+@keyframes alert-blink { 0%, 100% { box-shadow: 0 0 0 0 transparent; filter: none; } 50% { box-shadow: 0 0 0 4px #ff3b30, 0 0 16px 4px #ff3b30; filter: brightness(1.25); } }
+.drop-alert { animation: alert-blink .7s ease-in-out 8; }
+@media (prefers-reduced-motion: reduce) { .drop-alert { animation-duration: 1.4s; animation-iteration-count: 3; } }

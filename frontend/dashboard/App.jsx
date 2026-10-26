@@ -1849,20 +1849,6 @@ function useSportBoard(sport, setCallsToday, setApiKeySet) {
   return { board, loading, error, load, reset };
 }
 
-function beep() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    osc.frequency.value = 880;
-    osc.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.15);
-    osc.onended = () => ctx.close();
-  } catch {
-    /* audio unavailable */
-  }
-}
-
 const DROP_MARKETS = { moneyline: "Pobednik", spread: "Hendikep", total: "Ukupno" };
 const DROP_SIDES = { home: "1", draw: "X", away: "2", over: "V", under: "M" };
 const DROP_PERIODS = { football: { 1: "1. pol. " }, basketball: { 1: "1. pol. ", 3: "1. čet. " }, tennis: { 1: "1. set " }, hockey: { 1: "1. per. ", 2: "2. per. ", 3: "3. per. " } };
@@ -1943,7 +1929,6 @@ function useDropAlerts(boards, enabled, threshold, apiKeySet, edgeOnly) {
       const fresh = edgeRef.current ? shown.filter((a) => a.mxEv > 0) : shown;
       if (notify.current && fresh.length) {
         setToasts((list) => [...fresh, ...keep(list)].slice(0, 30));
-        beep();
       }
     };
     poll();
