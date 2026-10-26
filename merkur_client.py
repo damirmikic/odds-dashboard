@@ -212,6 +212,8 @@ ALIASES = {
     "olympiakos": "olympiacos",
     "wolves u21": "wolverhampton",
     "binh duong": "becamex hcmc",
+    "vaag ik": "vag",
+    "odds bk 2": "odd bk ii",
 }
 
 

@@ -27,8 +27,27 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* light follows the system until the theme toggle sets data-theme */
+:root[data-theme="light"] {
+  --bg: #f3f5f8;
+  --panel: #ffffff;
+  --panel-2: #f7f9fb;
+  --line: #dfe4ea;
+  --line-soft: #eceff3;
+  --text: #18202a;
+  --muted: #5f6b7a;
+  --faint: #98a2b0;
+  --up: #13925a;
+  --down: #d23a3f;
+  --up-bg: rgba(19, 146, 90, .10);
+  --down-bg: rgba(210, 58, 63, .10);
+  --select: rgba(240, 115, 42, .09);
+  --fresh: rgba(240, 190, 42, .22);
+  --main-row: rgba(240, 115, 42, .06);
+  color-scheme: light;
+}
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #f3f5f8;
     --panel: #ffffff;
     --panel-2: #f7f9fb;

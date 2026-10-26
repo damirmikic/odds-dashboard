@@ -77,6 +77,17 @@ function writeStored(key, value) {
   }
 }
 
+function useTheme() {
+  const [theme, setTheme] = useState(() => readStored("theme", null)
+    || (window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    writeStored("theme", theme);
+  }, [theme]);
+  const toggle = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
+  return { theme, toggle };
+}
+
 function useStickyHeaderOffsets() {
   useEffect(() => {
     const app = document.querySelector(".app");
@@ -2145,6 +2156,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(() => window.location.hash.replace(/\D/g, ""));
   const [oddsId, setOddsId] = useState("");
   const pwa = usePwa();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   // #<event id> deep-links to a match
   useEffect(() => {
@@ -2379,6 +2391,14 @@ export default function App() {
         </div>
 
         <div className="actions">
+          <button
+            type="button"
+            className="button ghost"
+            onClick={toggleTheme}
+            title={theme === "dark" ? "Svetla tema" : "Tamna tema"}
+          >
+            {theme === "dark" ? "☀" : "☾"}
+          </button>
           {pwa.canInstall && (
             <button type="button" className="button ghost" onClick={pwa.install} title="Instaliraj Xtip Monitor kao aplikaciju">
               ⤓ Instaliraj

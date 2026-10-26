@@ -227,6 +227,12 @@ HIDDEN_MISSING_LEAGUES = {
     "Czech Republic - 4. Liga",
     "Saudi Arabia - Premier League Women",
     "Belgium - Division 1 Women",
+    "Kosovo - Superliga U19",
+    "Myanmar - Women League",
+    "India - I-League 3",
+    "Austria - Amateur Cup",
+    "Jordan - U20 League",
+    "Uruguay - Primera Division Amateur",
 }
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
 # `merkur_also`: further MerkurXtip leagues that PinnWire quotes under the same league_id
