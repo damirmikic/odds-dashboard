@@ -2157,7 +2157,8 @@ export default function App() {
   const [alertsPage, setAlertsPage] = useState("drops");
   const [view, setView] = useState(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("view");
-    return ["compare", "pinnacle", "value", "missing"].includes(fromUrl) ? fromUrl : readStored("pb.view", "compare");
+    const view = ["compare", "value", "missing"].includes(fromUrl) ? fromUrl : readStored("pb.view", "compare");
+    return view === "pinnacle" ? "compare" : view;
   });
   const [edgeFilter, setEdgeFilter] = useState(() => readStored("pb.edge", "all"));
   const [valueLevel, setValueLevel] = useState(() => readStored("pb.valueLevel2", "fair"));
@@ -2513,9 +2514,6 @@ export default function App() {
               <div className="segmented view-switch">
                 <button type="button" className={view === "compare" ? "active" : ""} onClick={() => setView("compare")}>
                   MerkurXtip vs Pinnacle
-                </button>
-                <button type="button" className={view === "pinnacle" ? "active" : ""} onClick={() => setView("pinnacle")}>
-                  Samo Pinnacle
                 </button>
                 <button
                   type="button"
