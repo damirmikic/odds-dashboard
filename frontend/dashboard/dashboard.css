@@ -661,3 +661,5 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .other-offered summary { cursor: pointer; font-weight: 600; }
 .other-offered ul { margin: 8px 0 0; padding-left: 18px; }
 .other-offered small { color: var(--muted, inherit); opacity: .7; }
+
+.missing-sort { padding: 8px 20px 0; color: var(--muted); font-size: 12px; }

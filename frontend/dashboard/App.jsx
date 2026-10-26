@@ -1130,7 +1130,8 @@ function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, label, ale
         <button type="button" className={`side-item${all.active ? " active" : ""}`} onClick={() => onPick(all)}>
           <b>{all.label}</b> <span>{all.count}</span>
         </button>
-        {groups.map((group) => (
+        {groups.map((group) => ({ ...group, items: group.items.filter((item) => item.count !== 0 || item.active) }))
+          .filter((group) => group.items.length).map((group) => (
           <div className="side-group" key={group.title}>
             <h3>{group.title}</h3>
             {group.items.map((item) => (
@@ -1166,7 +1167,12 @@ function missingEmpty(total, filtered, showAll) {
 }
 
 // Matches Pinnacle prices but MerkurXtip does not offer (or could not be paired by team names).
-function MissingTable({ matches, competitions, sport }) {
+function MissingTable({ matches: unsorted, competitions, sport }) {
+  const [sortBy, setSortBy] = useState(() => readStored("missingSort", "time"));
+  useEffect(() => writeStored("missingSort", sortBy), [sortBy]);
+  const matches = useMemo(() => (sortBy === "league"
+    ? [...unsorted].sort((a, b) => (a.leagueName || "").localeCompare(b.leagueName || "") || a.starts.localeCompare(b.starts))
+    : [...unsorted].sort((a, b) => a.starts.localeCompare(b.starts) || a.home.localeCompare(b.home))), [unsorted, sortBy]);
   const byId = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
   const football = sport === "football";
   const lines = (match) => (football
@@ -1176,6 +1182,12 @@ function MissingTable({ matches, competitions, sport }) {
         ou: match.total && { line: match.total.line, over: match.total.pinnacle.over, under: match.total.pinnacle.under } });
   const sides = football ? ML_SIDES : ML_SIDES.filter(([side]) => side !== "draw");
   return (
+    <>
+    <div className="missing-sort">
+      Sortiraj:{" "}
+      <button type="button" className={`button small${sortBy === "time" ? " primary" : " ghost"}`} onClick={() => setSortBy("time")}>Vreme početka</button>{" "}
+      <button type="button" className={`button small${sortBy === "league" ? " primary" : " ghost"}`} onClick={() => setSortBy("league")}>Turnir</button>
+    </div>
     <div className="board-scroll mc-wrap">
       <table className="mc-board missing-board">
         <thead>
@@ -1231,6 +1243,7 @@ function MissingTable({ matches, competitions, sport }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
