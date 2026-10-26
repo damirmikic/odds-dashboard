@@ -205,6 +205,7 @@ COMPETITIONS = [
     {"id": 2088, "key": "gtm", "name": "Liga Nacional", "country": "Gvatemala", "code": "GTM", "merkur": "GTM LN"},
     {"id": 201139, "key": "svk2", "name": "2. liga", "country": "Slovačka", "code": "SVK2", "merkur": "SVK 2L"},
     {"id": 2253, "key": "botola", "name": "Botola Pro", "country": "Maroko", "code": "MAR", "merkur": "MAR PRO"},
+    {"id": 2642, "key": "uclw", "name": "Liga šampiona (žene)", "country": "UEFA", "code": "UCLW", "merkur": "UEFA CLW"},
     {"id": 2027, "key": "fraligue3", "name": "Ligue 3", "country": "Francuska", "code": "FRA", "merkur": "FRA L3"},
     {"id": 2409, "key": "ruscup", "name": "Cup", "country": "Rusija", "code": "RUS", "merkur": "RUS CUP"},
     {"id": 1708, "key": "afcchampionsle", "name": "Champions League Elite", "country": "AFC", "code": "AFC", "merkur": "AFC CL"},

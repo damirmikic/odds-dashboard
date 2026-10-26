@@ -221,7 +221,7 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.cze3 { --badge: #7a2e8c; }
 .comp-badge.egypl { --badge: #c9a227; }
 .comp-badge.eflcup { --badge: #1d428a; }
-.comp-badge.nwsl, .comp-badge.ligamxw, .comp-badge.dnkw { --badge: #8d3a9b; }
+.comp-badge.uclw, .comp-badge.nwsl, .comp-badge.ligamxw, .comp-badge.dnkw { --badge: #8d3a9b; }
 .comp-badge.mexu21 { --badge: #1a6b3a; }
 .comp-badge.pol3 { --badge: #c4263a; }
 .comp-badge.j3 { --badge: #a8322d; }
