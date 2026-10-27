@@ -95,7 +95,7 @@ Every board also records the Pinnacle price, Pinnacle fair price and MerkurXtip 
 | `pinnwire_client.py` | PinnWire REST client (`x-api-key`, 429/Retry-After handling), devig and market parsing |
 | `frontend/` | React + Vite app (source in `frontend/dashboard/`; PWA manifest, service worker and icons in `frontend/dashboard/public/`) |
 | `static/dashboard_build/` | Production bundle served by Python; `source-hash.txt` lets the tests catch a missing `npm run build` |
-| `test_pinnwire_dashboard.py` | Unit tests: `python -m unittest test_pinnwire_dashboard` |
+| `test_pinnwire_dashboard.py` | Unit tests: `python -m unittest test_pinnwire_dashboard`; lint with `python -m ruff check .` and `npm run lint` in `frontend/` |
 | `data/` | API key and price history; do not share `pinnwire_config.json` |
 
 Competitions are the `COMPETITIONS` list in `football_competitions.py`, keyed by PinnWire `league_id`. Add an entry to track another league; the tests check that its key and badge code are unique and that it has a badge colour.

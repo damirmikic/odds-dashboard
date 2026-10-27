@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""PinnWire top-competitions dashboard: top 5 leagues + UEFA club competitions, Pinnacle only.
+"""Xtip Monitor server: Pinnacle (PinnWire) against MerkurXtip for football, basketball, tennis and hockey.
 
-The first load takes the full soccer snapshot; refreshes ask only for events changed since
-the previous response (`since=last`) and merge them, which keeps the trial quota usable.
+This module holds the football board, the shared History, the background workers (drop stream, CLV refresh),
+the HTTP handler and main(). Every sport keeps a PinnWire snapshot (full load, then `since=` deltas, see
+common.SnapshotState) and pairs it with the MerkurXtip offer; the other sports live in basketball.py, tennis.py
+and hockey.py.
 """
 from __future__ import annotations
 
@@ -25,11 +27,11 @@ import basketball as bb
 import clv
 import common
 import hockey
-import tennis
 import merkur_client as mx
 import pinnwire_client as pw
 import price_history
-from common import event_ts, is_upcoming, merge_event, utc_now, utc_stamp
+import tennis
+from common import event_ts, is_upcoming, utc_now, utc_stamp
 from football_competitions import COMPETITIONS, HIDDEN_MISSING_LEAGUES
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -71,7 +73,7 @@ def load_config():
     except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"Ne mogu da pročitam data/pinnwire_config.json: {exc}") from exc
     if not isinstance(data, dict):
-        raise RuntimeError("data/pinnwire_config.json mora sadržati JSON objekat.")
+        raise RuntimeError("data/pinnwire_config.json mora sadržati JSON objekat.")  # noqa: TRY004 (shown in the UI)
     return data
 
 
@@ -691,9 +693,9 @@ class DropFeed:
     """Background reader of PinnWire's prematch SSE drop stream. It keeps every drop of at least 1 %
     (the UI filters by its own threshold) and does not use REST requests."""
 
-    def __init__(self, key_fn, sports=tuple(DROP_SPORTS.values())):
+    def __init__(self, key_fn, sports=None):
         self.key_fn = key_fn
-        self.sports = set(sports)
+        self.sports = set(sports or DROP_SPORTS.values())
         self.lock = threading.Lock()
         self.drops = deque(maxlen=20000)
         self.connected = False
@@ -730,34 +732,44 @@ class DropFeed:
     def status(self):
         return {"connected": self.connected, "error": self.error, "since": self.since}
 
+    api_factory = pw.PinnWireAPI  # replaced in tests
+    sleep = staticmethod(time.sleep)
+
     def run(self):
         wait = 1
         while True:
-            key = self.key_fn()
-            if not key:
-                time.sleep(5)
-                continue
-            generation = self.generation
-            try:
-                stream = pw.PinnWireAPI(key).drop_stream(min_drop=1, recheck=DROP_RECHECK,
-                                                         stop=lambda: self.generation != generation)
-                for frames in stream:
-                    if not self.connected:
-                        self.connected, self.error, self.since, wait = True, "", utc_stamp(), 1
-                    self.add(frames)
-                self.error = ""
-            except PermissionError as exc:
-                self.error, wait = str(exc), 60
-            except RuntimeError as exc:
-                self.error = str(exc)
-            except Exception as exc:  # the stream must outlive a bug in one frame, like ClvWorker
-                self.error = f"Greška u drop streamu: {exc!r}"
-                traceback.print_exc()
-            self.connected = False
-            if self.generation == generation:
-                time.sleep(wait)
-                wait = min(wait * 2, 30)
+            wait = self.cycle(wait)
 
+    def cycle(self, wait):
+        """One connection: read the stream until it ends or fails, then wait before the next one.
+
+        Returns the wait for the next failure: doubling up to 30 s, reset to 1 s once a frame arrives, 60 s after
+        PinnWire refuses the key or the plan; no wait when reconnect() asked for a new key."""
+        key = self.key_fn()
+        if not key:
+            self.sleep(5)
+            return wait
+        generation = self.generation
+        try:
+            stream = self.api_factory(key).drop_stream(min_drop=1, recheck=DROP_RECHECK,
+                                                       stop=lambda: self.generation != generation)
+            for frames in stream:
+                if not self.connected:
+                    self.connected, self.error, self.since, wait = True, "", utc_stamp(), 1
+                self.add(frames)
+            self.error = ""
+        except PermissionError as exc:
+            self.error, wait = str(exc), 60
+        except RuntimeError as exc:
+            self.error = str(exc)
+        except Exception as exc:  # noqa: BLE001 (the stream must outlive a bug in one frame, like ClvWorker)
+            self.error = f"Greška u drop streamu: {exc!r}"
+            traceback.print_exc()
+        self.connected = False
+        if self.generation != generation:
+            return 1  # reconnect(): the new key connects right away
+        self.sleep(wait)
+        return min(wait * 2, 30)
 
 DROPS = DropFeed(current_api_key)
 SPORT_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "hockey": HK_STATE}
@@ -796,7 +808,7 @@ class ClvWorker:
                 state.board(refresh=True)
             except (PermissionError, LookupError, RuntimeError):
                 self.store.last_seen[sport] = time.time()  # retry after one interval, not in a tight loop
-            except Exception as exc:  # the worker must outlive a parsing bug in one sport
+            except Exception as exc:  # noqa: BLE001 (the worker must outlive a parsing bug in one sport)
                 self.store.last_seen[sport] = time.time()
                 print(f"clv worker {sport}: {exc!r}")
 
@@ -956,7 +968,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_error_json(502, str(exc))
         except ConnectionError:
             return  # the browser went away mid-response (aborted fetch)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 (a bug answers 500 instead of dropping the connection)
             return self.internal_error(exc)
 
     def internal_error(self, exc):
@@ -988,7 +1000,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_error_json(500, str(exc))
         except OSError as exc:
             return self.send_error_json(500, f"Ne mogu da sačuvam podešavanje: {exc}")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 (a bug answers 500 instead of dropping the connection)
             return self.internal_error(exc)
 
 

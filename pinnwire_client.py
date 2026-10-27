@@ -284,7 +284,7 @@ def priced(prices, sides):
 
 
 def fair_odds(prices):
-    """{side: odds} -> ({side: fair odds}, margin %) using the power devig method."""
+    """{side: odds} -> ({side: fair odds}, margin %), devigged by devig() (Shin two-way, power 1X2)."""
     if len(prices) < 2:
         return {}, None
     probs = devig(prices)

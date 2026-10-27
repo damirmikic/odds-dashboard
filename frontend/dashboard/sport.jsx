@@ -274,7 +274,7 @@ function SportCompareTable({ sport, matches, competitions, selectedId, onOpen })
 
 export function SportPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport, sportCounts, setCallsToday, alertsTab, openReq }) {
   const cfg = SPORT_VIEWS[sport];
-  const store = (name) => `pb.${cfg.store}.${name}`;
+  const store = useCallback((name) => `pb.${cfg.store}.${name}`, [cfg.store]);
   const [competition, setCompetition] = useState(() => readStored(store("competition"), "all"));
   const [view, setView] = useState(() => (
     ["value", "missing"].includes(new URLSearchParams(window.location.search).get("view"))
@@ -292,22 +292,23 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
   useEffect(() => {
     if (openReq) setOddsId(openReq.id);
   }, [openReq]);
-  /* eslint-disable react-hooks/exhaustive-deps */
-  useEffect(() => writeStored(store("competition"), competition), [competition]);
-  useEffect(() => writeStored(store("view"), view), [view]);
-  useEffect(() => writeStored(store("valueLevel"), valueLevel), [valueLevel]);
-  useEffect(() => writeStored(store("valueGroup"), valueGroup), [valueGroup]);
-  useEffect(() => writeStored(store("modeled"), showModeled), [showModeled]);
-  useEffect(() => writeStored(store("evMin"), evMin), [evMin]);
-  useEffect(() => writeStored(store("evMax"), evMax), [evMax]);
-  useEffect(() => writeStored(store("topOnly"), topOnly), [topOnly]);
-  /* eslint-enable react-hooks/exhaustive-deps */
+  useEffect(() => writeStored(store("competition"), competition), [store, competition]);
+  useEffect(() => writeStored(store("view"), view), [store, view]);
+  useEffect(() => writeStored(store("valueLevel"), valueLevel), [store, valueLevel]);
+  useEffect(() => writeStored(store("valueGroup"), valueGroup), [store, valueGroup]);
+  useEffect(() => writeStored(store("modeled"), showModeled), [store, showModeled]);
+  useEffect(() => writeStored(store("evMin"), evMin), [store, evMin]);
+  useEffect(() => writeStored(store("evMax"), evMax), [store, evMax]);
+  useEffect(() => writeStored(store("topOnly"), topOnly), [store, topOnly]);
 
-  const competitions = board?.competitions || [];
+  const competitions = useMemo(() => board?.competitions || [], [board]);
   const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
   const matchesById = useMemo(() => new Map((board?.matches || []).map((m) => [m.id, m])), [board]);
   const q = query.trim().toLocaleLowerCase();
-  const textOk = (m) => !q || `${m.home} ${m.away} ${m.merkur?.home || ""} ${m.merkur?.away || ""}`.toLocaleLowerCase().includes(q);
+  const textOk = useCallback(
+    (m) => !q || `${m.home} ${m.away} ${m.merkur?.home || ""} ${m.merkur?.away || ""}`.toLocaleLowerCase().includes(q),
+    [q],
+  );
 
   const missingCounts = useMemo(() => {
     const counts = new Map();
@@ -322,8 +323,7 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
       && inDayFilter(new Date(m.starts), dayFilter) && textOk(m)
       && (view !== "missing" || !m.merkur)
     )),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [board, competition, dayFilter, q, compById, view],
+    [board, competition, dayFilter, textOk, compById, view],
   );
   const valueList = useMemo(
     () => (board?.values || []).filter((v) => {
@@ -331,8 +331,7 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
       return m && inDayFilter(new Date(m.starts), dayFilter) && textOk(m)
         && (showModeled || !v.modeled) && (!onlyStale || v.stale != null);
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [board, matchesById, dayFilter, q, showModeled, onlyStale],
+    [board, matchesById, dayFilter, textOk, showModeled, onlyStale],
   );
   const levelValues = useMemo(
     () => bestPerMarket(valueList.filter((v) => sportValuePasses(v, valueLevel, valueGroup, cfg.teamPrefix)))

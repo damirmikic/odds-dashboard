@@ -14,9 +14,11 @@ cd frontend; npm install; npm run build; cd ..   # builds into ../static/dashboa
 python pinnwire_dashboard.py                     # serves http://127.0.0.1:8070 (--port, --no-browser, --host)
 python -m unittest test_pinnwire_dashboard       # all tests
 python -m unittest test_pinnwire_dashboard.ClassName.test_name   # single test
+python -m pip install -r requirements-dev.txt; python -m ruff check .   # Python lint (ruff.toml)
+cd frontend; npm run lint                        # ESLint: recommended + react-hooks rules-of-hooks / exhaustive-deps
 ```
 
-`start.bat` / `start.sh` install deps, build and run. Frontend dev: run the Python server, then `npm run dev` in `frontend/` (Vite on 5175, proxies `/api` to 8070). No linter is configured. The Python server does not reload: restart it after backend changes. Deep links for checking UI: `/?sport=basketball|tennis|hockey`, `&view=value|missing|compare`, `#<event id>`.
+`start.bat` / `start.sh` install deps, build and run. Frontend dev: run the Python server, then `npm run dev` in `frontend/` (Vite on 5175, proxies `/api` to 8070). Both linters pass with no suppressions except the commented `noqa` catch-alls; keep it that way (the hooks deps are listed fully, helper closures are `useCallback`). The Python server does not reload: restart it after backend changes. Deep links for checking UI: `/?sport=basketball|tennis|hockey`, `&view=value|missing|compare`, `#<event id>`.
 
 ## Architecture
 

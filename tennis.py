@@ -24,6 +24,7 @@ PAIR_WINDOW = 12 * 60
 
 # (key, label, PinnWire period number); PinnWire numbers tennis periods 0 = match, 1 = 1st set.
 PERIODS = [("ft", "Ceo meč", 0), ("s1", "1. set", 1)]
+NUMBERS = {key: number for key, _, number in PERIODS}
 
 ML = ("1", "3")
 # Each set is (line param, home/over code, away/under code); the param holds the home-side line.
@@ -118,7 +119,7 @@ def merge_event(old, new):
 
 def pinnacle_markets(event, period="ft"):
     """Pinnacle prices of one period keyed like merkur_markets(): ml {side: odds}, lines {line: {side: odds}}."""
-    number = dict((key, n) for key, _, n in PERIODS)[period]
+    number = NUMBERS[period]
     sets = pw.period(event, number)
     games = pw.period({"periods": event.get("games")}, number)
     ml = pw.priced(sets.get("money_line") or {}, ("home", "away"))
@@ -134,7 +135,7 @@ def pinnacle_markets(event, period="ft"):
 
 def pinnacle_limits(event, period="ft"):
     """Pinnacle limits of one period keyed like pinnacle_markets(); the moneyline carries none."""
-    number = dict((key, n) for key, _, n in PERIODS)[period]
+    number = NUMBERS[period]
     sets = pw.period(event, number)
     games = pw.period({"periods": event.get("games")}, number)
     team = games.get("team_totals") or {}

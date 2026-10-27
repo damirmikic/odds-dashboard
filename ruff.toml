@@ -1,0 +1,7 @@
+# Lint: python -m ruff check .   (ruff defaults; the target keeps Python 3.10 support)
+line-length = 120
+target-version = "py310"
+
+[lint.per-file-ignores]
+# fixture tables as class attributes, never mutated
+"test_*.py" = ["RUF012"]

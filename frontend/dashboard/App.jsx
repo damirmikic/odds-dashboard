@@ -189,7 +189,7 @@ export default function App() {
   useEffect(() => writeStored("pb.evMax", evMax), [evMax]);
   useEffect(() => writeStored("pb.topOnly", topOnly), [topOnly]);
 
-  const competitions = board?.competitions || [];
+  const competitions = useMemo(() => board?.competitions || [], [board]);
   // "Nedostaju" also lists the rest of the PinnWire feed: leagues outside `competitions` that MerkurXtip does not offer
   const otherCompetitions = board?.otherCompetitions;
   const allCompetitions = useMemo(() => [...competitions, ...(otherCompetitions || [])], [competitions, otherCompetitions]);
@@ -281,28 +281,27 @@ export default function App() {
     () => (inMissing ? allCompetitions.map((c) => ({ ...c, count: missingCounts.get(c.id) || 0 })) : competitions),
     [competitions, allCompetitions, inMissing, missingCounts],
   );
-  const menuItem = (c) => {
-    const row = inValue ? valueSummary.get(c.id) : null;
-    return {
-      id: c.id,
-      key: c.key,
-      comp: c,
-      count: inValue ? (row ? row.count : 0) : c.count,
-      extra: row ? fmtEv(row.best) : null,
-      extraClass: row ? evClass(row.best) : "",
-      disabled: inValue ? !row : !c.count,
-      active: inValue ? valueLeague === String(c.id) : competition === c.key,
-      title: row ? `${row.count} ishoda na ${row.matches.size} mečeva, najveća razlika vs fer ${fmtEv(row.best)}` : undefined,
-    };
-  };
   const menuGroups = useMemo(() => {
+    const menuItem = (c) => {
+      const row = inValue ? valueSummary.get(c.id) : null;
+      return {
+        id: c.id,
+        key: c.key,
+        comp: c,
+        count: inValue ? (row ? row.count : 0) : c.count,
+        extra: row ? fmtEv(row.best) : null,
+        extraClass: row ? evClass(row.best) : "",
+        disabled: inValue ? !row : !c.count,
+        active: inValue ? valueLeague === String(c.id) : competition === c.key,
+        title: row ? `${row.count} ishoda na ${row.matches.size} mečeva, najveća razlika vs fer ${fmtEv(row.best)}` : undefined,
+      };
+    };
     const map = new Map();
     for (const c of menuCompetitions) {
       if (!map.has(c.country)) map.set(c.country, { title: c.country, items: [] });
       map.get(c.country).items.push(menuItem(c));
     }
     return [...map.values()];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuCompetitions, inValue, valueSummary, valueLeague, competition]);
   const allItem = inValue
     ? { id: null, key: "all", label: "Sve lige", count: levelValues.length, active: valueLeague === "all" }

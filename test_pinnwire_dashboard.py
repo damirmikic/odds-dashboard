@@ -6,12 +6,15 @@ import os
 import re
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
+from unittest import mock
 
 import basketball as bb
 import clv
+import common
 import hockey
 import merkur_client as mx
 import pinnwire_client as pw
@@ -173,7 +176,7 @@ class ClientTests(unittest.TestCase):
         self.assertAlmostEqual(sum(probs.values()), 1.0, places=6)
         for side, p in probs.items():
             self.assertGreater(1 / p, odds[side])
-        fair, margin = pw.fair_odds(odds)
+        _, margin = pw.fair_odds(odds)
         self.assertAlmostEqual(margin, (1 / 2.45 + 1 / 3.30 + 1 / 2.90 - 1) * 100, places=2)
 
     def test_lines_are_sorted_and_main_line_marked(self):
@@ -507,7 +510,7 @@ class MergeTests(unittest.TestCase):
     def test_merge_replaces_markets_per_period(self):
         old = event(1)
         new = {"event_id": 1, "periods": {"num_0": {"totals": {}}}}
-        merged = dash.merge_event(old, new)
+        merged = common.merge_event(old, new)
         self.assertEqual(merged["periods"]["num_0"]["totals"], {})
         self.assertIn("money_line", merged["periods"]["num_0"])
         self.assertEqual(merged["home"], "Alaves")
@@ -1036,6 +1039,68 @@ class ClvTests(unittest.TestCase):
         self.assertIn("football", self.store.last_seen)
 
 
+class DropFeedCycleTests(unittest.TestCase):
+    """DropFeed.cycle(): one stream connection and the wait before the next one."""
+
+    def feed(self, *outcomes):
+        """A feed whose successive connections yield the frame lists of each outcome, or raise it."""
+        feed = dash.DropFeed(lambda: "key")
+        feed.slept = []
+        feed.sleep = feed.slept.append
+        outcomes = list(outcomes)
+
+        class API:
+            def __init__(self, key):
+                pass
+
+            def drop_stream(self, **params):
+                outcome = outcomes.pop(0)
+                if isinstance(outcome, Exception):
+                    raise outcome
+                yield from outcome
+
+        feed.api_factory = API
+        return feed
+
+    def test_failures_back_off_up_to_30_seconds(self):
+        feed = self.feed(*[RuntimeError("down")] * 6)
+        wait = 1
+        for _ in range(6):
+            wait = feed.cycle(wait)
+        self.assertEqual(feed.slept, [1, 2, 4, 8, 16, 30])
+        self.assertEqual((feed.error, feed.connected), ("down", False))
+
+    def test_a_frame_resets_the_back_off(self):
+        frame = {"id": 1, "sport_id": 1, "market_type": "moneyline", "outcome": "home", "from_price": 2.0,
+                 "to_price": 1.9, "drop_pct": 5, "alerted": int(time.time())}
+        feed = self.feed([[frame]])
+        self.assertEqual(feed.cycle(16), 2)  # stream ended after a frame: wait 1 s, then 2 s
+        self.assertEqual((feed.slept, feed.error, len(feed.drops)), ([1], "", 1))
+
+    def test_refused_key_waits_a_minute(self):
+        feed = self.feed(PermissionError("plan"))
+        self.assertEqual(feed.cycle(1), 30)
+        self.assertEqual(feed.slept, [60])
+
+    def test_unexpected_error_keeps_the_feed_alive(self):
+        feed = self.feed(ValueError("bad frame"))
+        with contextlib.redirect_stderr(io.StringIO()):
+            feed.cycle(1)
+        self.assertIn("ValueError", feed.error)
+
+    def test_reconnect_connects_again_at_once(self):
+        feed = self.feed(RuntimeError("closed"))
+        original = feed.api_factory.drop_stream
+
+        def drop_stream(api, **params):
+            feed.reconnect()  # a new key was saved while the stream was open
+            yield from original(api, **params)
+
+        feed.api_factory.drop_stream = drop_stream
+        self.assertEqual(feed.cycle(8), 1)
+        self.assertEqual(feed.slept, [])
+
+
 class CompetitionTableTests(unittest.TestCase):
     """Run after adding a league: duplicates or a missing badge colour fail here instead of in the UI."""
 
@@ -1109,7 +1174,7 @@ class HistoryThreadTests(unittest.TestCase):
             try:
                 for _ in range(30):
                     history.save()
-            except Exception as exc:  # before the lock: "dictionary changed size during iteration"
+            except Exception as exc:  # noqa: BLE001 (before the lock: "dictionary changed size during iteration")
                 errors.append(exc)
 
         threads = [threading.Thread(target=observe), threading.Thread(target=save), threading.Thread(target=save)]
@@ -1152,6 +1217,45 @@ class HandlerTests(unittest.TestCase):
             dash.drops_response = original
         self.assertEqual(status, 500)
         self.assertIn("KeyError", body["error"])
+
+    class FakeState:
+        def __init__(self, error=None):
+            self.error, self.calls = error, []
+
+        def board(self, refresh=False, full=False):
+            self.calls.append(("board", refresh, full))
+            if self.error:
+                raise self.error
+            return {"ok": True}
+
+        def match(self, event_id, **extra):
+            self.calls.append(("match", event_id, extra))
+            return {"id": event_id}
+
+    def test_routes_reach_the_right_sport(self):
+        states = {sport: self.FakeState() for sport in dash.SPORT_STATES}
+        with mock.patch.dict(dash.SPORT_STATES, states):
+            self.assertEqual(self.request("/api/board?refresh=1")[0], 200)
+            self.assertEqual(self.request("/api/hockey/board?full=1")[0], 200)
+            self.assertEqual(self.request("/api/tennis/match/12")[1], {"id": "12"})
+            self.assertEqual(self.request("/api/match/34?refresh=1")[1], {"id": "34"})
+        self.assertEqual(states["football"].calls, [("board", True, False), ("match", "34", {"refresh": True})])
+        self.assertEqual(states["hockey"].calls, [("board", False, True)])
+        self.assertEqual(states["tennis"].calls, [("match", "12", {})])  # only football re-reads a match
+        self.assertEqual(states["basketball"].calls, [])
+
+    def test_bad_ids_and_unknown_routes(self):
+        self.assertEqual(self.request("/api/basketball/match/abc")[0], 400)
+        self.assertEqual(self.request("/api/board/x")[0], 404)
+        self.assertEqual(self.request("/api/volleyball/board")[0], 404)
+
+    def test_errors_map_to_status_codes(self):
+        cases = [(PermissionError("ključ"), 401), (LookupError("nema"), 404), (RuntimeError("PinnWire"), 502),
+                 (KeyError("bug"), 500), (TypeError("bug"), 500)]
+        for error, status in cases:
+            with (self.subTest(error=error), contextlib.redirect_stderr(io.StringIO()),
+                  mock.patch.dict(dash.SPORT_STATES, {"football": self.FakeState(error)})):
+                self.assertEqual(self.request("/api/board")[0], status)
 
     def test_config_accepts_only_json(self):
         saved = []
