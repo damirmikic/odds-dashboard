@@ -205,10 +205,15 @@ def markets(match):
 
 # ------------------------------------------------------------------------- pairing
 
-_STOP = {"w", "fc", "ac", "cf", "sc", "cp", "sv", "fk", "afc", "sk", "nk", "bk", "club", "the", "cd", "ud", "sd", "as"}
+# age markers too: Pinnacle names youth league sides without them ("Colchester United" vs "Colchester U21"); the
+# pairing within a competition cannot mix them up, and the cross-league "missing" pairing checks them separately
+_STOP = {"w", "fc", "ac", "cf", "sc", "cp", "sv", "fk", "afc", "sk", "nk", "bk", "club", "the", "cd", "ud", "sd", "as",
+         "u17", "u18", "u19", "u20", "u21", "u23"}
 # normalised name -> canonical form, for names the token rules cannot pair
 ALIASES = {
     "agf": "aarhus",
+    "ethiopian insurance": "ethiopian medhin",
+    "defence force": "mekelakeya",
     "olympiakos": "olympiacos",
     "wolves u21": "wolverhampton",
     "binh duong": "becamex hcmc",

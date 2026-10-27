@@ -321,6 +321,11 @@ class MerkurPairingTests(unittest.TestCase):
         self.assertEqual(mx.name_score("AGF", "Aarhus"), 1.0)
         self.assertEqual(mx.name_score("Olympiakos", "Olympiacos"), 1.0)
         self.assertEqual(mx.name_score("Chelsea", "Arsenal"), 0.0)
+        self.assertEqual(mx.name_score("Colchester United", "Colchester U21"), 1.0)
+        self.assertEqual(mx.name_score("Queens Park Rangers", "QPR U21"), 1.0)
+        self.assertEqual(mx.name_score("Ethiopian Medhin", "Ethiopian Insurance"), 1.0)
+        self.assertEqual(mx.name_score("Mekelakeya", "Defence Force"), 1.0)
+        self.assertEqual(dash.other_score("Colchester United", "Colchester U21"), 0.0)
 
     def test_pair_is_one_to_one_within_competition_and_window(self):
         pin = [
