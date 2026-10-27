@@ -257,6 +257,10 @@ COMPETITIONS = [
     {"id": 200748, "key": "thaleague2", "name": "League 2", "country": "Tajland", "code": "THA", "merkur": "THA L2"},
     {"id": 205369, "key": "urusegundadivi", "name": "Segunda Division", "country": "Urugvaj", "code": "URU", "merkur": "URU 2D"},
     {"id": 202026, "key": "uzbsuperleague", "name": "Super League", "country": "Uzbekistan", "code": "UZB", "merkur": "UZB SL"},
+    {"id": 226450, "key": "argresleague", "name": "Liga Pro rezerve", "country": "Argentina", "code": "ARGR", "merkur": "ARG RES"},
+    {"id": 218775, "key": "botpremierleag", "name": "Premier League", "country": "Bocvana", "code": "BOT", "merkur": "Botswana"},
+    {"id": 1908, "key": "dnkcup", "name": "Kup", "country": "Danska", "code": "DENC", "merkur": "DNK CUP"},
+    {"id": 283292, "key": "engslsouth", "name": "Southern Premier League South", "country": "Engleska", "code": "ENG7S", "merkur": "ENG SLSD"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
