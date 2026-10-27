@@ -261,6 +261,13 @@ COMPETITIONS = [
     {"id": 218775, "key": "botpremierleag", "name": "Premier League", "country": "Bocvana", "code": "BOT", "merkur": "Botswana"},
     {"id": 1908, "key": "dnkcup", "name": "Kup", "country": "Danska", "code": "DENC", "merkur": "DNK CUP"},
     {"id": 283292, "key": "engslsouth", "name": "Southern Premier League South", "country": "Engleska", "code": "ENG7S", "merkur": "ENG SLSD"},
+    {"id": 2373, "key": "polcup", "name": "Kup", "country": "Poljska", "code": "POLC", "merkur": "POL CUP"},
+    {"id": 2647, "key": "ukrcup", "name": "Kup", "country": "Ukrajina", "code": "UKRC", "merkur": "UKR CUP"},
+    {"id": 214839, "key": "urures", "name": "Rezervna liga", "country": "Urugvaj", "code": "URUR", "merkur": "URU RES"},
+    {"id": 201256, "key": "vnmv2", "name": "V League 2", "country": "Vijetnam", "code": "VNM", "merkur": "VNM V2"},
+    {"id": 209885, "key": "nedu21", "name": "U21 Divisie", "country": "Holandija", "code": "NEDU21", "merkur": "NLD U21",
+     "merkur_also": [2390684]},
+    {"id": 8128, "key": "qatsl", "name": "Stars League", "country": "Katar", "code": "QAT", "merkur": "QAT QSL"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
