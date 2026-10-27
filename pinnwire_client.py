@@ -303,6 +303,28 @@ def allowed_line(line, market):
     return abs(line * 2 - round(line * 2)) < 1e-9 and round(line * 2) % 2 == 1
 
 
+def _ladder_lines(lines, key, market):
+    """(line, raw line dict) of a spread/total ladder {name: {key: line, sides..., max}} kept by allowed_line()."""
+    for line in (lines or {}).values() if isinstance(lines, dict) else ():
+        if isinstance(line, dict) and allowed_line(_num(line.get(key)), market):
+            yield _num(line[key]), line
+
+
+def ladder(lines, key, sides, market="totals"):
+    """{line: {side: odds}} of a ladder, lines priced on every side only. `market` "spreads" also keeps AH 0."""
+    out = {}
+    for value, line in _ladder_lines(lines, key, market):
+        prices = priced(line, sides)
+        if len(prices) == len(sides):
+            out[value] = prices
+    return out
+
+
+def ladder_limits(lines, key, market="totals"):
+    """{line: Pinnacle limit (max bet)} over the same lines as ladder()."""
+    return {value: line.get("max") for value, line in _ladder_lines(lines, key, market)}
+
+
 def build_lines(event, market, sides, line_key, number=0):
     """Spreads or totals of one period as sorted rows with fair odds per side."""
     return lines_from((period(event, number).get(market) or {}).values(), sides, line_key, market)

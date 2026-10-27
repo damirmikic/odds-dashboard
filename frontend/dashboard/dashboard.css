@@ -248,6 +248,17 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.ukrpl { --badge: #c9a227; }
 .comp-badge.uru1 { --badge: #3b8fd1; }
 .comp-badge.algl1 { --badge: #0a7a3d; }
+/* same colour as the country's main league */
+.comp-badge.argresleague { --badge: #3b8fd1; }
+.comp-badge.dnkcup { --badge: #b3202a; }
+.comp-badge.engslsouth { --badge: #4a3a8c; }
+.comp-badge.polcup { --badge: #c4263a; }
+.comp-badge.ukrcup { --badge: #c9a227; }
+.comp-badge.urures { --badge: #3b8fd1; }
+.comp-badge.nedu21 { --badge: #ea6a00; }
+.comp-badge.qatsl { --badge: #8a1538; }
+.comp-badge.vnmv2 { --badge: #c8102e; }
+.comp-badge.botpremierleag { --badge: #3a5a78; }
 .comp-badge.fraligue3,
 .comp-badge.ruscup,
 .comp-badge.afcchampionsle,
@@ -669,6 +680,20 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.eurocup, .comp-badge.ecw { --badge: #1f6fb4; }
 .comp-badge.bcl { --badge: #0b2a6f; }
 .comp-badge.fibaec { --badge: #1f9d55; }
+.comp-badge.enbl { --badge: #5b2a86; }
+.comp-badge.vtb, .comp-badge.blno { --badge: #b3202a; }
+.comp-badge.aba2, .comp-badge.itaa2 { --badge: #1a5fb4; }
+.comp-badge.elbl { --badge: #2b5fa8; }
+.comp-badge.copaesp { --badge: #d4372c; }
+.comp-badge.grelite { --badge: #1f6fb4; }
+.comp-badge.korisliiga { --badge: #1f3f7a; }
+.comp-badge.lkl, .comp-badge.nkl { --badge: #0a7a3d; }
+.comp-badge.nbb { --badge: #1f9d55; }
+.comp-badge.lnbp { --badge: #006847; }
+.comp-badge.iceland { --badge: #2c4ea3; }
+.comp-badge.wnbl { --badge: #c9a227; }
+.comp-badge.lnbarg { --badge: #3b8fd1; }
+.comp-badge.rus { --badge: #9c2f2f; }
 .stale-tag {
   margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--edge-pos-bg); color: var(--edge-pos);
   font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;

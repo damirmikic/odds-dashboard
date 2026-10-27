@@ -301,6 +301,15 @@ def closest_unpaired(pinnacle, merkur, pairs, window_minutes=180, score_fn=None)
     return out
 
 
+def hints(pinnacle, merkur, pairs, window_minutes=180, score_fn=None):
+    """{pinnacle id: {home, away, score, kickoffDiff}} of closest_unpaired(), for the "missing" view.
+
+    `pairs` may map to the paired offer rows instead of the pair() inputs: only their ids are used."""
+    ts = {p["id"]: p["ts"] for p in pinnacle}
+    return {pid: {"home": m["home"], "away": m["away"], "score": score, "kickoffDiff": round((m["ts"] - ts[pid]) / 60000)}
+            for pid, (m, score) in closest_unpaired(pinnacle, merkur, pairs, window_minutes, score_fn).items()}
+
+
 class OfferCache:
     """Offer list kept for `ttl` seconds; one fetch at a time."""
 

@@ -99,8 +99,9 @@ class ClvStore:
     def soon(self, minutes=15, now=None):
         """True when an unstarted signal's match starts within `minutes` (the worker then polls faster)."""
         now = now or datetime.now(timezone.utc)
-        row = self.db.execute("SELECT 1 FROM signals WHERE starts > ? AND starts <= ? LIMIT 1",
-                              (stamp(now), stamp(now + timedelta(minutes=minutes)))).fetchone()
+        with self.lock:  # the worker thread asks while a board may be writing on the same connection
+            row = self.db.execute("SELECT 1 FROM signals WHERE starts > ? AND starts <= ? LIMIT 1",
+                                  (stamp(now), stamp(now + timedelta(minutes=minutes)))).fetchone()
         return row is not None
 
     # ----- reading

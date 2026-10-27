@@ -1,6 +1,14 @@
+import contextlib
+import hashlib
+import io
+import json
 import os
+import re
 import tempfile
+import threading
 import unittest
+import urllib.error
+import urllib.request
 
 import basketball as bb
 import clv
@@ -53,7 +61,7 @@ class FakeAPI:
         self.calls = 0
         self.requests = []
 
-    def prematch_snapshot(self, sport_id, since=None):
+    def prematch_snapshot(self, sport_id, since=None, alt_units=False):
         self.calls += 1
         self.requests.append(since)
         return {"events": self.delta if since else self.full, "last": 100 + self.calls}
@@ -742,7 +750,7 @@ class HockeyTests(unittest.TestCase):
 
     def test_only_tracked_leagues_are_kept(self):
         other = {**self.event(), "event_id": 5, "league_id": 1}
-        out = hockey.HockeyState.incoming(None, {"events": [self.event(), other]})
+        out = hockey.HockeyState(dash.History(path=None), str).incoming({"events": [self.event(), other]})
         self.assertEqual([e["event_id"] for e in out], [4])
 
     def test_drop_quotes_use_game_period_for_winner_and_regulation_for_the_rest(self):
@@ -1026,6 +1034,134 @@ class ClvTests(unittest.TestCase):
         state.clv = self.store
         state.board()
         self.assertIn("football", self.store.last_seen)
+
+
+class CompetitionTableTests(unittest.TestCase):
+    """Run after adding a league: duplicates or a missing badge colour fail here instead of in the UI."""
+
+    TABLES = {"football": dash.COMPETITIONS, "basketball": bb.COMPETITIONS, "hockey": hockey.COMPETITIONS}
+
+    @staticmethod
+    def duplicates(values):
+        seen, out = set(), set()
+        for v in values:
+            (out if v in seen else seen).add(v)
+        return out
+
+    def test_ids_keys_and_badge_codes_are_unique(self):
+        for sport, table in self.TABLES.items():
+            for field in ("id", "key", "code"):
+                with self.subTest(sport=sport, field=field):
+                    self.assertEqual(self.duplicates(c[field] for c in table), set())
+
+    def test_each_merkur_league_maps_to_one_competition(self):
+        football = [m for c in dash.COMPETITIONS for m in [c["merkur"], *c.get("merkur_also", [])]]
+        basketball = [m for c in bb.COMPETITIONS for m in (c["mx_id"], *c.get("mx_extra", ()))]
+        for sport, ids in (("football", football), ("basketball", basketball),
+                           ("hockey", [c["mx_id"] for c in hockey.COMPETITIONS])):
+            with self.subTest(sport=sport):
+                self.assertEqual(self.duplicates(ids), set())
+
+    def test_every_competition_has_a_badge_colour(self):
+        with open(os.path.join(os.path.dirname(dash.__file__), "frontend", "dashboard", "dashboard.css"),
+                  encoding="utf-8") as fh:
+            css = fh.read()
+        coloured = set(re.findall(r"\.comp-badge\.([\w-]+)", css))
+        for sport, table in self.TABLES.items():
+            with self.subTest(sport=sport):
+                self.assertEqual([c["key"] for c in table if c["key"] not in coloured], [])
+
+
+class BuildSyncTests(unittest.TestCase):
+    """The committed static/dashboard_build must be built from the current frontend source."""
+
+    @staticmethod
+    def source_hash(frontend):
+        # same files and algorithm as sourceHash() in frontend/vite.config.js
+        files = [os.path.join(dirpath, name) for dirpath, _, names in os.walk(os.path.join(frontend, "dashboard"))
+                 for name in names]
+        files += [os.path.join(frontend, name) for name in ("package.json", "package-lock.json", "vite.config.js")]
+        digest = hashlib.sha256()
+        for path in sorted(os.path.relpath(f, frontend).replace(os.sep, "/") for f in files):
+            with open(os.path.join(frontend, path), "rb") as fh:
+                digest.update(path.encode() + b"\0" + fh.read().replace(b"\r\n", b"\n") + b"\0")
+        return digest.hexdigest()
+
+    def test_bundle_matches_the_frontend_source(self):
+        root = os.path.dirname(os.path.abspath(dash.__file__))
+        with open(os.path.join(root, "static", "dashboard_build", "source-hash.txt"), encoding="utf-8") as fh:
+            built = fh.read().strip()
+        self.assertEqual(self.source_hash(os.path.join(root, "frontend")), built,
+                         "frontend/ changed since the last build: run `npm run build` in frontend/ and commit the bundle")
+
+
+class HistoryThreadTests(unittest.TestCase):
+    def test_save_while_another_sport_observes(self):
+        history = dash.History(path=os.path.join(tempfile.mkdtemp(), "history.json"))
+        errors = []
+
+        def observe():
+            for i in range(1000):
+                history.observe(kit_event(event_id=i), "2030-08-28T10:00:00Z")
+                history.count_calls(1)
+
+        def save():
+            try:
+                for _ in range(30):
+                    history.save()
+            except Exception as exc:  # before the lock: "dictionary changed size during iteration"
+                errors.append(exc)
+
+        threads = [threading.Thread(target=observe), threading.Thread(target=save), threading.Thread(target=save)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors, [])
+        self.assertEqual(history.calls_today(), 1000)
+
+
+class HandlerTests(unittest.TestCase):
+    def setUp(self):
+        self.server = dash.ThreadingHTTPServer(("127.0.0.1", 0), dash.Handler)
+        threading.Thread(target=self.server.serve_forever, args=(0.05,), daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def request(self, path, data=None, content_type=None):
+        req = urllib.request.Request(self.base + path, data=data, method="POST" if data is not None else "GET")
+        if content_type:
+            req.add_header("Content-Type", content_type)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return resp.status, json.loads(resp.read())
+        except urllib.error.HTTPError as err:
+            with err:
+                return err.code, json.loads(err.read())
+
+    def test_unexpected_error_is_a_json_500(self):
+        original = dash.drops_response
+        dash.drops_response = lambda query: {}["boom"]
+        try:
+            with contextlib.redirect_stderr(io.StringIO()):
+                status, body = self.request("/api/drops")
+        finally:
+            dash.drops_response = original
+        self.assertEqual(status, 500)
+        self.assertIn("KeyError", body["error"])
+
+    def test_config_accepts_only_json(self):
+        saved = []
+        original = dash.save_api_key
+        dash.save_api_key = saved.append
+        try:
+            status, _ = self.request("/api/config", b'{"apiKey": "x"}', "text/plain")
+        finally:
+            dash.save_api_key = original
+        self.assertEqual((status, saved), (415, []))
 
 
 class PriceHistoryTests(unittest.TestCase):

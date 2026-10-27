@@ -13,6 +13,7 @@ import os
 import re
 import threading
 import time
+import traceback
 import unicodedata
 import webbrowser
 from collections import deque
@@ -22,11 +23,14 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import basketball as bb
 import clv
+import common
 import hockey
 import tennis
 import merkur_client as mx
 import pinnwire_client as pw
 import price_history
+from common import event_ts, is_upcoming, merge_event, utc_now, utc_stamp
+from football_competitions import COMPETITIONS, HIDDEN_MISSING_LEAGUES
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, "data")
@@ -36,269 +40,6 @@ HISTORY_PATH = os.path.join(DATA, "dashboard_history.json")
 CLV_PATH = os.path.join(DATA, "clv.sqlite3")
 PRICES_PATH = os.path.join(DATA, "prices.sqlite3")
 
-# PinnWire league_id -> display info; order is the tab order in the UI.
-# `merkur` is the MerkurXtip `leagueShort` of the same competition, or its numeric `leagueId` when the
-# offer has no `leagueShort` for it.
-COMPETITIONS = [
-    {"id": 1980, "key": "epl", "name": "Premier League", "country": "Engleska", "code": "ENG", "merkur": "ENG PL"},
-    {"id": 2196, "key": "laliga", "name": "La Liga", "country": "Španija", "code": "ESP", "merkur": "ESP LL"},
-    {"id": 2436, "key": "seriea", "name": "Serie A", "country": "Italija", "code": "ITA", "merkur": "ITA SA"},
-    {"id": 1842, "key": "bundesliga", "name": "Bundesliga", "country": "Nemačka", "code": "GER", "merkur": "GER BL"},
-    {"id": 2036, "key": "ligue1", "name": "Ligue 1", "country": "Francuska", "code": "FRA", "merkur": "FRA L1"},
-    {"id": 2627, "key": "ucl", "name": "Liga šampiona", "country": "UEFA", "code": "UCL", "merkur": "UEFA CL"},
-    {"id": 2630, "key": "uel", "name": "Liga Evrope", "country": "UEFA", "code": "UEL", "merkur": "UEFA EL"},
-    {"id": 214101, "key": "uecl", "name": "Liga konferencija", "country": "UEFA", "code": "UECL",
-     "merkur": "UEFA ECFL"},
-    {"id": 2386, "key": "ligapt", "name": "Liga Portugal", "country": "Portugal", "code": "POR", "merkur": "POR LP"},
-    {"id": 1928, "key": "eredivisie", "name": "Eredivisie", "country": "Holandija", "code": "NED", "merkur": "NLD ERE"},
-    {"id": 2592, "key": "superlig", "name": "Süper Lig", "country": "Turska", "code": "TUR", "merkur": "TUR SL"},
-    {"id": 1977, "key": "championship", "name": "Championship", "country": "Engleska", "code": "ENG2",
-     "merkur": "ENG CH"},
-    {"id": 1843, "key": "bundesliga2", "name": "2. Bundesliga", "country": "Nemačka", "code": "GER2",
-     "merkur": "GER 2BL"},
-    {"id": 1817, "key": "jupiler", "name": "Jupiler Pro League", "country": "Belgija", "code": "BEL",
-     "merkur": "BEL PL"},
-    {"id": 210697, "key": "ligaarg", "name": "Liga Profesional", "country": "Argentina", "code": "ARG",
-     "merkur": "ARG LPF"},
-    {"id": 1913, "key": "superligadk", "name": "Superliga", "country": "Danska", "code": "DEN", "merkur": "DNK SL"},
-    {"id": 2517, "key": "superligach", "name": "Super League", "country": "Švajcarska", "code": "SUI",
-     "merkur": "SWI SL"},
-    {"id": 2432, "key": "laliga2", "name": "La Liga 2", "country": "Španija", "code": "ESP2", "merkur": "ESP LL2"},
-    {"id": 1834, "key": "brasileirao", "name": "Serie A", "country": "Brazil", "code": "BRA", "merkur": "BRA SA"},
-    {"id": 2374, "key": "ekstraklasa", "name": "Ekstraklasa", "country": "Poljska", "code": "POL",
-     "merkur": "POL EK"},
-    {"id": 2395, "key": "liga1ro", "name": "Liga 1", "country": "Rumunija", "code": "ROU", "merkur": "ROM SL"},
-    {"id": 2333, "key": "eliteserien", "name": "Eliteserien", "country": "Norveška", "code": "NOR",
-     "merkur": "NOR ES"},
-    {"id": 2421, "key": "scotprem", "name": "Premiership", "country": "Škotska", "code": "SCO", "merkur": "SCO PL"},
-    {"id": 2663, "key": "mls", "name": "MLS", "country": "SAD", "code": "MLS", "merkur": "USA MLS"},
-    {"id": 1957, "key": "leagueone", "name": "League One", "country": "Engleska", "code": "ENG3",
-     "merkur": "ENG L1"},
-    {"id": 1958, "key": "leaguetwo", "name": "League Two", "country": "Engleska", "code": "ENG4",
-     "merkur": "ENG L2"},
-    {"id": 1728, "key": "allsvenskan", "name": "Allsvenskan", "country": "Švedska", "code": "SWE",
-     "merkur": "SWE ALL"},
-    {"id": 5591, "key": "primeraco", "name": "Primera A", "country": "Kolumbija", "code": "COL",
-     "merkur": "COL PA"},
-    {"id": 2406, "key": "rpl", "name": "Premier liga", "country": "Rusija", "code": "RUS",
-     "merkur": "RUS PL"},
-    {"id": 1844, "key": "liga3", "name": "3. Liga", "country": "Nemačka", "code": "GER3",
-     "merkur": "GER 3L"},
-    {"id": 1891, "key": "firstligacz", "name": "1. liga", "country": "Češka", "code": "CZE",
-     "merkur": "CZE 1L"},
-    {"id": 10419, "key": "prosa", "name": "Pro liga", "country": "Saudijska Arabija", "code": "KSA",
-     "merkur": "SAU PRO"},
-    {"id": 2242, "key": "ligamx", "name": "Liga MX", "country": "Meksiko", "code": "MEX",
-     "merkur": "MEX MX"},
-    {"id": 1792, "key": "bundesligaat", "name": "Bundesliga", "country": "Austrija", "code": "AUT",
-     "merkur": "AUT BL"},
-    {"id": 2157, "key": "j1", "name": "J1 liga", "country": "Japan", "code": "JPN", "merkur": "JPN J1"},
-    {"id": 9320, "key": "parvaliga", "name": "Parva liga", "country": "Bugarska", "code": "BUL",
-     "merkur": "BUL PRV"},
-    {"id": 2434, "key": "superligasrb", "name": "Super liga", "country": "Srbija", "code": "SRB",
-     "merkur": "SRB SL"},
-    {"id": 1835, "key": "serieb_br", "name": "Serie B", "country": "Brazil", "code": "BRA2", "merkur": "BRA SB"},
-    {"id": 2037, "key": "ligue2", "name": "Ligue 2", "country": "Francuska", "code": "FRA2", "merkur": "FRA L2"},
-    {"id": 2438, "key": "serieb", "name": "Serie B", "country": "Italija", "code": "ITA2", "merkur": "ITA SB"},
-    {"id": 1875, "key": "libertadores", "name": "Copa Libertadores", "country": "CONMEBOL", "code": "CLIB",
-     "merkur": "CONM CL"},
-    {"id": 1739, "key": "primeranac", "name": "Primera Nacional", "country": "Argentina", "code": "ARG2",
-     "merkur": "ARG PN"},
-    {"id": 1766, "key": "aleague", "name": "A-League", "country": "Australija", "code": "AUS",
-     "merkur": "AUS AL"},
-    {"id": 1773, "key": "liga2at", "name": "2. Liga", "country": "Austrija", "code": "AUT2", "merkur": "AUT 2L"},
-    {"id": 1857, "key": "primerach", "name": "Primera Division", "country": "Čile", "code": "CHL",
-     "merkur": "CHL PD"},
-    {"id": 6417, "key": "csl", "name": "Super League", "country": "Kina", "code": "CHN", "merkur": "CHN SL"},
-    {"id": 1880, "key": "hnl", "name": "HNL", "country": "Hrvatska", "code": "CRO", "merkur": "CRO HNL"},
-    {"id": 197646, "key": "pl2", "name": "Premier League 2", "country": "Engleska", "code": "PL2",
-     "merkur": "ENG PL2"},
-    {"id": 2067, "key": "gercup", "name": "Kup", "country": "Nemačka", "code": "GERC", "merkur": "GER CUP"},
-    {"id": 10604, "key": "isralef", "name": "Liga Alef", "country": "Izrael", "code": "ISR2", "merkur": "ISR LAN",
-     "merkur_also": ["ISR LAS"]},
-    {"id": 1978, "key": "engnl", "name": "National League", "country": "Engleska", "code": "ENG5",
-     "merkur": "ENG NL"},
-    {"id": 1951, "key": "engnln", "name": "National League North", "country": "Engleska", "code": "ENG6N",
-     "merkur": "ENG NLN"},
-    {"id": 1952, "key": "engnls", "name": "National League South", "country": "Engleska", "code": "ENG6S",
-     "merkur": "ENG NLS"},
-    {"id": 201065, "key": "uslch", "name": "USL Championship", "country": "SAD", "code": "USL",
-     "merkur": "USA CH"},
-    {"id": 217400, "key": "seriecb", "name": "Serie C Grupa B", "country": "Italija", "code": "ITA3",
-     "merkur": "ITA SCB"},
-    {"id": 2159, "key": "j2", "name": "J2 liga", "country": "Japan", "code": "JPN2", "merkur": "JPN J2"},
-    {"id": 1929, "key": "eerste", "name": "Eerste Divisie", "country": "Holandija", "code": "NED2",
-     "merkur": "NLD EER"},
-    {"id": 2578, "key": "tur1l", "name": "1. Liga", "country": "Turska", "code": "TUR2", "merkur": "TUR 1L"},
-    {"id": 2366, "key": "perl1", "name": "Liga 1", "country": "Peru", "code": "PER", "merkur": "PER L1"},
-    {"id": 2368, "key": "pol2", "name": "2. Liga", "country": "Poljska", "code": "POL3", "merkur": "POL D2"},
-    {"id": 35174, "key": "rusfnl", "name": "Prva liga", "country": "Rusija", "code": "RUS2", "merkur": "RUS FNL"},
-    {"id": 5598, "key": "ecuLP", "name": "Serie A", "country": "Ekvador", "code": "ECU", "merkur": "ECU LP"},
-    {"id": 2133, "key": "isrll", "name": "Ligat Leumit", "country": "Izrael", "code": "ISR", "merkur": "ISR LL"},
-    {"id": 207552, "key": "kor2", "name": "K liga 2", "country": "Južna Koreja", "code": "KOR", "merkur": "KOR K2"},
-    {"id": 2331, "key": "nor1", "name": "1. divizija", "country": "Norveška", "code": "NOR2", "merkur": "NOR OL"},
-    {"id": 6633, "key": "pol1", "name": "1. Liga", "country": "Poljska", "code": "POL2", "merkur": "POL D1"},
-    {"id": 2513, "key": "swed1s", "name": "Division 1 Södra", "country": "Švedska", "code": "SWE3",
-     "merkur": "SWE D1S"},
-    {"id": 2476, "key": "superettan", "name": "Superettan", "country": "Švedska", "code": "SWE2",
-     "merkur": "SWE SUP"},
-    {"id": 2650, "key": "ukrpl", "name": "Premijer liga", "country": "Ukrajina", "code": "UKR",
-     "merkur": "UKR PL"},
-    {"id": 5593, "key": "uru1", "name": "Primera Division", "country": "Urugvaj", "code": "URU",
-     "merkur": "URU 1D"},
-    {"id": 8667, "key": "algl1", "name": "Ligue 1", "country": "Alžir", "code": "ALG", "merkur": "ALG L1"},
-    {"id": 228207, "key": "tuu19", "name": "U19 liga", "country": "Turska", "code": "TURU19", "merkur": "TUR U19"},
-    {"id": 198316, "key": "engpdl", "name": "Professional Development League", "country": "Engleska",
-     "code": "PDL", "merkur": "ENG PDL"},
-    {"id": 212294, "key": "alb1", "name": "Prva liga", "country": "Albanija", "code": "ALB", "merkur": "ALB 1D",
-     "merkur_also": ["Albania"]},
-    {"id": 1881, "key": "cropnl", "name": "Prva NL", "country": "Hrvatska", "code": "CRO2", "merkur": "CRO PNL"},
-    {"id": 212479, "key": "zafch", "name": "Championship", "country": "Južna Afrika", "code": "RSA",
-     "merkur": "ZAF CH"},
-    {"id": 202276, "key": "poru23", "name": "Liga Revelação U23", "country": "Portugal", "code": "PORU23",
-     "merkur": "POR U23"},
-    {"id": 211248, "key": "sau2", "name": "Divizija 2", "country": "Saudijska Arabija", "code": "KSA2",
-     "merkur": "SAU D2",
-     "merkur_also": ["Saudi Arabia"]},
-    {"id": 194738, "key": "austriabw", "name": "Bundesliga (žene)", "country": "Austrija", "code": "AUTW", "merkur": "AUT BLW"},
-    {"id": 1786, "key": "autrw", "name": "Regionalliga zapad", "country": "Austrija", "code": "AUT3W", "merkur": "AUT RW"},
-    {"id": 1818, "key": "belcpl", "name": "Challenger Pro liga", "country": "Belgija", "code": "BEL2", "merkur": "BEL CPL"},
-    {"id": 209638, "key": "belu21", "name": "Pro liga U21", "country": "Belgija", "code": "BELU21", "merkur": "BEL U21"},
-    {"id": 200752, "key": "cafcc", "name": "Kup konfederacije (kval.)", "country": "CAF", "code": "CAFCC", "merkur": "CAF CC"},
-    {"id": 9441, "key": "fnlcz", "name": "FNL", "country": "Češka", "code": "CZE2", "merkur": "CZE D2"},
-    {"id": 191393, "key": "dnk2", "name": "2. divizija", "country": "Danska", "code": "DEN2", "merkur": "DNK 2D"},
-    {"id": 209095, "key": "fro1", "name": "1. Deild", "country": "Farska Ostrva", "code": "FRO", "merkur": "FRO 1D"},
-    {"id": 2033, "key": "fraw", "name": "Division 1 (žene)", "country": "Francuska", "code": "FRAW", "merkur": "FRA PLW"},
-    {"id": 1845, "key": "gerbw", "name": "Bundesliga (žene)", "country": "Nemačka", "code": "GERW", "merkur": "GER BLW"},
-    {"id": 197088, "key": "islbw", "name": "Besta deild (žene)", "country": "Island", "code": "ISLW", "merkur": "ICE BDW"},
-    {"id": 201890, "key": "ltu1", "name": "1 Lyga", "country": "Litvanija", "code": "LTU", "merkur": "LTU IL"},
-    {"id": 218533, "key": "ned3", "name": "Derde Divisie", "country": "Holandija", "code": "NED3", "merkur": "NLD DD"},
-    {"id": 286332, "key": "nor3", "name": "3. divizija", "country": "Norveška", "code": "NOR3", "merkur": "NOR 3D"},
-    {"id": 196861, "key": "norw", "name": "Toppserien (žene)", "country": "Norveška", "code": "NORW", "merkur": "NOR TSW"},
-    {"id": 285670, "key": "sle", "name": "Premier liga", "country": "Sijera Leone", "code": "SLE", "merkur": "SLE PD"},
-    {"id": 210303, "key": "svk3", "name": "3. liga", "country": "Slovačka", "code": "SVK3", "merkur": "SVK 3L"},
-    {"id": 2468, "key": "espw", "name": "Primera Division (žene)", "country": "Španija", "code": "ESPW", "merkur": "ESP PDW"},
-    {"id": 1903, "key": "swew", "name": "Damallsvenskan", "country": "Švedska", "code": "SWEW", "merkur": "SWE ALW"},
-    {"id": 2626, "key": "uae2", "name": "Divizija 2", "country": "UAE", "code": "UAE", "merkur": "UAE D2"},
-    {"id": 242216, "key": "uslw", "name": "USL Super League (žene)", "country": "SAD", "code": "USLW", "merkur": "USA SLW"},
-    {"id": 2387, "key": "poru2", "name": "Liga Portugal 2", "country": "Portugal", "code": "POR2", "merkur": "POR LP2"},
-    {"id": 215919, "key": "jpnwe", "name": "WE liga (žene)", "country": "Japan", "code": "JPNW", "merkur": "JPN NLW"},
-    {"id": 10030, "key": "aleaguew", "name": "A-League (žene)", "country": "Australija", "code": "AUSW", "merkur": "AUS AW",
-     "merkur_also": [2392126]},
-    {"id": 7167, "key": "azepl", "name": "Premier liga", "country": "Azerbejdžan", "code": "AZE", "merkur": "AZE PL"},
-    {"id": 202447, "key": "belamat", "name": "Prva amaterska divizija", "country": "Belgija", "code": "BEL3", "merkur": "BEL ND1"},
-    {"id": 213349, "key": "chnl2", "name": "Yi liga", "country": "Kina", "code": "CHN3", "merkur": "CHN YI"},
-    {"id": 1887, "key": "cypd1", "name": "Prva divizija", "country": "Kipar", "code": "CYP", "merkur": "CYP D1"},
-    {"id": 201192, "key": "cze3", "name": "3. liga (CFL)", "country": "Češka", "code": "CZE3", "merkur": "CZE CFL"},
-    {"id": 214819, "key": "dnk3", "name": "3. divizija", "country": "Danska", "code": "DEN3", "merkur": "DEN 3D"},
-    {"id": 1904, "key": "dnk1", "name": "1. divizija", "country": "Danska", "code": "DEN2D", "merkur": "DNK 1D"},
-    {"id": 9885, "key": "egypl", "name": "Premier liga", "country": "Egipat", "code": "EGY", "merkur": "EGY PL"},
-    {"id": 1982, "key": "eflcup", "name": "EFL kup", "country": "Engleska", "code": "EFLC", "merkur": "ENG EFL"},
-    {"id": 8713, "key": "wsl", "name": "Women's Super League", "country": "Engleska", "code": "WSL", "merkur": "ENG WSL"},
-    {"id": 272318, "key": "mexu21", "name": "Liga MX U21", "country": "Meksiko", "code": "MEXU21", "merkur": "MEX U21"},
-    {"id": 286307, "key": "pol3", "name": "3. liga", "country": "Poljska", "code": "POL4", "merkur": "POL D3"},
-    {"id": 201290, "key": "nwsl", "name": "NWSL (žene)", "country": "SAD", "code": "NWSL", "merkur": "USA NWSL"},
-    {"id": 201165, "key": "ligamxw", "name": "Liga MX (žene)", "country": "Meksiko", "code": "MEXW", "merkur": "MEX MXW"},
-    {"id": 10078, "key": "j3", "name": "J3 liga", "country": "Japan", "code": "JPN3", "merkur": "JPN J3"},
-    {"id": 199710, "key": "rou2", "name": "Liga 2", "country": "Rumunija", "code": "ROU2", "merkur": "ROM L2"},
-    {"id": 6418, "key": "kazpl", "name": "Premier liga", "country": "Kazahstan", "code": "KAZ", "merkur": "KAZ PL"},
-    {"id": 187661, "key": "dnkw", "name": "Elitedivisionen (žene)", "country": "Danska", "code": "DENW", "merkur": "DNK ALW",
-     "merkur_also": [2388608]},
-    {"id": 2088, "key": "gtm", "name": "Liga Nacional", "country": "Gvatemala", "code": "GTM", "merkur": "GTM LN"},
-    {"id": 201139, "key": "svk2", "name": "2. liga", "country": "Slovačka", "code": "SVK2", "merkur": "SVK 2L"},
-    {"id": 2253, "key": "botola", "name": "Botola Pro", "country": "Maroko", "code": "MAR", "merkur": "MAR PRO"},
-    {"id": 2642, "key": "uclw", "name": "Liga šampiona (žene)", "country": "UEFA", "code": "UCLW", "merkur": "UEFA CLW"},
-    {"id": 2027, "key": "fraligue3", "name": "Ligue 3", "country": "Francuska", "code": "FRA", "merkur": "FRA L3"},
-    {"id": 2409, "key": "ruscup", "name": "Cup", "country": "Rusija", "code": "RUS", "merkur": "RUS CUP"},
-    {"id": 1708, "key": "afcchampionsle", "name": "Champions League Elite", "country": "AFC", "code": "AFC", "merkur": "AFC CL"},
-    {"id": 2095, "key": "hunnb1", "name": "NB 1", "country": "Mađarska", "code": "HUN", "merkur": "HUN NB1"},
-    {"id": 199211, "key": "idnsuperleague", "name": "Super League", "country": "Indonezija", "code": "IDN", "merkur": "IDN L1"},
-    {"id": 2120, "key": "irlpremier", "name": "Premier", "country": "Irska", "code": "IRL", "merkur": "IRL PD"},
-    {"id": 2136, "key": "isrpremierleag", "name": "Premier League", "country": "Izrael", "code": "ISR", "merkur": "ISR LH"},
-    {"id": 2129, "key": "isrstatecup", "name": "State Cup", "country": "Izrael", "code": "ISR", "merkur": "ISR CUP"},
-    {"id": 2259, "key": "nirpremiership", "name": "Premiership", "country": "Severna Irska", "code": "NIR", "merkur": "NIR PRM"},
-    {"id": 2457, "key": "svnprvaliga", "name": "Prva Liga", "country": "Slovenija", "code": "SVN", "merkur": "SLO 1L"},
-    {"id": 2518, "key": "suichallengele", "name": "Challenge League", "country": "Švajcarska", "code": "SUI", "merkur": "SWI CL"},
-    {"id": 201236, "key": "tunleague2", "name": "League 2", "country": "Tunis", "code": "TUN", "merkur": "TUN L2"},
-    {"id": 197559, "key": "engefltrophy", "name": "EFL Trophy", "country": "Engleska", "code": "ENG", "merkur": "ENG EFLT"},
-    {"id": 211244, "key": "ethpremierleag", "name": "Premier League", "country": "Etiopija", "code": "ETH", "merkur": "ETH PL"},
-    {"id": 209758, "key": "mexligadeexpan", "name": "Liga de Expansión MX", "country": "Meksiko", "code": "MEX", "merkur": "MEX EXP"},
-    {"id": 2417, "key": "scochampionshi", "name": "Championship", "country": "Škotska", "code": "SCO", "merkur": "SCO CH"},
-    {"id": 2453, "key": "svksuperliga", "name": "Super Liga", "country": "Slovačka", "code": "SVK", "merkur": "SVK SL"},
-    {"id": 201151, "key": "argprimeracmet", "name": "Primera C Metropolitana", "country": "Argentina", "code": "ARG", "merkur": "ARG PC"},
-    {"id": 201167, "key": "bhr2nddivision", "name": "2nd Division", "country": "Bahrein", "code": "BHR", "merkur": "BHR 2L"},
-    {"id": 2024, "key": "finveikkauslii", "name": "Veikkausliiga", "country": "Finska", "code": "FIN", "merkur": "FIN VKL"},
-    {"id": 10600, "key": "ksadivision1", "name": "Division 1", "country": "Saudijska Arabija", "code": "KSA", "merkur": "SAU D1"},
-    {"id": 5595, "key": "bolprimeradivi", "name": "Primera Division", "country": "Bolivija", "code": "BOL", "merkur": "BOL DP"},
-    {"id": 1833, "key": "bracup", "name": "Cup", "country": "Brazil", "code": "BRA", "merkur": "BRA CUP"},
-    {"id": 280564, "key": "irqpremierdivi", "name": "Premier Division", "country": "Irak", "code": "IRQ", "merkur": "Iraq"},
-    {"id": 2123, "key": "irldivision1", "name": "Division 1", "country": "Irska", "code": "IRL", "merkur": "IRL D1"},
-    {"id": 217399, "key": "itaseriecgroup", "name": "Serie C Group C", "country": "Italija", "code": "ITA", "merkur": "ITA SCC"},
-    {"id": 10407, "key": "jampremierleag", "name": "Premier League", "country": "Jamajka", "code": "JAM", "merkur": "JAM PL"},
-    {"id": 2238, "key": "mltpremierleag", "name": "Premier League", "country": "Malta", "code": "MLT", "merkur": "MLT PL"},
-    {"id": 201859, "key": "pardivisionint", "name": "Division Intermedia", "country": "Paragvaj", "code": "PAR", "merkur": "PRY DI"},
-    {"id": 210207, "key": "uzbproleague", "name": "Pro League", "country": "Uzbekistan", "code": "UZB", "merkur": 2403773},
-    {"id": 1741, "key": "argcup", "name": "Cup", "country": "Argentina", "code": "ARG", "merkur": "ARG COP"},
-    {"id": 201149, "key": "argprimerabmet", "name": "Primera B Metropolitana", "country": "Argentina", "code": "ARG", "merkur": "ARG PB"},
-    {"id": 191700, "key": "armcup", "name": "Cup", "country": "Jermenija", "code": "ARM", "merkur": "ARM CUP"},
-    {"id": 1742, "key": "armpremierleag", "name": "Premier League", "country": "Jermenija", "code": "ARM", "merkur": "ARM PL"},
-    {"id": 2472, "key": "conmcopasudame", "name": "Copa Sudamericana", "country": "CONMEBOL", "code": "CONM", "merkur": "CONM CS"},
-    {"id": 9531, "key": "crcprimeradivi", "name": "Primera Division", "country": "Kostarika", "code": "CRC", "merkur": "CRI PD"},
-    {"id": 1882, "key": "crocup", "name": "Cup", "country": "Hrvatska", "code": "CRO", "merkur": "CRO CUP"},
-    {"id": 1989, "key": "estmeistriliig", "name": "Meistriliiga", "country": "Estonija", "code": "EST", "merkur": "EST ML"},
-    {"id": 10236, "key": "geoerovnulilig", "name": "Erovnuli Liga", "country": "Gruzija", "code": "GEO", "merkur": "GEO EL"},
-    {"id": 206711, "key": "gresuperleague", "name": "Super League 2", "country": "Grčka", "code": "GRE", "merkur": "GRE SL2"},
-    {"id": 10083, "key": "indsuperleague", "name": "Super League", "country": "Indija", "code": "IND", "merkur": "IND ISL"},
-    {"id": 212466, "key": "kgzpremierleag", "name": "Premier League", "country": "Kirgistan", "code": "KGZ", "merkur": "Kyrgyzstan"},
-    {"id": 2203, "key": "lvavirsliga", "name": "Virsliga", "country": "Letonija", "code": "LVA", "merkur": "LVA VIR"},
-    {"id": 2211, "key": "ltualyga", "name": "A Lyga", "country": "Litvanija", "code": "LTU", "merkur": "LTU AL"},
-    {"id": 10573, "key": "panprimeradivi", "name": "Primera Division", "country": "Panama", "code": "PAN", "merkur": "PAN LPF"},
-    {"id": 201986, "key": "perliga2", "name": "Liga 2", "country": "Peru", "code": "PER", "merkur": "PER L2"},
-    {"id": 2418, "key": "scoleagueone", "name": "League One", "country": "Škotska", "code": "SCO", "merkur": "SCO L1"},
-    {"id": 210554, "key": "sgppremierleag", "name": "Premier League", "country": "Singapur", "code": "SGP", "merkur": "SGP PL"},
-    {"id": 200748, "key": "thaleague2", "name": "League 2", "country": "Tajland", "code": "THA", "merkur": "THA L2"},
-    {"id": 205369, "key": "urusegundadivi", "name": "Segunda Division", "country": "Urugvaj", "code": "URU", "merkur": "URU 2D"},
-    {"id": 202026, "key": "uzbsuperleague", "name": "Super League", "country": "Uzbekistan", "code": "UZB", "merkur": "UZB SL"},
-    {"id": 226450, "key": "argresleague", "name": "Liga Pro rezerve", "country": "Argentina", "code": "ARGR", "merkur": "ARG RES"},
-    {"id": 218775, "key": "botpremierleag", "name": "Premier League", "country": "Bocvana", "code": "BOT", "merkur": "Botswana"},
-    {"id": 1908, "key": "dnkcup", "name": "Kup", "country": "Danska", "code": "DENC", "merkur": "DNK CUP"},
-    {"id": 283292, "key": "engslsouth", "name": "Southern Premier League South", "country": "Engleska", "code": "ENG7S", "merkur": "ENG SLSD"},
-    {"id": 2373, "key": "polcup", "name": "Kup", "country": "Poljska", "code": "POLC", "merkur": "POL CUP"},
-    {"id": 2647, "key": "ukrcup", "name": "Kup", "country": "Ukrajina", "code": "UKRC", "merkur": "UKR CUP"},
-    {"id": 214839, "key": "urures", "name": "Rezervna liga", "country": "Urugvaj", "code": "URUR", "merkur": "URU RES"},
-    {"id": 201256, "key": "vnmv2", "name": "V League 2", "country": "Vijetnam", "code": "VNM", "merkur": "VNM V2"},
-    {"id": 209885, "key": "nedu21", "name": "U21 Divisie", "country": "Holandija", "code": "NEDU21", "merkur": "NLD U21",
-     "merkur_also": [2390684]},
-    {"id": 8128, "key": "qatsl", "name": "Stars League", "country": "Katar", "code": "QAT", "merkur": "QAT QSL"},
-]
-# PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
-HIDDEN_MISSING_LEAGUES = {
-    "Algeria - U20 League",
-    "Algeria - Championship Elite Women",
-    "Thailand - League 1 Women",
-    "North Macedonia - U19 League",
-    "Slovakia - U19 League",
-    "Kenya - Premier League Women",
-    "India - Bangalore Super Division",
-    "China - U20 League",
-    "Georgia - Liga 3",
-    "Jordan - U21 Federation Shield",
-    "Israel - Liga Bet",
-    "South Africa - Super League Women",
-    "Slovenia - U19 League",
-    "India - Mizoram Premier League",
-    "Bolivia - Liga Nacional U19",
-    "Mexico - Liga TDP",
-    "Czech Republic - 4. Liga",
-    "Saudi Arabia - Premier League Women",
-    "Belgium - Division 1 Women",
-    "Kosovo - Superliga U19",
-    "Myanmar - Women League",
-    "India - I-League 3",
-    "Austria - Amateur Cup",
-    "Jordan - U20 League",
-    "Uruguay - Primera Division Amateur",
-}
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
 # `merkur_also`: further MerkurXtip leagues that PinnWire quotes under the same league_id
 MERKUR_COMP = {m: c["id"] for c in COMPETITIONS for m in [c["merkur"], *c.get("merkur_also", [])]}
@@ -318,7 +59,6 @@ STATIC_TYPES = {
     ".svg": "image/svg+xml",
     ".ico": "image/x-icon",
 }
-FULL_RELOAD_SECONDS = 3600  # take a fresh full snapshot at least hourly; deltas in between
 ML_SIDES = ("home", "draw", "away")
 
 
@@ -351,39 +91,8 @@ def save_api_key(api_key):
     os.replace(temp_path, CONFIG_PATH)
 
 
-def utc_now():
-    return datetime.now(timezone.utc)
-
-
-def utc_stamp():
-    return utc_now().isoformat(timespec="seconds").replace("+00:00", "Z")
-
-
-def parse_time(value):
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
 def is_tracked(event):
     return event.get("league_id") in LEAGUE_IDS and pw.is_main_fixture(event)
-
-
-def is_upcoming(event, now=None):
-    starts = parse_time(event.get("starts") or event.get("start_ts") or "")
-    return starts is None or starts > (now or utc_now())
-
-
-def merge_event(old, new):
-    """Apply a delta event on top of the stored one, market by market per period."""
-    merged = {**old, **{k: v for k, v in new.items() if k != "periods"}}
-    periods = dict(old.get("periods") or {})
-    for key, markets in (new.get("periods") or {}).items():
-        if isinstance(markets, dict):
-            periods[key] = {**(periods.get(key) or {}), **markets}
-    merged["periods"] = periods
-    return merged
 
 
 # ------------------------------------------------------------------------- shaping
@@ -490,22 +199,12 @@ def pinnacle_lines(event, number):
     """Pinnacle prices of one period keyed like merkur_client.markets()."""
     event = clean_ah0(event)
     markets = pw.period(event, number)
-
-    def by_line(lines, key, sides, market):
-        out = {}
-        for line in (lines or {}).values():
-            if isinstance(line, dict) and line.get(key) is not None and pw.allowed_line(float(line[key]), market):
-                prices = pw.priced(line, sides)
-                if len(prices) == len(sides):
-                    out[float(line[key])] = prices
-        return out
-
     ml = pw.priced(markets.get("money_line") or {}, ML_SIDES)
     return {
         "ml": ml if len(ml) == 3 else None,
-        "totals": by_line(markets.get("totals"), "points", ("over", "under"), "totals"),
-        "spreads": by_line(markets.get("spreads"), "hdp", ("home", "away"), "spreads"),
-        "teamTotals": {side: by_line(lines, "points", ("over", "under"), "totals")
+        "totals": pw.ladder(markets.get("totals"), "points", ("over", "under")),
+        "spreads": pw.ladder(markets.get("spreads"), "hdp", ("home", "away"), "spreads"),
+        "teamTotals": {side: pw.ladder(lines, "points", ("over", "under"))
                        for side, lines in (markets.get("team_totals") or {}).items() if isinstance(lines, dict)},
     }
 
@@ -514,47 +213,11 @@ def pinnacle_max(event, number):
     """Pinnacle limit (max bet) per line, shaped like pinnacle_lines(); the 1X2 price carries no limit."""
     event = clean_ah0(event)
     markets = pw.period(event, number)
-
-    def by_line(lines, key, market):
-        out = {}
-        for line in (lines or {}).values():
-            if isinstance(line, dict) and line.get(key) is not None and pw.allowed_line(float(line[key]), market):
-                out[float(line[key])] = line.get("max")
-        return out
-
     return {
-        "totals": by_line(markets.get("totals"), "points", "totals"),
-        "spreads": by_line(markets.get("spreads"), "hdp", "spreads"),
-        "teamTotals": {side: by_line(lines, "points", "totals")
+        "totals": pw.ladder_limits(markets.get("totals"), "points"),
+        "spreads": pw.ladder_limits(markets.get("spreads"), "hdp", "spreads"),
+        "teamTotals": {side: pw.ladder_limits(lines, "points")
                        for side, lines in (markets.get("team_totals") or {}).items() if isinstance(lines, dict)},
-    }
-
-
-def compare_row(group, line, labels, merkur, pinnacle, derived=False, max_bet=None):
-    """One market: Merkur odds against Pinnacle fair odds. ev = Merkur / fair - 1.
-
-    `merkur` may hold only some of the sides (a handicap derived from a European handicap has one);
-    only the sides Merkur prices become outcomes. The Merkur margin needs both sides of a direct
-    two-way price, so it is None for partial and derived rows.
-    """
-    fair, pin_margin = pw.fair_odds(pinnacle)
-    outcomes = []
-    for key, label in labels:
-        if key not in merkur:
-            continue
-        ev = merkur[key] / fair[key] - 1
-        outcomes.append({"key": key, "label": label, "merkur": merkur[key], "pinnacle": pinnacle[key],
-                         "fair": round(fair[key], 3), "ev": round(ev, 4)})
-    complete = not derived and len(outcomes) == len(labels)
-    return {
-        "group": group,
-        "line": line,
-        "outcomes": outcomes,
-        "derived": derived,
-        "merkurMargin": round((sum(1 / o for o in merkur.values()) - 1) * 100, 2) if complete else None,
-        "pinnacleMargin": pin_margin,
-        "maxBet": max_bet,
-        "maxEv": max(o["ev"] for o in outcomes),
     }
 
 
@@ -565,29 +228,24 @@ def compare_period(event, merkur_period, number):
     for key, group, labels in COMPARE_GROUPS:
         if key == "ml":
             if merkur_period.get("ml") and pin["ml"]:
-                rows.append(compare_row(group, None, labels, merkur_period["ml"], pin["ml"]))
+                rows.append(common.compare_row(group, None, labels, merkur_period["ml"], pin["ml"]))
             continue
         for line in sorted(merkur_period.get(key) or {}):
             if line in pin[key]:
                 derived = key == "spreads" and line in merkur_period.get("derived", ())
-                rows.append(compare_row(group, line, labels, merkur_period[key][line], pin[key][line], derived,
-                                        limits[key].get(line)))
+                rows.append(common.compare_row(group, line, labels, merkur_period[key][line], pin[key][line],
+                                               limits[key].get(line), derived))
     for side, group in (("home", "Golovi domaćin"), ("away", "Golovi gost")):
         pin_side = pin["teamTotals"].get(side) or {}
         for line, prices in sorted(((merkur_period.get("teamTotals") or {}).get(side) or {}).items()):
             if line in pin_side:
-                rows.append(compare_row(group, line, OU_SIDES, prices, pin_side[line],
-                                        max_bet=limits["teamTotals"].get(side, {}).get(line)))
+                rows.append(common.compare_row(group, line, OU_SIDES, prices, pin_side[line],
+                                               limits["teamTotals"].get(side, {}).get(line)))
     return rows
 
 
 def merkur_ts(row):
     return row.get("kickOffTime") or 0
-
-
-def event_ts(event):
-    starts = parse_time(event.get("starts") or event.get("start_ts") or "")
-    return int(starts.timestamp() * 1000) if starts else 0
 
 
 def merkur_info(row, event, score=None):
@@ -602,49 +260,23 @@ def merkur_info(row, event, score=None):
     }
 
 
+PERIOD_LABELS = {"ft": "Ceo meč", "ht": "1. poluvreme"}
+PREFIXES = {"ft": "", "ht": "1.pol "}
+
+
+def period_rows(rows):
+    """{"ft": rows, "ht": rows} -> [(period key, row)]"""
+    return [(period, r) for period in ("ft", "ht") for r in rows[period]]
+
+
 def value_items(match, rows):
     """Every outcome where the MerkurXtip price beats the Pinnacle price (with margin), one row each."""
-    items = []
-    for period, period_label in (("ft", "Ceo meč"), ("ht", "1. poluvreme")):
-        for r in rows[period]:
-            for o in r["outcomes"]:
-                if o["merkur"] <= o["pinnacle"]:
-                    continue
-                label = o["label"]
-                if r["group"] == "Hendikep":
-                    label = match["home"] if o["key"] == "home" else match["away"]
-                items.append({
-                    "matchId": match["id"],
-                    "period": period,
-                    "periodLabel": period_label,
-                    "group": r["group"],
-                    "line": r["line"],
-                    "key": o["key"],
-                    "label": label,
-                    "merkur": o["merkur"],
-                    "pinnacle": o["pinnacle"],
-                    "fair": o["fair"],
-                    "ev": o["ev"],
-                    "overPinnacle": round(o["merkur"] / o["pinnacle"] - 1, 4),
-                    "merkurMargin": r["merkurMargin"],
-                    "derived": r["derived"],
-                    "pinnacleMargin": r["pinnacleMargin"],
-                })
-    return pw.best_per_line_market(items)
+    def label(r, o):
+        if r["group"] == "Hendikep":
+            return match["home"] if o["key"] == "home" else match["away"]
+        return o["label"]
 
-
-def best_edge(rows):
-    best = None
-    for period, prefix in (("ft", ""), ("ht", "1.pol ")):
-        for r in rows[period]:
-            for o in r["outcomes"]:
-                if best is None or o["ev"] > best["ev"]:
-                    if r["group"] == "Hendikep" and r["line"] == 0:
-                        market = "X vraća ulog"  # AH 0 = MerkurXtip draw no bet
-                    else:
-                        market = r["group"] + ("" if r["line"] is None else f" {r['line']:g}")
-                    best = {"ev": o["ev"], "label": f"{prefix}{market} {o['label']}"}
-    return best
+    return common.value_items(match["id"], period_rows(rows), PERIOD_LABELS, label=label)
 
 
 def merkur_summary(row, event, score):
@@ -658,7 +290,7 @@ def merkur_summary(row, event, score):
         "margin": ml["merkurMargin"] if ml else None,
         "totals": [r for r in rows["ft"] if r["group"] == "Ukupno golova"],
         "rows": rows,
-        "best": best_edge(rows),
+        "best": common.best_edge(period_rows(rows), PREFIXES),
         "compared": len(rows["ft"]) + len(rows["ht"]),
     }
 
@@ -713,13 +345,10 @@ def pair_events(events, offer):
     return {pid: (m["row"], score) for pid, (m, score) in mx.pair(pin, mer, PAIR_WINDOW).items()}
 
 
-def unpaired_hints(events, offer):
+def unpaired_hints(events, offer, pairs):
     """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
     pin, mer = pair_inputs(events, offer)
-    paired = mx.pair(pin, mer, PAIR_WINDOW)
-    ts = {p["id"]: p["ts"] for p in pin}
-    return {pid: {"home": m["home"], "away": m["away"], "score": score, "kickoffDiff": round((m["ts"] - ts[pid]) / 60000)}
-            for pid, (m, score) in mx.closest_unpaired(pin, mer, paired, PAIR_WINDOW).items()}
+    return mx.hints(pin, mer, pairs, PAIR_WINDOW)
 
 
 # Matches of leagues that are not in COMPETITIONS: the whole PinnWire feed is paired against the whole MerkurXtip
@@ -780,20 +409,21 @@ def unpaired_other(events, offer, used):
     mer = [{"id": r["id"], "comp": "*", "home": r.get("home", ""), "away": r.get("away", ""),
             "ts": merkur_ts(r), "row": r} for r in offer if r["id"] not in used and mx.is_prematch(r)]
     paired = mx.pair(pin, mer, OTHER_WINDOW, OTHER_MIN_SCORE, other_score)
-    ts = {p["id"]: p["ts"] for p in pin}
-    hints = {pid: {"home": m["home"], "away": m["away"], "score": score,
-                   "kickoffDiff": round((m["ts"] - ts[pid]) / 60000)}
-             for pid, (m, score) in mx.closest_unpaired(pin, mer, paired, OTHER_WINDOW, other_score).items()}
+    hints = mx.hints(pin, mer, paired, OTHER_WINDOW, other_score)
     return {p["id"] for p in pin} - paired.keys(), hints, {pid: m["row"] for pid, (m, _) in paired.items()}
 
 
 # ------------------------------------------------------------------------- state
 
 class History:
-    """Opening and previous 1X2 prices per event plus a daily request counter, kept on disk."""
+    """Opening and previous 1X2 prices per event plus a daily request counter, kept on disk.
+
+    Shared by every sport state, so each method takes the lock: a board of one sport may save while another
+    sport's fetch is counting calls or football's is observing prices."""
 
     def __init__(self, path=HISTORY_PATH):
         self.path = path
+        self.lock = threading.Lock()
         self.data = {"events": {}, "usage": {}}
         if not path:
             return
@@ -806,127 +436,75 @@ class History:
             pass
 
     def track(self, event_id):
-        return self.data["events"].get(str(event_id)) or {}
+        with self.lock:
+            return dict(self.data["events"].get(str(event_id)) or {})
 
     def observe(self, event, stamp):
         ml = pw.priced(pw.full_match(event).get("money_line") or {}, ML_SIDES)
         if len(ml) < 3:
             return
         key = str(event.get("event_id"))
-        track = self.data["events"].setdefault(key, {})
-        if "open" not in track:
-            track.update(open=ml, openAt=stamp, last=ml)
-        elif track.get("last") != ml:
-            track.update(prev=track.get("last"), last=ml, changedAt=stamp)
+        with self.lock:
+            track = self.data["events"].setdefault(key, {})
+            if "open" not in track:
+                track.update(open=ml, openAt=stamp, last=ml)
+            elif track.get("last") != ml:
+                track.update(prev=track.get("last"), last=ml, changedAt=stamp)
 
     def count_calls(self, calls):
         today = utc_now().date().isoformat()
-        usage = self.data.get("usage") or {}
-        if usage.get("date") != today:
-            usage = {"date": today, "calls": 0}
-        usage["calls"] += calls
-        self.data["usage"] = usage
+        with self.lock:
+            usage = self.data.get("usage") or {}
+            if usage.get("date") != today:
+                usage = {"date": today, "calls": 0}
+            usage["calls"] += calls
+            self.data["usage"] = usage
 
     def calls_today(self):
-        usage = self.data.get("usage") or {}
-        return usage.get("calls", 0) if usage.get("date") == utc_now().date().isoformat() else 0
+        with self.lock:
+            usage = self.data.get("usage") or {}
+            return usage.get("calls", 0) if usage.get("date") == utc_now().date().isoformat() else 0
 
     def prune(self, keep_ids):
         keep = {str(i) for i in keep_ids}
-        self.data["events"] = {k: v for k, v in self.data["events"].items() if k in keep}
+        with self.lock:
+            self.data["events"] = {k: v for k, v in self.data["events"].items() if k in keep}
 
     def save(self):
         if not self.path:
             return
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(self.data, fh, ensure_ascii=False)
-        os.replace(tmp, self.path)
+        with self.lock:  # also keeps two threads from writing the same .tmp file
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(self.data, fh, ensure_ascii=False)
+            for attempt in range(5):
+                try:
+                    os.replace(tmp, self.path)
+                    return
+                except PermissionError:  # Windows: a virus scanner or indexer briefly holds the new file
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.05)
 
 
-class DashboardState:
+class DashboardState(common.SnapshotState):
+    """Football board. The snapshot keeps every main fixture of the feed (the "Nedostaju" view pairs the leagues
+    outside COMPETITIONS too); only COMPETITIONS are compared and tracked in History."""
+
     def __init__(self, history=None, merkur=None):
-        self.lock = threading.Lock()
-        self.merkur = merkur or mx.OfferCache()
-        self.merkur_lock = threading.Lock()
-        self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
-        self.quotes = {}  # PinnWire event id -> (board match id, MerkurXtip prices by drop_key), from the last board
-        self.clv = None  # ClvStore that records value signals and closing lines at every board
-        self.prices = None  # PriceStore that records every compared price change at every board
+        super().__init__(history or History(), current_api_key, merkur)
         self.mx_track = {}  # merkur match id -> {last, prev, changedAt}: 1X2 movement this session
         self.goal_track = {}  # "pin|mx:<id>:<line>" -> {last, prev, changedAt}: board goal line movement
-        self.fetch_lock = threading.Lock()
-        self.api = None
-        self.api_key = None
-        self.history = history or History()
-        self.events = None  # {event_id str: raw /kit event}, every main fixture of the feed
-        self.other_cache = None  # (signature, unpaired ids, hints) of leagues outside COMPETITIONS
-        self.last = None  # PinnWire cursor for the next delta request
-        self.full_at = 0.0
-        self.fetched_at = ""
-        self.mode = ""
-        self.changed = 0
+        self.other_cache = None  # (offer, signature, unpaired ids, hints, offered) of leagues outside COMPETITIONS
 
-    def get_api(self):
-        key = current_api_key()
-        if not key:
-            raise PermissionError("Unesi PinnWire API ključ da učitaš ponudu.")
-        with self.lock:
-            if self.api is None or self.api_key != key:
-                self.api = pw.PinnWireAPI(key)
-                self.api_key = key
-                self.events = None
-                self.last = None
-            return self.api
-
-    def reset(self):
-        with self.lock:
-            self.api = None
-            self.api_key = None
-            self.events = None
-            self.last = None
-
-    def _fetch(self, full):
-        api = self.get_api()
-        since = None if full else self.last
-        before = api.calls
-        try:
-            data = api.prematch_snapshot(pw.SOCCER, since=since)
-        finally:
-            self.history.count_calls(api.calls - before)
-        stamp = utc_stamp()
-        incoming = [e for e in data.get("events") or [] if e.get("event_id") and pw.is_main_fixture(e)]
-        with self.lock:
-            events = {} if since is None else dict(self.events or {})
-            for raw in incoming:
-                key = str(raw["event_id"])
-                events[key] = merge_event(events[key], raw) if key in events and since else raw
-            now = utc_now()
-            events = {k: e for k, e in events.items() if is_upcoming(e, now)}
-            tracked = {k for k, e in events.items() if is_tracked(e)}
-            for key in {str(e["event_id"]) for e in incoming if is_tracked(e)} & tracked:
-                self.history.observe(events[key], stamp)
-            if since is None:
-                self.full_at = time.monotonic()
-            self.history.prune(tracked)
-            self.events = events
-            self.last = data.get("last") or self.last
-            self.fetched_at = stamp
-            self.mode = "delta" if since else "full"
-            self.changed = sum(1 for e in incoming if is_tracked(e))
-        try:
-            self.history.save()
-        except OSError:
-            pass
-
-    def refresh(self, full=False, if_empty=False):
-        with self.fetch_lock:
-            if if_empty and self.events is not None:
-                return  # a concurrent request loaded the snapshot while we waited
-            need_full = (full or self.events is None or self.last is None
-                         or time.monotonic() - self.full_at > FULL_RELOAD_SECONDS)
-            self._fetch(need_full)
+    def merged(self, incoming, stamp):
+        """Opening and previous 1X2 prices of the tracked events this fetch changed."""
+        tracked = {k for k, e in self.events.items() if is_tracked(e)}
+        for key in {str(e["event_id"]) for e in incoming if is_tracked(e)} & tracked:
+            self.history.observe(self.events[key], stamp)
+        self.history.prune(tracked)
+        return sum(1 for e in incoming if is_tracked(e))
 
     def board(self, refresh=False, full=False):
         if refresh or full or self.events is None:
@@ -939,7 +517,7 @@ class DashboardState:
             others = [e for e in upcoming if not is_tracked(e)]
             matches = [summary(e, self.history.track(e["event_id"])) for e in events]
         pairs = pair_events(events, offer)
-        hints = unpaired_hints(events, offer)
+        hints = unpaired_hints(events, offer, pairs)
         self.pairs = pairs
         by_id = {str(e["event_id"]): e for e in events}
         values, quotes, clv_rows = [], {}, {}
@@ -969,11 +547,7 @@ class DashboardState:
         self.quotes = quotes
         observed = [{"id": m["id"], "home": m["home"], "away": m["away"], "league": m["leagueName"],
                      "starts": m["starts"], "rows": clv_rows[m["id"]]} for m in matches if m["id"] in clv_rows]
-        if self.clv:
-            self.clv.observe("football", observed)
-        if self.prices:
-            self.prices.observe("football", observed)
-            self.prices.annotate("football", values)
+        self.record("football", observed, values)
         counts = {}
         for m in matches:
             counts[m["leagueId"]] = counts.get(m["leagueId"], 0) + 1
@@ -1000,11 +574,13 @@ class DashboardState:
     def missing_other(self, events, offer, used):
         """Board entries of events outside COMPETITIONS that MerkurXtip does not offer (cached until the offer
         or the set of events changes: the pairing without a competition check is slow)."""
-        signature = (id(offer), frozenset(str(e["event_id"]) for e in events), frozenset(used))
-        if self.other_cache is None or self.other_cache[0] != signature:
+        # the offer list itself, not its id(): holding it keeps a newer list from reusing the id of an old one
+        signature = (frozenset(str(e["event_id"]) for e in events), frozenset(used))
+        cache = self.other_cache
+        if cache is None or cache[0] is not offer or cache[1] != signature:
             missing, hints, paired = unpaired_other(events, offer, used)
-            self.other_cache = (signature, missing, hints, offered_other(events, paired))
-        _, missing, hints, _ = self.other_cache
+            cache = self.other_cache = (offer, signature, missing, hints, offered_other(events, paired))
+        _, _, missing, hints, _ = cache
         out = []
         for e in events:
             key = str(e["event_id"])
@@ -1016,7 +592,7 @@ class DashboardState:
         return sorted(out, key=lambda m: (m["starts"], m["home"]))
 
     def offered_other(self):
-        return self.other_cache[3] if self.other_cache else []
+        return self.other_cache[4] if self.other_cache else []
 
     def track_merkur(self, summary_row):
         """Remember MerkurXtip 1X2 between offer fetches; returns {prev, changedAt} for the board."""
@@ -1046,10 +622,6 @@ class DashboardState:
             out["mxPrev"], out["mxChangedAt"] = self._track(
                 self.goal_track, f"mx:{match['merkur']['id']}:{line}", goals["merkur"], self.merkur.stamp)
         return out
-
-    def merkur_offer(self, refresh=False):
-        with self.merkur_lock:
-            return self.merkur.get(refresh=refresh, stamp_fn=utc_stamp)
 
     def merkur_detail(self, event):
         """Fresh single-match odds from MerkurXtip, compared per period; falls back to the offer list."""
@@ -1178,6 +750,9 @@ class DropFeed:
                 self.error, wait = str(exc), 60
             except RuntimeError as exc:
                 self.error = str(exc)
+            except Exception as exc:  # the stream must outlive a bug in one frame, like ClvWorker
+                self.error = f"Greška u drop streamu: {exc!r}"
+                traceback.print_exc()
             self.connected = False
             if self.generation == generation:
                 time.sleep(wait)
@@ -1185,7 +760,7 @@ class DropFeed:
 
 
 DROPS = DropFeed(current_api_key)
-DROP_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "hockey": HK_STATE}
+SPORT_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "hockey": HK_STATE}
 
 CLV_REFRESH = 30  # seconds between background boards when nobody refreshes in the browser
 CLV_REFRESH_SOON = 10  # ... while a signalled match starts within 15 minutes, to catch its closing line
@@ -1233,9 +808,9 @@ def start_clv(path=CLV_PATH):
     """Open the CLV store, hand it to the sport states and start the background worker."""
     global CLV
     CLV = clv.ClvStore(path)
-    for state in DROP_STATES.values():
+    for state in SPORT_STATES.values():
         state.clv = CLV
-    ClvWorker(CLV, DROP_STATES).start()
+    ClvWorker(CLV, SPORT_STATES).start()
 
 
 PRICES = None  # opened by start_prices(), like CLV
@@ -1245,7 +820,7 @@ def start_prices(path=PRICES_PATH):
     """Open the price history store and hand it to the sport states (ClvWorker keeps it filling)."""
     global PRICES
     PRICES = price_history.PriceStore(path)
-    for state in DROP_STATES.values():
+    for state in SPORT_STATES.values():
         state.prices = PRICES
 
 
@@ -1255,7 +830,7 @@ def history_response(query):
         raise LookupError("Istorija kvota nije otvorena.")
     sport = (query.get("sport") or ["football"])[0]
     match_id = (query.get("id") or [""])[0]
-    if sport not in DROP_STATES or not match_id.isdigit():
+    if sport not in SPORT_STATES or not match_id.isdigit():
         raise LookupError("Neispravni parametri.")
     return {"series": PRICES.series(sport, match_id), "keepHours": price_history.KEEP_HOURS}
 
@@ -1264,7 +839,7 @@ def clv_response(query):
     if CLV is None:
         raise LookupError("CLV baza nije otvorena.")
     sport = (query.get("sport") or [""])[0] or None
-    if sport is not None and sport not in DROP_STATES:
+    if sport is not None and sport not in SPORT_STATES:
         raise LookupError("Nepoznat sport.")
     try:
         days = min(365, max(1, int((query.get("days") or ["30"])[0])))
@@ -1284,7 +859,7 @@ def drops_response(query):
         max_age = min(DROP_KEEP, max(10, int((query.get("age") or ["300"])[0])))
     except ValueError:
         raise LookupError("Neispravni parametri.")
-    quotes = DROP_STATES[sport].quotes
+    quotes = SPORT_STATES[sport].quotes
     now = time.time()
     out = []
     for d in DROPS.recent(DROP_SPORTS[sport], min_pct, max_age):
@@ -1296,6 +871,10 @@ def drops_response(query):
             merkur = {"odds": quote["merkur"], "ev": round(quote["merkur"] / fair - 1, 4)}
         out.append({**d, "match_id": match_id, "age_s": max(0, round(now - d["alerted"])), "merkur": merkur})
     return {"drops": out, "stream": DROPS.status(), "callsToday": STATE.history.calls_today()}
+
+
+# /api/board, /api/match/<id>, /api/<sport>/board, /api/<sport>/match/<id>
+SPORT_ROUTE = re.compile(r"/api/(?:(basketball|tennis|hockey)/)?(board|match/(.*))")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1354,45 +933,43 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, history_response(query))
             if path == "/api/drops":
                 return self.send_json(200, drops_response(query))
-            if path.startswith("/api/basketball/match/"):
-                event_id = unquote(path[len("/api/basketball/match/"):].strip("/"))
+            route = SPORT_ROUTE.fullmatch(path)
+            if route:
+                sport, endpoint, event_id = route.group(1) or "football", route.group(2), route.group(3)
+                state = SPORT_STATES[sport]
+                if endpoint == "board":  # else "match/<id>"
+                    return self.send_json(200, state.board(refresh=refresh, full=full))
+                event_id = unquote(event_id or "").strip("/")
                 if not event_id.isdigit():
                     return self.send_error_json(400, "Neispravan ID događaja.")
-                return self.send_json(200, BB_STATE.match(event_id))
-            if path == "/api/basketball/board":
-                return self.send_json(200, BB_STATE.board(refresh=refresh, full=full))
-            if path.startswith("/api/tennis/match/"):
-                event_id = unquote(path[len("/api/tennis/match/"):].strip("/"))
-                if not event_id.isdigit():
-                    return self.send_error_json(400, "Neispravan ID događaja.")
-                return self.send_json(200, TN_STATE.match(event_id))
-            if path == "/api/tennis/board":
-                return self.send_json(200, TN_STATE.board(refresh=refresh, full=full))
-            if path.startswith("/api/hockey/match/"):
-                event_id = unquote(path[len("/api/hockey/match/"):].strip("/"))
-                if not event_id.isdigit():
-                    return self.send_error_json(400, "Neispravan ID događaja.")
-                return self.send_json(200, HK_STATE.match(event_id))
-            if path == "/api/hockey/board":
-                return self.send_json(200, HK_STATE.board(refresh=refresh, full=full))
-            if path == "/api/board":
-                return self.send_json(200, STATE.board(refresh=refresh, full=full))
-            if path.startswith("/api/match/"):
-                event_id = unquote(path[len("/api/match/"):].strip("/"))
-                if not event_id.isdigit():
-                    return self.send_error_json(400, "Neispravan ID događaja.")
-                return self.send_json(200, STATE.match(event_id, refresh=refresh))
+                # only football re-reads a match from PinnWire; the other sports take it from the snapshot
+                extra = {"refresh": refresh} if sport == "football" else {}
+                return self.send_json(200, state.match(event_id, **extra))
             return self.serve_static(path)
         except PermissionError as exc:
             return self.send_error_json(401, str(exc))
+        except (KeyError, IndexError) as exc:  # LookupError subclasses, but only ever raised by a bug
+            return self.internal_error(exc)
         except LookupError as exc:
             return self.send_error_json(404, str(exc))
         except RuntimeError as exc:
             return self.send_error_json(502, str(exc))
+        except ConnectionError:
+            return  # the browser went away mid-response (aborted fetch)
+        except Exception as exc:
+            return self.internal_error(exc)
+
+    def internal_error(self, exc):
+        traceback.print_exc()
+        return self.send_error_json(500, f"Interna greška servera: {exc!r}")
 
     def do_POST(self):
         if urlparse(self.path).path != "/api/config":
             return self.send_error_json(404, "Ruta nije pronađena.")
+        # a JSON body needs a CORS preflight, which this server never grants, so another site open in the
+        # browser cannot post a form or text/plain body here and replace the API key
+        if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
+            return self.send_error_json(415, "Zahtev mora biti application/json.")
         try:
             content_length = int(self.headers.get("Content-Length", "0"))
             if content_length > 4096:
@@ -1401,10 +978,8 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 return self.send_error_json(400, "Neispravan format podešavanja.")
             save_api_key(body.get("apiKey", ""))
-            STATE.reset()
-            BB_STATE.reset()
-            TN_STATE.reset()
-            HK_STATE.reset()
+            for state in SPORT_STATES.values():
+                state.reset()
             DROPS.reconnect()
             return self.send_json(200, {"apiKeySet": True})
         except (ValueError, json.JSONDecodeError) as exc:
@@ -1413,6 +988,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_error_json(500, str(exc))
         except OSError as exc:
             return self.send_error_json(500, f"Ne mogu da sačuvam podešavanje: {exc}")
+        except Exception as exc:
+            return self.internal_error(exc)
 
 
 def main():

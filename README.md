@@ -90,13 +90,15 @@ Every board also records the Pinnacle price, Pinnacle fair price and MerkurXtip 
 |---|---|
 | `pinnwire_dashboard.py` | Local server on port 8070: competition filter, delta merge, price history, `/api/board`, `/api/match/<id>`, static files |
 | `merkur_client.py` | MerkurXtip offer client, odds-code decoding and event pairing |
+| `football_competitions.py` | Football leagues that are compared (`COMPETITIONS`) and leagues never listed as missing |
+| `common.py` | What every sport shares: snapshot state (fetching, delta merging), compare rows, value items, time helpers |
 | `pinnwire_client.py` | PinnWire REST client (`x-api-key`, 429/Retry-After handling), devig and market parsing |
 | `frontend/` | React + Vite app (source in `frontend/dashboard/`; PWA manifest, service worker and icons in `frontend/dashboard/public/`) |
-| `static/dashboard_build/` | Production bundle served by Python |
+| `static/dashboard_build/` | Production bundle served by Python; `source-hash.txt` lets the tests catch a missing `npm run build` |
 | `test_pinnwire_dashboard.py` | Unit tests: `python -m unittest test_pinnwire_dashboard` |
 | `data/` | API key and price history; do not share `pinnwire_config.json` |
 
-Competitions are the `COMPETITIONS` list in `pinnwire_dashboard.py`, keyed by PinnWire `league_id`. Add an entry to track another league.
+Competitions are the `COMPETITIONS` list in `football_competitions.py`, keyed by PinnWire `league_id`. Add an entry to track another league; the tests check that its key and badge code are unique and that it has a badge colour.
 
 During frontend development, run the Python server in one terminal and `npm run dev` in `frontend/` in another. Vite runs on port 5175 and proxies `/api` to 8070.
 

@@ -1,0 +1,58 @@
+// Texts and market groups per sport for the basketball, tennis and hockey screens.
+// Per-sport texts and market groups of the sports that share one pane (basketball, tennis and hockey).
+export const SPORT_VIEWS = {
+  basketball: {
+    label: "Košarka",
+    store: "bb",
+    winnerNote: "(sa produžecima)",
+    spreadTitle: "Hendikep",
+    totalTitle: "Ukupno poena",
+    teamPrefix: "Poeni ",
+    periods: { ft: "Ceo meč", ht: "1. poluvreme", q1: "1. četvrtina" },
+    modeled: true,
+    valueGroups: [
+      ["all", "Sva tržišta"],
+      ["Pobednik", "Pobednik"],
+      ["Hendikep", "Hendikep"],
+      ["Ukupno poena", "Ukupno poena"],
+      ["team", "Poeni timova"],
+    ],
+  },
+  tennis: {
+    label: "Tenis",
+    store: "tn",
+    winnerNote: null,
+    spreadTitle: "Hendikep gemova",
+    totalTitle: "Ukupno gemova",
+    teamPrefix: "Gemovi igrač",
+    periods: { ft: "Ceo meč", s1: "1. set" },
+    modeled: false,
+    valueGroups: [
+      ["all", "Sva tržišta"],
+      ["Pobednik", "Pobednik"],
+      ["Hendikep gemova", "Hendikep gemova"],
+      ["Ukupno gemova", "Ukupno gemova"],
+      ["Hendikep setova", "Hendikep setova"],
+      ["Ukupno setova", "Ukupno setova"],
+      ["team", "Gemovi igrača"],
+    ],
+  },
+  hockey: {
+    label: "Hokej",
+    store: "hk",
+    winnerNote: "(sa produžecima)",
+    spreadTitle: "Hendikep (60 min)",
+    totalTitle: "Ukupno golova (60 min)",
+    teamPrefix: "Golovi ",
+    periods: { ft: "Ceo meč", p1: "1. period", p2: "2. period", p3: "3. period" },
+    modeled: false,
+    valueGroups: [
+      ["all", "Sva tržišta"],
+      ["Pobednik", "Pobednik"],
+      ["1X2", "1X2 (60 min)"],
+      ["Hendikep", "Hendikep"],
+      ["Ukupno golova", "Ukupno golova"],
+      ["team", "Golovi timova"],
+    ],
+  },
+};

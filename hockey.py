@@ -10,6 +10,7 @@ Everything else (state, delta merging, board shape) is shared with basketball.
 from __future__ import annotations
 
 import basketball as bb
+import common
 import merkur_client as mx
 import pinnwire_client as pw
 
@@ -48,7 +49,6 @@ COMPETITIONS = [
     {"id": 206706, "key": "elite", "name": "Elite League", "country": "Velika Britanija", "code": "UK", "mx_id": 2317614},
     {"id": 1597, "key": "asia", "name": "Asia League", "country": "Azija", "code": "ASIA", "mx_id": 2387174},
 ]
-LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
 MX_COMP = {c["mx_id"]: c["id"] for c in COMPETITIONS}
 
 # (key, label, PinnWire period number or None for the whole game)
@@ -98,24 +98,6 @@ EMPTY = {"x12": None, "spreads": {}, "totals": {}, "home": {}, "away": {}}
 
 # ------------------------------------------------------------------------- decoding
 
-def by_line(lines, key, sides, market):
-    out = {}
-    for line in (lines or {}).values() if isinstance(lines, dict) else ():
-        if isinstance(line, dict) and pw.allowed_line(pw._num(line.get(key)), market):
-            prices = pw.priced(line, sides)
-            if len(prices) == len(sides):
-                out[pw._num(line[key])] = prices
-    return out
-
-
-def limits_by_line(lines, key, market):
-    out = {}
-    for line in (lines or {}).values() if isinstance(lines, dict) else ():
-        if isinstance(line, dict) and pw.allowed_line(pw._num(line.get(key)), market):
-            out[pw._num(line[key])] = line.get("max")
-    return out
-
-
 def numbers(period):
     """(period holding the winner, period holding the other markets) of a compare period."""
     return (0, REGULATION) if period == "ft" else (NUMBERS[period], NUMBERS[period])
@@ -126,19 +108,13 @@ def pinnacle_markets(event, period="ft"):
     winner, rest = (pw.period(event, n) for n in numbers(period))
     ml = pw.priced(winner.get("money_line") or {}, ("home", "away"))
     three = pw.priced(rest.get("money_line") or {}, ("home", "draw", "away"))
-    out = {
+    return {
         "ml": ml if len(ml) == 2 else None,
         "x12": three if period == "ft" and len(three) == 3 else None,
-        "spreads": by_line(rest.get("spreads"), "hdp", ("home", "away"), "spreads"),
-        "totals": by_line(rest.get("totals"), "points", ("over", "under"), "totals"),
+        "spreads": pw.ladder(rest.get("spreads"), "hdp", ("home", "away"), "spreads"),
+        "totals": pw.ladder(rest.get("totals"), "points", ("over", "under")),
+        **common.team_ladders(rest),
     }
-    team, main_team = rest.get("team_totals") or {}, rest.get("team_total") or {}
-    for side in ("home", "away"):
-        lines = by_line(team.get(side), "points", ("over", "under"), "totals")
-        single = by_line({side: main_team.get(side)}, "points", ("over", "under"), "totals")
-        lines.update({k: v for k, v in single.items() if k not in lines})
-        out[side] = lines
-    return out
 
 
 def pinnacle_limits(event, period="ft"):
@@ -146,38 +122,28 @@ def pinnacle_limits(event, period="ft"):
     rest = pw.period(event, numbers(period)[1])
     team = rest.get("team_totals") or {}
     return {
-        "spreads": limits_by_line(rest.get("spreads"), "hdp", "spreads"),
-        "totals": limits_by_line(rest.get("totals"), "points", "totals"),
-        "home": limits_by_line(team.get("home"), "points", "totals"),
-        "away": limits_by_line(team.get("away"), "points", "totals"),
+        "spreads": pw.ladder_limits(rest.get("spreads"), "hdp", "spreads"),
+        "totals": pw.ladder_limits(rest.get("totals"), "points"),
+        "home": pw.ladder_limits(team.get("home"), "points"),
+        "away": pw.ladder_limits(team.get("away"), "points"),
     }
 
 
 def merkur_markets(row, period="ft"):
     """One MerkurXtip hockey offer row -> the same shape as pinnacle_markets(), for one period."""
-    raw, params = row.get("odds") or {}, row.get("params") or {}
+    raw = row.get("odds") or {}
     codes = MX_PERIOD[period]
-
-    def lines(sets, sides, market):
-        out = {}
-        for key, first, second in sets:
-            line = mx._param_line(params, key)
-            prices = mx._pick(raw, dict(zip(sides, (first, second))))
-            if pw.allowed_line(line, market) and prices and line not in out:
-                out[line] = prices
-        return out
-
     out = {"ml": mx._pick(raw, dict(zip(("home", "away"), codes["ml"]))), **EMPTY}
     if "x12" in codes:
         out["x12"] = mx._pick(raw, dict(zip(("home", "draw", "away"), codes["x12"])))
-    out["spreads"] = lines(codes["spreads"], ("home", "away"), "spreads")
+    out["spreads"] = common.param_lines(row, codes["spreads"], ("home", "away"), "spreads")
     if period == "ft":
         level = mx._pick(raw, dict(zip(("home", "away"), LEVEL_SPREAD)))
         if level:
             out["spreads"].setdefault(0.0, level)
-    out["totals"] = lines(codes["totals"], ("over", "under"), "totals")
+    out["totals"] = common.param_lines(row, codes["totals"], ("over", "under"))
     for side in ("home", "away"):
-        out[side] = lines(codes.get(side, []), ("over", "under"), "totals")
+        out[side] = common.param_lines(row, codes.get(side, []), ("over", "under"))
     return out
 
 
@@ -189,46 +155,19 @@ def compare(pin, merkur, period="ft", limits=None):
     for key, group, labels in GROUPS:
         if key in ("ml", "x12"):
             if pin[key] and merkur[key]:
-                rows.append(bb.compare_row(group, None, labels, merkur[key], pin[key]))
+                rows.append(common.compare_row(group, None, labels, merkur[key], pin[key]))
             continue
         for line in sorted(merkur[key]):
             if line in pin[key]:
-                rows.append(bb.compare_row(group, line, labels, merkur[key][line], pin[key][line],
+                rows.append(common.compare_row(group, line, labels, merkur[key][line], pin[key][line],
                                            (limits or {}).get(key, {}).get(line)))
     for r in rows:
         r["period"] = period
     return rows
 
 
-def value_items(match_id, rows):
-    """Every outcome where the MerkurXtip price beats the Pinnacle price, one item each."""
-    labels = {key: label for key, label, _ in PERIODS}
-    items = []
-    for r in rows:
-        period = r.get("period", "ft")
-        for o in r["outcomes"]:
-            if o["merkur"] <= o["pinnacle"]:
-                continue
-            items.append({
-                "matchId": match_id, "period": period, "periodLabel": labels[period], "group": r["group"],
-                "line": r["line"], "key": o["key"], "label": o["label"], "merkur": o["merkur"],
-                "pinnacle": o["pinnacle"], "fair": o["fair"], "ev": o["ev"],
-                "overPinnacle": round(o["merkur"] / o["pinnacle"] - 1, 4),
-                "merkurMargin": r["merkurMargin"], "pinnacleMargin": r["pinnacleMargin"],
-                "modeled": False, "stale": None,
-            })
-    return pw.best_per_line_market(items)
-
-
-def best_edge(rows):
-    best = None
-    prefixes = {"ft": "", "p1": "1.per ", "p2": "2.per ", "p3": "3.per "}
-    for r in rows:
-        for o in r["outcomes"]:
-            if best is None or o["ev"] > best["ev"]:
-                market = r["group"] + ("" if r["line"] is None else f" {r['line']:g}")
-                best = {"ev": o["ev"], "label": f"{prefixes[r.get('period', 'ft')]}{market} {o['label']}"}
-    return best
+PERIOD_LABELS = {key: label for key, label, _ in PERIODS}
+PREFIXES = {"ft": "", "p1": "1.per ", "p2": "2.per ", "p3": "3.per "}
 
 
 # ------------------------------------------------------------------------- pairing
@@ -248,37 +187,16 @@ def name_score(pinnacle, merkur):
     return mx.name_score(pinnacle, ALIASES.get(" ".join(mx.norm_tokens(merkur)), merkur))
 
 
-def pair_inputs(events, offer):
-    pin = [{"id": str(e["event_id"]), "comp": e["league_id"], "home": e.get("home", ""),
-            "away": e.get("away", ""), "ts": bb.event_ts(e)} for e in events]
-    mer = [{"id": r["id"], "comp": MX_COMP[r["leagueId"]], "home": r.get("home", ""), "away": r.get("away", ""),
-            "ts": r.get("kickOffTime") or 0, "row": r}
-           for r in offer if r.get("leagueId") in MX_COMP and mx.is_prematch(r)]
-    return pin, mer
-
-
 def pair_events(events, offer):
-    pin, mer = pair_inputs(events, offer)
-    return {pid: (m["row"], score) for pid, (m, score) in mx.pair(pin, mer, score_fn=name_score).items()}
-
-
-def unpaired_hints(events, offer):
-    """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
-    pin, mer = pair_inputs(events, offer)
-    paired = mx.pair(pin, mer, score_fn=name_score)
-    ts = {p["id"]: p["ts"] for p in pin}
-    return {pid: {"home": m["home"], "away": m["away"], "score": score,
-                  "kickoffDiff": round((m["ts"] - ts[pid]) / 60000)}
-            for pid, (m, score) in mx.closest_unpaired(pin, mer, paired, score_fn=name_score).items()}
+    return bb.pair_events(events, offer, MX_COMP, name_score)
 
 
 def shape_match(event, hit):
     """Board entry of one Pinnacle event, plus its value items from the paired MerkurXtip row."""
     pin = pinnacle_markets(event)
-    ml_fair, margin = pw.fair_odds(pin["ml"]) if pin["ml"] else ({}, None)
-    rows, merkur, periods = [], None, {}
+    rows, periods = [], {}
     if hit:
-        row, score = hit
+        row, _ = hit
         rows = compare(pin, merkur_markets(row), limits=pinnacle_limits(event))
         for key, _, number in PERIODS[1:]:
             if pw.period(event, number):
@@ -286,33 +204,9 @@ def shape_match(event, hit):
                                 pinnacle_limits(event, key))
                 if found:
                     periods[key] = found
-        ml_row = next((r for r in rows if r["group"] == "Pobednik"), None)
-        merkur = {
-            "id": row.get("id"), "home": row.get("home", ""), "away": row.get("away", ""), "score": score,
-            "kickoffDiff": round(((row.get("kickOffTime") or 0) - bb.event_ts(event)) / 60000),
-            "ml": {o["key"]: {"odds": o["merkur"], "ev": o["ev"]} for o in ml_row["outcomes"]} if ml_row else None,
-            "best": best_edge(rows + [r for found in periods.values() for r in found]),
-            "compared": len(rows) + sum(len(found) for found in periods.values()),
-            "stale": [],
-        }
-    match = {
-        "id": event.get("event_id"),
-        "leagueId": event.get("league_id"),
-        "leagueName": event.get("league_name") or "",
-        "home": event.get("home", ""),
-        "away": event.get("away", ""),
-        "starts": event.get("starts") or event.get("start_ts") or "",
-        "ml": ({s: {"odds": pin["ml"][s], "fair": round(ml_fair[s], 3)} for s in ("home", "away")}
-               if pin["ml"] else None),
-        "margin": margin,
-        "spread": bb.board_cell([r for r in rows if r["group"] == "Hendikep"], pin["spreads"], ("home", "away")),
-        "total": bb.board_cell([r for r in rows if r["group"] == "Ukupno golova"], pin["totals"], ("over", "under")),
-        "merkur": merkur,
-        "rows": rows,
-        "periods": periods,
-    }
-    every_row = rows + [r for found in periods.values() for r in found]
-    return match, value_items(event.get("event_id"), every_row)
+    match, every_row = bb.board_match(event, pin, hit, rows, periods, ("Hendikep", "Ukupno golova"), PREFIXES)
+    items = common.value_items(event.get("event_id"), [(r["period"], r) for r in every_row], PERIOD_LABELS)
+    return match, items
 
 
 # compare row group -> PinnWire drop market; the winner of the game drops in period 0, the rest of "ft" in period 6
@@ -333,28 +227,13 @@ class HockeyState(bb.BasketballState):
     clv_name = "hockey"
     sport_id = SPORT_ID
     offer_path = OFFER_PATH
-
-    def incoming(self, data):
-        return [e for e in data.get("events") or []
-                if e.get("event_id") and e.get("league_id") in LEAGUE_IDS and pw.is_main_fixture(e)]
+    competition_list = COMPETITIONS
+    mx_comp = MX_COMP
+    league_ids = frozenset(c["id"] for c in COMPETITIONS)
+    score_fn = staticmethod(name_score)
 
     def shape(self, event, hit):
         return shape_match(event, hit)
 
-    def pair(self, events, offer):
-        return pair_events(events, offer)
-
-    def hints(self, events, offer):
-        return unpaired_hints(events, offer)
-
-    def offered(self, offer):
-        return sum(1 for r in offer if r.get("leagueId") in MX_COMP and mx.is_prematch(r))
-
     def drop_quotes(self, event, match):
         return drop_quotes(event, match)
-
-    def competitions(self, matches):
-        counts = {}
-        for m in matches:
-            counts[m["leagueId"]] = counts.get(m["leagueId"], 0) + 1
-        return [{**c, "count": counts.get(c["id"], 0)} for c in COMPETITIONS]
