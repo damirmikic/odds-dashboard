@@ -720,3 +720,44 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 @keyframes alert-blink { 0%, 100% { box-shadow: 0 0 0 0 transparent; filter: none; } 50% { box-shadow: 0 0 0 4px #ff3b30, 0 0 16px 4px #ff3b30; filter: brightness(1.25); } }
 .drop-alert { animation: alert-blink .7s ease-in-out 8; }
 @media (prefers-reduced-motion: reduce) { .drop-alert { animation-duration: 1.4s; animation-iteration-count: 3; } }
+
+/* ---------------------------------------------------------------- price history (line-movement charts) */
+/* PIN blue / MX orange: checked for colour-blind separation and contrast on both themes' panels */
+:root { --pin-line: #4c8dff; --mx-line: #e8691f; }
+:root[data-theme="light"] { --pin-line: #2f6fe0; --mx-line: #d85f17; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) { --pin-line: #2f6fe0; --mx-line: #d85f17; } }
+
+.spark { display: inline-flex; padding: 2px; border: 1px solid transparent; border-radius: 4px; background: none; cursor: pointer; vertical-align: middle; }
+.spark:hover, .spark.active { border-color: var(--line); background: var(--panel-2); }
+.spark svg { display: block; overflow: visible; }
+.spark path { fill: none; stroke-width: 1.5; stroke-linejoin: round; }
+.spark-none { color: var(--faint); }
+.spark-pin, .line-pin { stroke: var(--pin-line); }
+.spark-mx, .line-mx { stroke: var(--mx-line); }
+
+.hist-row > td { padding: 4px 6px 10px !important; background: var(--panel-2); }
+.price-chart { position: relative; margin: 0; }
+.price-chart figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-bottom: 4px; color: var(--muted); font-size: 11.5px; text-align: left; }
+.price-chart figcaption b { color: var(--text); }
+.price-chart .legend { display: inline-flex; gap: 10px; align-items: center; }
+.price-chart .legend i { display: inline-block; width: 14px; height: 0; margin-right: 4px; border-top: 2px solid; vertical-align: middle; }
+.price-chart .legend .lg-pin { border-color: var(--pin-line); }
+.price-chart .legend .lg-mx { border-color: var(--mx-line); }
+.price-chart .legend .lg-fair { border-top: 2px dashed var(--faint); }
+.price-chart svg { display: block; width: 100%; height: auto; touch-action: none; }
+.price-chart path { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.price-chart .line-fair { stroke: var(--faint); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.price-chart .grid { stroke: var(--line-soft); stroke-width: 1; }
+.price-chart .axis, .price-chart .end-label { fill: var(--muted); font-size: 10.5px; }
+.price-chart .end-label { fill: var(--text); font-weight: 700; }
+.price-chart .crosshair { stroke: var(--faint); stroke-width: 1; }
+.price-chart circle { stroke: var(--panel-2); stroke-width: 2; }
+.price-chart .dot-pin { fill: var(--pin-line); }
+.price-chart .dot-mx { fill: var(--mx-line); }
+.chart-tip { position: absolute; top: 22px; transform: translateX(-50%); padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 11px; white-space: nowrap; pointer-events: none; box-shadow: 0 4px 14px rgba(0, 0, 0, .25); }
+.chart-tip span { color: var(--muted); }
+.chart-tip i { display: inline-block; width: 8px; height: 8px; margin: 0 3px 0 8px; border-radius: 50%; }
+
+.value-change { font-size: 11px; white-space: nowrap; text-align: left !important; padding: 0 8px !important; color: var(--muted); }
+.value-change small { display: inline-block; min-width: 26px; color: var(--faint); font-size: 10px; font-weight: 700; }
+.value-change .recent { color: var(--text); font-weight: 700; }

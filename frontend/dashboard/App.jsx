@@ -637,6 +637,7 @@ function ValueTable({ values, matchesById, competitions, selectedId, onSelect, o
             <th className="mc-group" title="MerkurXtip kvota / Pinnacle kvota − 1">MX vs PIN</th>
             <th title="MerkurXtip kvota / Pinnacle fer kvota − 1">MX vs fer</th>
             <th className="mc-group" title="Marža tržišta MerkurXtip / Pinnacle">Marža MX / PIN</th>
+            <th className="mc-group" title="Poslednja promena kvote kod MerkurXtip i Pinnacle (podebljano: u poslednjih 15 min)">Promena</th>
           </tr>
         </thead>
         <tbody>
@@ -685,6 +686,7 @@ function ValueTable({ values, matchesById, competitions, selectedId, onSelect, o
                 <td className="mc-group muted value-margin">
                   {fmtMargins(v.merkurMargin, v.pinnacleMargin)}
                 </td>
+                <td className="mc-group value-change"><ChangeTimes value={v} /></td>
               </tr>
             );
           })}
@@ -694,7 +696,184 @@ function ValueTable({ values, matchesById, competitions, selectedId, onSelect, o
   );
 }
 
-function MerkurComparison({ merkur, periodKey, home, away }) {
+// ---------------------------------------------------------------- price history (line-movement charts)
+
+// today as a clock time, earlier days with the date
+function fmtWhen(date) {
+  return dayKey(date) === dayKey(new Date()) ? timeFmt.format(date) : fmtKickoffShort(date);
+}
+
+const histKey = (period, group, line, key) => `${period}|${group}|${line ?? ""}|${key}`;
+
+// Stored prices of one board match (recorded at every board, see price_history.py):
+// Map histKey -> [[epoch s, pinnacle, merkur, fair]], null until loaded or when the store is off.
+function usePriceHistory(sport, matchId, reloadKey) {
+  const [history, setHistory] = useState(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    requestJson(`/api/history?sport=${sport}&id=${matchId}`, { signal: controller.signal })
+      .then((data) => setHistory(new Map(data.series.map((s) => [histKey(s.period, s.group, s.line, s.key), s.points]))))
+      .catch(() => {}); // the charts are optional, the odds stay usable without them
+    return () => controller.abort();
+  }, [sport, matchId, reloadKey]);
+  return history;
+}
+
+// Scales over the price columns `columns` of `points`, time from the first point to `end`.
+function chartScales(points, columns, width, height, pad, end) {
+  const values = points.flatMap((p) => columns.map((c) => p[c])).filter((v) => v != null);
+  let lo = Math.min(...values);
+  let hi = Math.max(...values);
+  if (hi - lo < 0.02) {
+    lo -= 0.01;
+    hi += 0.01;
+  }
+  const t0 = points[0][0];
+  const span = Math.max(1, end - t0);
+  return {
+    lo,
+    hi,
+    x: (t) => pad.left + ((t - t0) / span) * (width - pad.left - pad.right),
+    y: (v) => pad.top + (1 - (v - lo) / (hi - lo)) * (height - pad.top - pad.bottom),
+  };
+}
+
+// A price holds until the next change, so the line is drawn in steps, up to `end`.
+function stepPath(points, column, scales, end) {
+  let d = "";
+  for (const p of points) {
+    if (p[column] == null) continue;
+    d += d ? `H${scales.x(p[0])}V${scales.y(p[column])}` : `M${scales.x(p[0])},${scales.y(p[column])}`;
+  }
+  return d && `${d}H${scales.x(end)}`;
+}
+
+function Sparkline({ points, active, onToggle }) {
+  if (!points) return <span className="spark-none">—</span>;
+  const first = points[0];
+  if (points.length < 2) {
+    return <span className="spark-none" title={`Bez promene od ${fmtWhen(new Date(first[0] * 1000))}`}>—</span>;
+  }
+  const last = points[points.length - 1];
+  const end = Math.max(Date.now() / 1000, last[0]);
+  const scales = chartScales(points, [1, 2], 64, 20, { top: 2, right: 1, bottom: 2, left: 1 }, end);
+  return (
+    <button
+      type="button"
+      className={`spark${active ? " active" : ""}`}
+      onClick={onToggle}
+      aria-expanded={active}
+      title={`PIN ${fmtOdds(first[1])} → ${fmtOdds(last[1])} · MX ${fmt2(first[2])} → ${fmt2(last[2])} · `
+        + `${points.length - 1} promena od ${fmtWhen(new Date(first[0] * 1000))}. Klik za grafikon.`}
+    >
+      <svg viewBox="0 0 64 20" width="64" height="20" aria-hidden="true">
+        <path className="spark-pin" d={stepPath(points, 1, scales, end)} />
+        <path className="spark-mx" d={stepPath(points, 2, scales, end)} />
+      </svg>
+    </button>
+  );
+}
+
+const CHART_H = 170;
+const CHART_PAD = { top: 12, right: 44, bottom: 22, left: 40 };
+
+function PriceChart({ points, label }) {
+  const [hover, setHover] = useState(null); // epoch s under the pointer
+  // drawn at the real pixel width, so the axis text keeps its size in the narrow panel and the wide modal
+  const figure = useRef(null);
+  const [width, setWidth] = useState(560);
+  useEffect(() => {
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(240, Math.round(entry.contentRect.width))));
+    observer.observe(figure.current);
+    return () => observer.disconnect();
+  }, []);
+  const last = points[points.length - 1];
+  const end = Math.max(Date.now() / 1000, last[0]);
+  const t0 = points[0][0];
+  const scales = chartScales(points, [1, 2, 3], width, CHART_H, CHART_PAD, end);
+  const ticks = [scales.lo, (scales.lo + scales.hi) / 2, scales.hi];
+  const onMove = (event) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - box.left) / box.width) * width;
+    const frac = (x - CHART_PAD.left) / (width - CHART_PAD.left - CHART_PAD.right);
+    setHover(t0 + Math.min(1, Math.max(0, frac)) * (end - t0));
+  };
+  const at = hover == null ? null : points.findLast((p) => p[0] <= hover) || points[0];
+  // end labels sit at the last price of each book, pushed apart when they would overlap
+  let pinY = scales.y(last[1]);
+  let mxY = scales.y(last[2]);
+  if (Math.abs(pinY - mxY) < 11) {
+    const mid = (pinY + mxY) / 2;
+    const up = pinY <= mxY ? -1 : 1;
+    pinY = mid + up * 5.5;
+    mxY = mid - up * 5.5;
+  }
+  return (
+    <figure className="price-chart" ref={figure}>
+      <figcaption>
+        <b>{label}</b>
+        <span className="legend">
+          <span><i className="lg-pin" />Pinnacle</span>
+          <span><i className="lg-mx" />MerkurXtip</span>
+          <span><i className="lg-fair" />Pinnacle fer</span>
+        </span>
+      </figcaption>
+      <svg
+        viewBox={`0 0 ${width} ${CHART_H}`}
+        role="img"
+        aria-label={`Kretanje kvota: ${label}`}
+        onPointerMove={onMove}
+        onPointerLeave={() => setHover(null)}
+      >
+        {ticks.map((v) => (
+          <g key={v}>
+            <line className="grid" x1={CHART_PAD.left} x2={width - CHART_PAD.right} y1={scales.y(v)} y2={scales.y(v)} />
+            <text className="axis" x={CHART_PAD.left - 6} y={scales.y(v)} dy="0.32em" textAnchor="end">{v.toFixed(2)}</text>
+          </g>
+        ))}
+        <text className="axis" x={CHART_PAD.left} y={CHART_H - 5}>{fmtWhen(new Date(t0 * 1000))}</text>
+        <text className="axis" x={width - CHART_PAD.right} y={CHART_H - 5} textAnchor="end">sada</text>
+        <path className="line-fair" d={stepPath(points, 3, scales, end)} />
+        <path className="line-pin" d={stepPath(points, 1, scales, end)} />
+        <path className="line-mx" d={stepPath(points, 2, scales, end)} />
+        <text className="end-label" x={width - CHART_PAD.right + 5} y={pinY} dy="0.32em">{fmtOdds(last[1])}</text>
+        <text className="end-label" x={width - CHART_PAD.right + 5} y={mxY} dy="0.32em">{fmt2(last[2])}</text>
+        {at && (
+          <g>
+            <line className="crosshair" x1={scales.x(hover)} x2={scales.x(hover)} y1={CHART_PAD.top} y2={CHART_H - CHART_PAD.bottom} />
+            <circle className="dot-pin" cx={scales.x(hover)} cy={scales.y(at[1])} r="4" />
+            <circle className="dot-mx" cx={scales.x(hover)} cy={scales.y(at[2])} r="4" />
+          </g>
+        )}
+      </svg>
+      {at && (
+        <div className="chart-tip" style={{ left: `${(scales.x(hover) / width) * 100}%` }}>
+          <span>{fmtWhen(new Date(at[0] * 1000))}</span>
+          <i style={{ background: "var(--pin-line)" }} />PIN <b>{fmtOdds(at[1])}</b>
+          <i style={{ background: "var(--mx-line)" }} />MX <b>{fmt2(at[2])}</b>
+          <span> · fer {fmtOdds(at[3])}</span>
+        </div>
+      )}
+    </figure>
+  );
+}
+
+// Value list: when each book last moved this price (board refreshes, so at most one refresh late).
+function ChangeTimes({ value }) {
+  const seen = value.seenAt ? `Prati se od ${fmtWhen(new Date(value.seenAt))}` : "Istorija kvota nije dostupna";
+  return (
+    <div title={seen}>
+      {[["MX", value.mxChangedAt], ["PIN", value.pinChangedAt]].map(([book, at]) => (
+        <div key={book} className={at && Date.now() - Date.parse(at) < 15 * 60000 ? "recent" : ""}>
+          <small>{book}</small> {at ? fmtWhen(new Date(at)) : "—"}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MerkurComparison({ merkur, periodKey, home, away, history }) {
+  const [open, setOpen] = useState("");
   if (!merkur) {
     return <p className="state">Meč nije u ponudi MerkurXtip (ili nije uparen).</p>;
   }
@@ -726,9 +905,12 @@ function MerkurComparison({ merkur, periodKey, home, away }) {
               <th>MX</th>
               <th title="MerkurXtip kvota / Pinnacle fer kvota − 1">Razlika</th>
               <th title="Pinnacle limit (max bet) tržišta">Max bet</th>
+              <th title="Kretanje kvota: Pinnacle (plavo) i MerkurXtip (narandžasto). Klik za grafikon.">Kretanje</th>
             </tr>
           </thead>
-          {rows.map((row, i) => (
+          {rows.map((row, i) => {
+            const opened = row.outcomes.find((o) => histKey(periodKey, row.group, row.line, o.key) === open);
+            return (
             <tbody key={`${row.group}-${row.line}`} className={i > 0 && rows[i - 1].group !== row.group ? "mx-group-start" : ""}>
               {row.outcomes.map((o, index) => (
                 <tr key={o.key} className={index === 0 ? "mx-first" : ""}>
@@ -751,10 +933,31 @@ function MerkurComparison({ merkur, periodKey, home, away }) {
                   {index === 0 && (
                     <td rowSpan={row.outcomes.length} className="mx-maxbet">{fmtLimit(row.maxBet) || "—"}</td>
                   )}
+                  <td>
+                    <Sparkline
+                      points={history?.get(histKey(periodKey, row.group, row.line, o.key))}
+                      active={opened === o}
+                      onToggle={() => {
+                        const k = histKey(periodKey, row.group, row.line, o.key);
+                        setOpen((current) => (current === k ? "" : k));
+                      }}
+                    />
+                  </td>
                 </tr>
               ))}
+              {opened && (
+                <tr className="hist-row">
+                  <td colSpan={8}>
+                    <PriceChart
+                      points={history.get(open)}
+                      label={`${row.group}${row.line != null ? ` ${marketLine(row.group, row.line)}` : ""} · ${sideLabel(row.group, opened.label)}`}
+                    />
+                  </td>
+                </tr>
+              )}
             </tbody>
-          ))}
+            );
+          })}
         </table>
       )}
     </section>
@@ -832,6 +1035,7 @@ function DetailPanel({ matchId, boardMatch, competition, onClose, onCalls }) {
     return () => controller.abort();
     // boardMatch?.changedAt: re-read the cached snapshot when a board refresh changed this match
   }, [matchId, refreshTick, boardMatch?.changedAt, onCalls]);
+  const history = usePriceHistory("football", matchId, detail?.fetchedAt);
 
   const match = detail?.match || boardMatch;
   const period = detail?.periods.find((p) => p.key === periodKey);
@@ -876,7 +1080,9 @@ function DetailPanel({ matchId, boardMatch, competition, onClose, onCalls }) {
       {error && <p className="state error" role="alert">{error}</p>}
       {!detail && loading && <p className="state">Učitavam kvote…</p>}
 
-      {detail && <MerkurComparison merkur={detail.merkur} periodKey={periodKey} home={match.home} away={match.away} />}
+      {detail && (
+        <MerkurComparison merkur={detail.merkur} periodKey={periodKey} home={match.home} away={match.away} history={history} />
+      )}
 
       {period && !period.ml && <p className="state">Pinnacle nema ponudu za ovaj period.</p>}
       {period?.ml && (
@@ -956,6 +1162,7 @@ function OddsModal({ matchId, boardMatch, onClose, onCalls }) {
       });
     return () => controller.abort();
   }, [matchId, onCalls]);
+  const history = usePriceHistory("football", matchId);
 
   useEffect(() => {
     const onKey = (event) => {
@@ -992,7 +1199,9 @@ function OddsModal({ matchId, boardMatch, onClose, onCalls }) {
         </div>
         {error && <p className="state error" role="alert">{error}</p>}
         {!detail && !error && <p className="state">Učitavam kvote…</p>}
-        {detail && <MerkurComparison merkur={detail.merkur} periodKey={periodKey} home={match.home} away={match.away} />}
+        {detail && (
+          <MerkurComparison merkur={detail.merkur} periodKey={periodKey} home={match.home} away={match.away} history={history} />
+        )}
       </div>
     </div>
   );
@@ -1386,7 +1595,8 @@ function BbLineCells({ cell, sides, signed }) {
   );
 }
 
-function BbDetail({ match, periodKey = "ft" }) {
+function BbDetail({ match, periodKey = "ft", history }) {
+  const [open, setOpen] = useState("");
   const rows = (periodKey === "ft" ? match.rows : match.periods?.[periodKey]) || [];
   if (!match.merkur) return <p className="muted bb-detail">Meč nije u ponudi MerkurXtip (ili nije uparen).</p>;
   const modeled = rows.filter((r) => r.modeled).length;
@@ -1401,21 +1611,46 @@ function BbDetail({ match, periodKey = "ft" }) {
       {!rows.length && <p className="muted">Nema tržišta koja postoje kod obe kuće.</p>}
       <table className="lines mx-table">
         <thead>
-          <tr><th>Tržište</th><th>Linija</th><th>Ishod</th><th>Fer</th><th>PIN</th><th>MX</th><th>Razlika</th><th title="Pinnacle limit (max bet) tržišta">Max bet</th></tr>
+          <tr><th>Tržište</th><th>Linija</th><th>Ishod</th><th>Fer</th><th>PIN</th><th>MX</th><th>Razlika</th><th title="Pinnacle limit (max bet) tržišta">Max bet</th><th title="Kretanje kvota: Pinnacle (plavo) i MerkurXtip (narandžasto). Klik za grafikon.">Kretanje</th></tr>
         </thead>
         <tbody>
-          {rows.flatMap((r) => r.outcomes.map((o, i) => (
+          {rows.flatMap((r) => {
+            const keyOf = (o) => histKey(r.period || periodKey, r.group, r.line, o.key);
+            const opened = r.outcomes.find((o) => keyOf(o) === open);
+            const side = (o) => (r.group.startsWith("Hendikep") ? (o.key === "home" ? match.home : match.away) : o.label);
+            const lines = r.outcomes.map((o, i) => (
             <tr key={`${r.group}-${r.line}-${o.key}`} className={i === 0 ? "mx-first" : ""}>
               <td>{i === 0 ? r.group : ""}</td>
               <td>{i === 0 && r.line != null ? fmtLine(r.line, r.group.startsWith("Hendikep")) : ""}{i === 0 && r.modeled && <ModeledTag />}</td>
-              <td>{r.group.startsWith("Hendikep") ? (o.key === "home" ? match.home : match.away) : o.label}</td>
+              <td>{side(o)}</td>
               <td className="mx-fair-cell">{fmtOdds(o.fair)}</td>
               <td>{fmtOdds(o.pinnacle)}</td>
               <td><span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}>{fmt2(o.merkur)}</span></td>
               <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
               <td className="mx-maxbet">{i === 0 ? fmtLimit(r.maxBet) || "—" : ""}</td>
+              <td>
+                <Sparkline
+                  points={history?.get(keyOf(o))}
+                  active={opened === o}
+                  onToggle={() => setOpen((current) => (current === keyOf(o) ? "" : keyOf(o)))}
+                />
+              </td>
             </tr>
-          )))}
+            ));
+            if (opened) {
+              lines.push(
+                <tr key={`${r.group}-${r.line}-chart`} className="hist-row">
+                  <td colSpan={9}>
+                    <PriceChart
+                      points={history.get(open)}
+                      label={`${r.group}${r.line != null ? ` ${fmtLine(r.line, r.group.startsWith("Hendikep"))}` : ""} · ${side(opened)}`}
+                    />
+                  </td>
+                </tr>,
+              );
+            }
+            return lines;
+          })}
         </tbody>
       </table>
     </div>
@@ -1439,6 +1674,7 @@ function BbOddsModal({ sport, matchId, boardMatch, onClose, onCalls }) {
       });
     return () => controller.abort();
   }, [sport, matchId, onCalls]);
+  const history = usePriceHistory(sport, matchId);
 
   useEffect(() => {
     const onKey = (event) => {
@@ -1477,7 +1713,7 @@ function BbOddsModal({ sport, matchId, boardMatch, onClose, onCalls }) {
         {error && <p className="state error" role="alert">{error}</p>}
         {!detail && !error && <p className="state">Učitavam kvote…</p>}
         {detail?.error && <p className="state error">{detail.error} Prikazane su kvote iz liste ponude.</p>}
-        {detail && <BbDetail match={detail.match} periodKey={periodKey} />}
+        {detail && <BbDetail match={detail.match} periodKey={periodKey} history={history} />}
         {detail?.fetchedAt && <p className="muted bb-fetched">MerkurXtip {clockFmt.format(new Date(detail.fetchedAt))}</p>}
       </div>
     </div>

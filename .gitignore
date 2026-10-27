@@ -17,3 +17,4 @@ data/*.tmp
 Thumbs.db
 .DS_Store
 data/clv.sqlite3*
+data/prices.sqlite3*

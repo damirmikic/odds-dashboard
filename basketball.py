@@ -518,6 +518,7 @@ class BasketballState:
         self.merkur_lock = threading.Lock()
         self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
         self.clv = None  # ClvStore that records value signals and closing lines at every board
+        self.prices = None  # PriceStore that records every compared price change at every board
         self.quotes = {}  # PinnWire event id -> (board match id, MerkurXtip prices by drop_key), from the last board
         self.api = None
         self.api_key = None
@@ -656,8 +657,12 @@ class BasketballState:
                 values.extend(items)
         matches.sort(key=lambda m: (m["starts"], m["home"]))
         self.quotes = quotes
+        observed = clv_matches(matches)
         if self.clv:
-            self.clv.observe(self.clv_name, clv_matches(matches))
+            self.clv.observe(self.clv_name, observed)
+        if self.prices:
+            self.prices.observe(self.clv_name, observed)
+            self.prices.annotate(self.clv_name, values)
         return {
             "competitions": self.competitions(matches),
             "matches": matches,

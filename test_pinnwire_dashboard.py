@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 
 import basketball as bb
@@ -6,6 +8,7 @@ import hockey
 import merkur_client as mx
 import pinnwire_client as pw
 import pinnwire_dashboard as dash
+import price_history
 import tennis
 
 
@@ -1023,6 +1026,62 @@ class ClvTests(unittest.TestCase):
         state.clv = self.store
         state.board()
         self.assertIn("football", self.store.last_seen)
+
+
+class PriceHistoryTests(unittest.TestCase):
+    match = staticmethod(ClvTests.match)
+
+    def setUp(self):
+        self.store = price_history.PriceStore()
+
+    def test_only_changes_are_stored(self):
+        self.assertEqual(self.store.observe("football", self.match(2.10), now=1000), 1)
+        self.assertEqual(self.store.observe("football", self.match(2.10), now=1030), 0)
+        self.assertEqual(self.store.observe("football", self.match(2.05), now=1060), 1)
+        [series] = self.store.series("football", 7)
+        self.assertEqual((series["period"], series["group"], series["line"], series["key"]),
+                         ("ft", "Ukupno golova", 2.5, "over"))
+        self.assertEqual(series["points"], [[1000, 1.9, 2.10, 2.0], [1060, 1.9, 2.05, 2.0]])
+
+    def test_annotate_reports_last_change_per_book(self):
+        self.store.observe("football", self.match(2.10), now=1000)
+        value = {"matchId": 7, "period": "ft", "group": "Ukupno golova", "line": 2.5, "key": "over"}
+        self.store.annotate("football", [value])
+        self.assertEqual((value["seenAt"], value["pinChangedAt"], value["mxChangedAt"]),
+                         (price_history.stamp(1000), None, None))
+        self.store.observe("football", self.match(2.05), now=1060)
+        self.store.observe("football", self.match(2.05, fair=2.1), now=1090)  # Pinnacle fair moved, price did not
+        self.store.annotate("football", [value])
+        self.assertEqual((value["pinChangedAt"], value["mxChangedAt"]), (None, price_history.stamp(1060)))
+
+    def test_state_survives_a_restart(self):
+        path = os.path.join(tempfile.mkdtemp(), "prices.sqlite3")
+        first = price_history.PriceStore(path)
+        first.observe("football", self.match(2.10), now=1000)
+        first.observe("football", self.match(2.05), now=1060)
+        first.db.close()
+        second = price_history.PriceStore(path)
+        self.assertEqual(second.observe("football", self.match(2.05), now=1090), 0)
+        value = {"matchId": 7, "period": "ft", "group": "Ukupno golova", "line": 2.5, "key": "over"}
+        second.annotate("football", [value])
+        self.assertEqual(value["mxChangedAt"], price_history.stamp(1060))
+        second.db.close()
+
+    def test_started_matches_are_pruned(self):
+        starts = price_history.stamp(100000)
+        self.store.observe("football", self.match(2.10, starts=starts), now=1000)
+        self.store.observe("football", self.match(2.10, starts=starts, line=3.5),
+                           now=100000 + price_history.KEEP_HOURS * 3600 + price_history.PRUNE_EVERY)
+        self.assertEqual(self.store.series("football", 7), [])
+
+    def test_state_board_reports_and_annotates_values(self):
+        row = merkur_row(**{"1": 2.55, "2": 3.10, "3": 2.95, "24": 1.95, "22": 1.85})
+        state = make_state(FakeAPI([event(1)]), [row])
+        state.prices = self.store
+        values = state.board()["values"]
+        self.assertTrue(values)
+        self.assertTrue(all(v["seenAt"] and v["mxChangedAt"] is None for v in values))
+        self.assertTrue(self.store.series("football", 1))
 
 
 if __name__ == "__main__":

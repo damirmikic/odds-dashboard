@@ -26,6 +26,7 @@ import hockey
 import tennis
 import merkur_client as mx
 import pinnwire_client as pw
+import price_history
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, "data")
@@ -33,6 +34,7 @@ STATIC = os.path.join(ROOT, "static", "dashboard_build")
 CONFIG_PATH = os.path.join(DATA, "pinnwire_config.json")
 HISTORY_PATH = os.path.join(DATA, "dashboard_history.json")
 CLV_PATH = os.path.join(DATA, "clv.sqlite3")
+PRICES_PATH = os.path.join(DATA, "prices.sqlite3")
 
 # PinnWire league_id -> display info; order is the tab order in the UI.
 # `merkur` is the MerkurXtip `leagueShort` of the same competition, or its numeric `leagueId` when the
@@ -851,6 +853,7 @@ class DashboardState:
         self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
         self.quotes = {}  # PinnWire event id -> (board match id, MerkurXtip prices by drop_key), from the last board
         self.clv = None  # ClvStore that records value signals and closing lines at every board
+        self.prices = None  # PriceStore that records every compared price change at every board
         self.mx_track = {}  # merkur match id -> {last, prev, changedAt}: 1X2 movement this session
         self.goal_track = {}  # "pin|mx:<id>:<line>" -> {last, prev, changedAt}: board goal line movement
         self.fetch_lock = threading.Lock()
@@ -964,10 +967,13 @@ class DashboardState:
         values = [v for v in values if v["matchId"] in kept]
         matches.sort(key=lambda m: (m["starts"], m["home"]))
         self.quotes = quotes
+        observed = [{"id": m["id"], "home": m["home"], "away": m["away"], "league": m["leagueName"],
+                     "starts": m["starts"], "rows": clv_rows[m["id"]]} for m in matches if m["id"] in clv_rows]
         if self.clv:
-            self.clv.observe("football", [
-                {"id": m["id"], "home": m["home"], "away": m["away"], "league": m["leagueName"], "starts": m["starts"],
-                 "rows": clv_rows[m["id"]]} for m in matches if m["id"] in clv_rows])
+            self.clv.observe("football", observed)
+        if self.prices:
+            self.prices.observe("football", observed)
+            self.prices.annotate("football", values)
         counts = {}
         for m in matches:
             counts[m["leagueId"]] = counts.get(m["leagueId"], 0) + 1
@@ -1232,6 +1238,28 @@ def start_clv(path=CLV_PATH):
     ClvWorker(CLV, DROP_STATES).start()
 
 
+PRICES = None  # opened by start_prices(), like CLV
+
+
+def start_prices(path=PRICES_PATH):
+    """Open the price history store and hand it to the sport states (ClvWorker keeps it filling)."""
+    global PRICES
+    PRICES = price_history.PriceStore(path)
+    for state in DROP_STATES.values():
+        state.prices = PRICES
+
+
+def history_response(query):
+    """Stored price history of one board match, for the line-movement charts in the odds modals."""
+    if PRICES is None:
+        raise LookupError("Istorija kvota nije otvorena.")
+    sport = (query.get("sport") or ["football"])[0]
+    match_id = (query.get("id") or [""])[0]
+    if sport not in DROP_STATES or not match_id.isdigit():
+        raise LookupError("Neispravni parametri.")
+    return {"series": PRICES.series(sport, match_id), "keepHours": price_history.KEEP_HOURS}
+
+
 def clv_response(query):
     if CLV is None:
         raise LookupError("CLV baza nije otvorena.")
@@ -1322,6 +1350,8 @@ class Handler(BaseHTTPRequestHandler):
                                             "callsToday": STATE.history.calls_today()})
             if path == "/api/clv":
                 return self.send_json(200, clv_response(query))
+            if path == "/api/history":
+                return self.send_json(200, history_response(query))
             if path == "/api/drops":
                 return self.send_json(200, drops_response(query))
             if path.startswith("/api/basketball/match/"):
@@ -1405,6 +1435,7 @@ def main():
     url = f"http://{host}:{args.port}"
     print(f"PinnWire Dashboard: {url}  (Ctrl+C to stop)")
     DROPS.start()
+    start_prices()
     start_clv()
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()

@@ -76,6 +76,14 @@ PinnWire has no historical data, so the dashboard builds its own. The first time
 
 A background worker refreshes the three boards every 30 s (10 s while a signalled match starts within 15 minutes) when nobody refreshes in the browser, so closing lines are recorded with the UI closed. A signal counts only if its closing line was seen at most 30 minutes before kickoff; the others are listed as "bez zatvaranja". The page is **Alerti → CLV**: totals, then by sport, market and league, then the last 200 signals. `/api/clv?days=&sport=` serves it.
 
+## Line movement
+
+Every board also records the Pinnacle price, Pinnacle fair price and MerkurXtip price of each compared outcome in `data/prices.sqlite3` (SQLite, git-ignored), but only when one of them changed since the last board, so the background worker fills it with the UI closed. A match is deleted 24 hours after kickoff (`KEEP_HOURS` in `price_history.py`). Roughly 30 000 outcomes take about 6 MB, plus about 10 MB of changes a day.
+
+- **Odds modals and the football detail panel:** the **Kretanje** column shows a sparkline per outcome, with Pinnacle in blue and MerkurXtip in orange. Click it for a chart with the Pinnacle fair price (dashed) and a crosshair that shows all three prices at any moment. "—" means the price has not moved since it was first seen.
+- **Value view:** the **Promena** column shows when each book last changed that price (bold within the last 15 minutes). Times are as precise as the board refresh. Hover shows since when the outcome has been tracked.
+- `/api/history?sport=&id=<board match id>` serves the stored series.
+
 ## Project layout
 
 | File | Purpose |
