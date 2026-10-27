@@ -272,6 +272,34 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.kor1 { --badge: #2c4ea3; }
 .comp-badge.prypd { --badge: #d52b1e; }
 .comp-badge.engisthmian { --badge: #4a3a8c; }
+.comp-badge.engnl1 { --badge: #4a3a8c; }
+.comp-badge.slo2 { --badge: #005da4; }
+.comp-badge.ugapl { --badge: #d4a017; }
+.comp-badge.roucup { --badge: #002b7f; }
+.comp-badge.bihcup { --badge: #002395; }
+.comp-badge.engnpl { --badge: #4a3a8c; }
+.comp-badge.gccl { --badge: #3a5a78; }
+.comp-badge.itacupc { --badge: #0b4f8a; }
+.comp-badge.zaflc { --badge: #007a4d; }
+.comp-badge.azecup { --badge: #0092bc; }
+.comp-badge.blrpl { --badge: #c8313e; }
+.comp-badge.engsl1 { --badge: #4a3a8c; }
+.comp-badge.grecup { --badge: #0d5eaf; }
+.comp-badge.huncup { --badge: #477050; }
+.comp-badge.smrcup { --badge: #5eb6e4; }
+.comp-badge.venpd { --badge: #8b1e3f; }
+.comp-badge.bul2 { --badge: #00966e; }
+.comp-badge.cacup { --badge: #3a5a78; }
+.comp-badge.ecusb { --badge: #d4a017; }
+.comp-badge.engistsc { --badge: #4a3a8c; }
+.comp-badge.geocup { --badge: #c8102e; }
+.comp-badge.mdacup { --badge: #0046ae; }
+.comp-badge.mne1 { --badge: #c40308; }
+.comp-badge.prycup { --badge: #d52b1e; }
+.comp-badge.porlc { --badge: #006600; }
+.comp-badge.scoll { --badge: #005eb8; }
+.comp-badge.srbcup { --badge: #c6363c; }
+.comp-badge.urucup { --badge: #3b8fd1; }
 .comp-badge.fraligue3,
 .comp-badge.ruscup,
 .comp-badge.afcchampionsle,
