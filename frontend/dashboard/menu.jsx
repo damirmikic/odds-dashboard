@@ -1,4 +1,6 @@
-// Side menu: sport icons with match counts and competitions grouped by country.
+// Side menu: sport icons with match counts and competitions grouped by country, favourites on top.
+import { useState } from "react";
+import { readStored, writeStored } from "./api.js";
 import { evClass, fmtEv } from "./format.js";
 import { CompBadge } from "./ui.jsx";
 
@@ -59,7 +61,36 @@ function SportIcon({ sport }) {
   );
 }
 
+const FAVORITES_KEY = "pb.favoriteLeagues";
+const byName = (a, b) => a.localeCompare(b, "sr", { sensitivity: "base" });
+
+// Countries and their leagues alphabetically; starred leagues (per sport, kept in this browser) move to "Omiljene".
+function sortedGroups(groups, favorites) {
+  const visible = groups.map((group) => group.items.filter((item) => item.count !== 0 || item.active)).flat();
+  const starred = visible.filter((item) => favorites.has(item.key));
+  const rest = groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => (item.count !== 0 || item.active) && !favorites.has(item.key))
+        .sort((a, b) => byName(a.comp.name, b.comp.name)),
+    }))
+    .filter((group) => group.items.length)
+    .sort((a, b) => byName(a.title, b.title));
+  const favoriteGroup = { title: "Omiljene", items: starred.sort((a, b) => byName(a.comp.name, b.comp.name)) };
+  return starred.length ? [favoriteGroup, ...rest] : rest;
+}
+
 export function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, label, alerts }) {
+  const [favoriteMap, setFavoriteMap] = useState(() => readStored(FAVORITES_KEY, {}) || {});
+  const favorites = new Set(favoriteMap[sport] || []);
+  const toggleFavorite = (key) => {
+    setFavoriteMap((current) => {
+      const keys = current[sport] || [];
+      const next = { ...current, [sport]: keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key] };
+      writeStored(FAVORITES_KEY, next);
+      return next;
+    });
+  };
   return (
     <aside className="sidebar">
       <div className="sport-switch" role="tablist" aria-label="Sport">
@@ -98,24 +129,37 @@ export function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, lab
         <button type="button" className={`side-item${all.active ? " active" : ""}`} onClick={() => onPick(all)}>
           <b>{all.label}</b> <span>{all.count}</span>
         </button>
-        {groups.map((group) => ({ ...group, items: group.items.filter((item) => item.count !== 0 || item.active) }))
-          .filter((group) => group.items.length).map((group) => (
-          <div className="side-group" key={group.title}>
+        {sortedGroups(groups || [], favorites).map((group) => (
+          <div className={`side-group${group.title === "Omiljene" ? " favorites" : ""}`} key={group.title}>
             <h3>{group.title}</h3>
-            {group.items.map((item) => (
-              <button
-                type="button"
-                key={item.key}
-                className={`side-item${item.active ? " active" : ""}`}
-                onClick={() => onPick(item)}
-                disabled={item.disabled}
-                title={item.title}
-              >
-                <CompBadge competition={item.comp} /> <b>{item.comp.name}</b>
-                {item.extra && <em className={item.extraClass}>{item.extra}</em>}
-                <span>{item.count}</span>
-              </button>
-            ))}
+            {group.items.map((item) => {
+              const starred = favorites.has(item.key);
+              return (
+                <div className="side-row" key={item.key}>
+                  <button
+                    type="button"
+                    className={`side-item${item.active ? " active" : ""}`}
+                    onClick={() => onPick(item)}
+                    disabled={item.disabled}
+                    title={item.title}
+                  >
+                    <CompBadge competition={item.comp} /> <b>{item.comp.name}</b>
+                    {item.extra && <em className={item.extraClass}>{item.extra}</em>}
+                    <span>{item.count}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`side-star${starred ? " on" : ""}`}
+                    aria-pressed={starred}
+                    aria-label={starred ? `Ukloni ${item.comp.name} iz omiljenih` : `Dodaj ${item.comp.name} u omiljene`}
+                    title={starred ? "Ukloni iz omiljenih" : "Dodaj u omiljene"}
+                    onClick={() => toggleFavorite(item.key)}
+                  >
+                    {starred ? "★" : "☆"}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         ))}
       </nav>}
