@@ -31,6 +31,7 @@ const TOP_LEAGUES = {
     "championship", "superlig", "jupiler", "libertadores", "brasileirao", "mls", "gercup", "eflcup", "superligasrb"]),
   basketball: new Set(["nba", "euroleague", "eurocup", "bcl"]),
   hockey: new Set(["nhl", "khl", "liiga", "del", "nla"]),
+  mma: new Set(["ufc"]),
 };
 
 export function isTopLeague(sport, comp) {

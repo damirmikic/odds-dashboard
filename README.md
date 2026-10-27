@@ -64,7 +64,7 @@ The dashboard runs on the **Pro + Drops** plan (10 requests per second, SSE drop
 
 ## Drop alerts
 
-The server keeps one connection to PinnWire's prematch drop stream (`/odds-drop-prematch`, SSE, not counted as REST requests) with `min_drop=1` and `recheck=15`: PinnWire holds each drop 15 s and sends it only if the price has not come back. Moneyline, handicap and total drops of football, basketball, tennis and hockey are kept for 3 hours (team total drops do not say which team and are skipped). The UI polls the local `/api/drops?sport=` every 3 s and shows the drops of matches on its boards at or above the chosen threshold.
+The server keeps one connection to PinnWire's prematch drop stream (`/odds-drop-prematch`, SSE, not counted as REST requests) with `min_drop=1` and `recheck=15`: PinnWire holds each drop 15 s and sends it only if the price has not come back. Moneyline, handicap and total drops of football, basketball, tennis, hockey and MMA are kept for 3 hours (team total drops do not say which team and are skipped). The UI polls the local `/api/drops?sport=` every 3 s and shows the drops of matches on its boards at or above the chosen threshold.
 
 For a paired match each drop carries the MerkurXtip price of the same outcome (from the last board) and its edge `Merkur / nvp − 1`, where `nvp` is PinnWire's no-vig price after the drop. A positive edge means MerkurXtip has not followed the move yet. **Samo gde Merkur kasni** limits the list, the toasts and the sound to those. Spread drops on the away side carry the away line (away +4 is the home handicap −4); tennis games drops come on the games side event and are mapped to the main match.
 
@@ -131,6 +131,15 @@ Pick the hockey icon (or open `/?sport=hockey`). The board is built in `hockey.p
 - MerkurXtip codes are listed in `hockey.py` (`MX_PERIOD`); the line params are `hd2w`, `overUnder`…`overUnder4`, `homeOverUnder`/`awayOverUnder` and `handicap…Period`/`overUnder…Period` for the thirds.
 - Pairing is by competition, kickoff (3 h) and team names. MerkurXtip's short names that the token rules cannot pair ("Zurich" for ZSC Lions) go in `hockey.ALIASES`, which applies to hockey only.
 - To add a league find its PinnWire `league_id` in a snapshot and the MerkurXtip `leagueId` in the offer, add the entry to `COMPETITIONS` and a `.comp-badge.<key>` colour in `dashboard.css`. Leagues MerkurXtip does not list at the moment (SHL, OHL) are missing until their `leagueId` can be read from the offer.
+
+## MMA
+
+Pick the MMA icon (or open `/?sport=mma`). The board is built in `mma.py` and reuses the basketball state and pane; the MerkurXtip feed is the same URL with the sport letter `MM` (`/restapi/custom/offer/sr/sport/MM/mob`).
+
+- PinnWire sport 8, one request per refresh. Pinnacle prices a fight in period 0 only: the winner and total rounds (usually one line, 1.5 or 2.5). MerkurXtip's method of victory and "odlučen na poene" markets have no Pinnacle price and are not compared. The board has no handicap columns.
+- MerkurXtip codes: winner `264` / `265` ("W1" / "W2"; the draw `2` is ignored), total rounds over `54291` / under `54290` with the line in `params.our`. Lines are matched exactly, half-point lines only, no model.
+- Every PinnWire MMA league is shown, the promotion is the competition (badges for UFC, PFL, Bellator, ONE, Oktagon, KSW, the rest "MMA"). Fights pair by fighter names (tennis rules: "Reese, Zach" against "Zachary Reese") and kickoff within 12 hours, with no competition check: Pinnacle gives the card's start, MerkurXtip each fight's own time, so the ⏱ tag is normal here.
+- The two books often list the fighters the other way round. A fight pairs in either order; a reversed MerkurXtip row is flagged `pinSwapped` and its winner prices and names are turned to Pinnacle's order. Fighters known under another name (Yana Kunitskaya is Yana Santos at Pinnacle) go in `mma.ALIASES`.
 
 ## Football "Nedostaju" and the full feed
 

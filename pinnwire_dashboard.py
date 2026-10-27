@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Xtip Monitor server: Pinnacle (PinnWire) against MerkurXtip for football, basketball, tennis and hockey.
+"""Xtip Monitor server: Pinnacle (PinnWire) against MerkurXtip for football, basketball, tennis, hockey and MMA.
 
 This module holds the football board, the shared History, the background workers (drop stream, CLV refresh),
 the HTTP handler and main(). Every sport keeps a PinnWire snapshot (full load, then `since=` deltas, see
-common.SnapshotState) and pairs it with the MerkurXtip offer; the other sports live in basketball.py, tennis.py
-and hockey.py.
+common.SnapshotState) and pairs it with the MerkurXtip offer; the other sports live in basketball.py, tennis.py,
+hockey.py and mma.py.
 """
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ import clv
 import common
 import hockey
 import merkur_client as mx
+import mma
 import pinnwire_client as pw
 import price_history
 import tennis
@@ -682,9 +683,11 @@ STATE = DashboardState()
 BB_STATE = bb.BasketballState(STATE.history, current_api_key)
 TN_STATE = tennis.TennisState(STATE.history, current_api_key)
 HK_STATE = hockey.HockeyState(STATE.history, current_api_key)
+MM_STATE = mma.MmaState(STATE.history, current_api_key)
 
 
-DROP_SPORTS = {"football": pw.SOCCER, "basketball": bb.SPORT_ID, "tennis": tennis.SPORT_ID, "hockey": hockey.SPORT_ID}
+DROP_SPORTS = {"football": pw.SOCCER, "basketball": bb.SPORT_ID, "tennis": tennis.SPORT_ID, "hockey": hockey.SPORT_ID,
+               "mma": mma.SPORT_ID}
 DROP_RECHECK = 15  # seconds PinnWire holds a drop and re-reads the price before pushing it (drops that bounce back are dropped)
 DROP_KEEP = 3 * 3600  # seconds of drops kept for the UI, like PinnWire's own /api/drops buffer
 
@@ -772,7 +775,7 @@ class DropFeed:
         return min(wait * 2, 30)
 
 DROPS = DropFeed(current_api_key)
-SPORT_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "hockey": HK_STATE}
+SPORT_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "hockey": HK_STATE, "mma": MM_STATE}
 
 CLV_REFRESH = 30  # seconds between background boards when nobody refreshes in the browser
 CLV_REFRESH_SOON = 10  # ... while a signalled match starts within 15 minutes, to catch its closing line
@@ -886,7 +889,7 @@ def drops_response(query):
 
 
 # /api/board, /api/match/<id>, /api/<sport>/board, /api/<sport>/match/<id>
-SPORT_ROUTE = re.compile(r"/api/(?:(basketball|tennis|hockey)/)?(board|match/(.*))")
+SPORT_ROUTE = re.compile(r"/api/(?:(basketball|tennis|hockey|mma)/)?(board|match/(.*))")
 
 
 class Handler(BaseHTTPRequestHandler):

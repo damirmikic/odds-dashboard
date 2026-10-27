@@ -357,6 +357,13 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.itfm { --badge: #4a6275; }
 .comp-badge.itfw { --badge: #a8527e; }
 .comp-badge.tennis { --badge: #5c6878; }
+.comp-badge.ufc { --badge: #c8102e; }
+.comp-badge.pfl { --badge: #1f4fa3; }
+.comp-badge.bellator { --badge: #7a1f2b; }
+.comp-badge.onefc { --badge: #b8860b; }
+.comp-badge.oktagon { --badge: #2b2b2b; }
+.comp-badge.ksw { --badge: #3d6b35; }
+.comp-badge.mma { --badge: #5c6878; }
 .tabs button:disabled .comp-badge { opacity: .5; }
 
 /* ---------------------------------------------------------------- side menu */
@@ -366,7 +373,7 @@ button:disabled { cursor: default; opacity: .45; }
   position: sticky; top: 53px; max-height: calc(100vh - 53px); overflow-y: auto; padding: 12px 10px;
   border-right: 1px solid var(--line); background: var(--panel); scrollbar-width: thin;
 }
-.sport-switch { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
+.sport-switch { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
 .sport-btn {
   display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0 5px; border: 0; border-radius: 8px;
   background: transparent; color: var(--faint); font-size: 9px; font-weight: 700; letter-spacing: .02em;
@@ -392,6 +399,7 @@ button:disabled { cursor: default; opacity: .45; }
   .sport-btn:hover:not(:disabled) .sport-tennis { animation: sport-spin 1s ease-in-out 1; }
   .sport-btn:hover:not(:disabled) .sport-basketball { animation: sport-bounce .7s ease-out 1; }
   .sport-btn:hover:not(:disabled) .sport-hockey { animation: sport-bounce .7s ease-out 1; }
+  .sport-btn:hover:not(:disabled) .sport-mma { animation: sport-slide .5s ease-out 1; }
   .sport-football .ball-core { transform-box: fill-box; transform-origin: center; }
   .sport-btn:hover:not(:disabled) .sport-football .ball-core { animation: sport-core .5s ease-in-out 1; }
 }

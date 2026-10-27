@@ -17,6 +17,7 @@ import clv
 import common
 import hockey
 import merkur_client as mx
+import mma
 import pinnwire_client as pw
 import pinnwire_dashboard as dash
 import price_history
@@ -765,6 +766,68 @@ class HockeyTests(unittest.TestCase):
         self.assertIn(("total", 1, 1.5, "over"), quotes)
 
 
+class MmaTests(unittest.TestCase):
+    # MerkurXtip lists the fight the other way round: Moicano first
+    ROW = {
+        "id": 7, "home": "Moicano, Renato", "away": "Nolan, Tom", "kickOffTime": 1_900_000_000_000 + 4 * 3600 * 1000,
+        "leagueId": 2404691, "odds": {"264": 1.79, "265": 2.0, "54291": 1.52, "54290": 2.49, "54292": 1.28},
+        "params": {"our": "1.5"},
+    }
+
+    @staticmethod
+    def event():
+        return {"event_id": 8, "league_id": 1624, "league_name": "UFC", "units": "Regular", "parent_id": None,
+                "home": "Tom Nolan", "away": "Renato Moicano", "starts": "2030-03-17T17:46:40Z",
+                "periods": {"num_0": {"money_line": {"home": 2.0, "away": 1.855}, "spreads": {},
+                                      "totals": {"1.5": {"points": 1.5, "over": 1.546, "under": 2.49, "max": 1025}}}}}
+
+    def pair(self):
+        return mma.pair_events([self.event()], [self.ROW])["8"]
+
+    def test_reversed_merkur_fight_pairs_and_reads_the_winner_the_other_way_round(self):
+        row, score = self.pair()
+        self.assertEqual(score, 1.0)
+        self.assertTrue(row[mma.SWAPPED])
+        self.assertEqual(mma.merkur_markets(row)["ml"], {"home": 2.0, "away": 1.79})
+        self.assertFalse(self.ROW.get(mma.SWAPPED))  # the cached offer row is left as it is
+
+    def test_straight_fight_keeps_its_order(self):
+        straight = {**self.ROW, "home": "Nolan, Tom", "away": "Moicano, Renato"}
+        row, _ = mma.pair_events([self.event()], [straight])["8"]
+        self.assertFalse(row.get(mma.SWAPPED))
+        self.assertEqual(mma.merkur_markets(row)["ml"], {"home": 1.79, "away": 2.0})
+
+    def test_fight_compares_winner_and_total_rounds(self):
+        match, values = mma.shape_match(self.event(), self.pair())
+        self.assertEqual({(r["group"], r["line"]) for r in match["rows"]}, {("Pobednik", None), ("Ukupno rundi", 1.5)})
+        self.assertEqual((match["merkur"]["home"], match["merkur"]["away"]), ("Nolan, Tom", "Moicano, Renato"))
+        self.assertEqual(match["merkur"]["ml"]["away"]["odds"], 1.79)
+        self.assertIsNone(match["spread"])
+        self.assertEqual(match["total"]["line"], 1.5)
+        self.assertEqual(next(r for r in match["rows"] if r["line"] == 1.5)["maxBet"], 1025)
+        self.assertTrue(all(v["merkur"] > v["pinnacle"] for v in values))
+
+    def test_names_pair_across_name_order_and_aliases(self):
+        self.assertEqual(mma.fighter_score("Zachary Reese", "Reese, Zach"), 1.0)
+        self.assertEqual(mma.fighter_score("Talita Alencar", "de Oliviera Alencar, Ana Talita"), 1.0)
+        self.assertEqual(mma.fighter_score("Yana Santos", "Kunitskaya, Yana W"), 1.0)
+        far = {**self.ROW, "kickOffTime": bb.event_ts(self.event()) + 13 * 3600 * 1000}
+        self.assertEqual(mma.pair_events([self.event()], [far]), {})  # outside the 12 h window
+
+    def test_every_league_is_kept_and_named_by_its_promotion(self):
+        other = {**self.event(), "event_id": 9, "league_id": 5, "league_name": "Oktagon MMA"}
+        out = mma.MmaState(dash.History(path=None), str).incoming({"events": [self.event(), other]})
+        self.assertEqual([e["event_id"] for e in out], [8, 9])
+        comps = mma.MmaState.competitions(None, [mma.shape_match(e, None)[0] for e in out])
+        self.assertEqual([(c["code"], c["badge"], c["count"]) for c in comps], [("UFC", "ufc", 1), ("OKT", "oktagon", 1)])
+
+    def test_drop_quotes_are_in_period_zero(self):
+        match, _ = mma.shape_match(self.event(), self.pair())
+        quotes = mma.drop_quotes(self.event(), match)["8"][1]
+        self.assertEqual(quotes[("moneyline", 0, None, "away")], {"merkur": 1.79, "fair": 1.925})
+        self.assertIn(("total", 0, 1.5, "under"), quotes)
+
+
 class OtherLeagueTests(unittest.TestCase):
     @staticmethod
     def event(event_id, home, away, league_id=999, league="Wales - Cymru Premier"):
@@ -1135,6 +1198,8 @@ class CompetitionTableTests(unittest.TestCase):
         for sport, table in self.TABLES.items():
             with self.subTest(sport=sport):
                 self.assertEqual([c["key"] for c in table if c["key"] not in coloured], [])
+        badges = [badge for _, _, badge in mma.PROMOTIONS] + [mma.OTHER_PROMOTION[2]]
+        self.assertEqual([b for b in badges if b not in coloured], [])
 
 
 class BuildSyncTests(unittest.TestCase):
@@ -1238,10 +1303,12 @@ class HandlerTests(unittest.TestCase):
             self.assertEqual(self.request("/api/board?refresh=1")[0], 200)
             self.assertEqual(self.request("/api/hockey/board?full=1")[0], 200)
             self.assertEqual(self.request("/api/tennis/match/12")[1], {"id": "12"})
+            self.assertEqual(self.request("/api/mma/board")[0], 200)
             self.assertEqual(self.request("/api/match/34?refresh=1")[1], {"id": "34"})
         self.assertEqual(states["football"].calls, [("board", True, False), ("match", "34", {"refresh": True})])
         self.assertEqual(states["hockey"].calls, [("board", False, True)])
         self.assertEqual(states["tennis"].calls, [("match", "12", {})])  # only football re-reads a match
+        self.assertEqual(states["mma"].calls, [("board", False, False)])
         self.assertEqual(states["basketball"].calls, [])
 
     def test_bad_ids_and_unknown_routes(self):

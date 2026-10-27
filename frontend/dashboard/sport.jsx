@@ -1,4 +1,4 @@
-// Basketball, tennis and hockey screen (SportPane), its board, odds modal and board loading.
+// Basketball, tennis, hockey and MMA screen (SportPane), its board, odds modal and board loading.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { readStored, requestJson, writeStored } from "./api.js";
 import { DAY_FILTERS, clockFmt, dayKey, dayLabel, evClass, fmt2, fmtEv, fmtKickoffShort, fmtLimit, fmtLine, fmtOdds, inDayFilter, merkurClass, merkurTitle, timeFmt } from "./format.js";
@@ -16,7 +16,7 @@ const SPORT_OU = [["over", "V"], ["under", "M"]];
 function sportValuePasses(value, level, group, teamPrefix) {
   if (level === "fair" && value.ev < 0) return false;
   if (level !== "all" && level !== "fair" && value.ev < Number(level)) return false;
-  if (group === "team") return value.group.startsWith(teamPrefix);
+  if (group === "team") return !!teamPrefix && value.group.startsWith(teamPrefix);
   return group === "all" || value.group === group;
 }
 
@@ -180,7 +180,7 @@ function SportOddsModal({ sport, matchId, boardMatch, onClose, onCalls }) {
   );
 }
 
-function SportRow({ match, competition, expanded, onToggle }) {
+function SportRow({ match, competition, expanded, onToggle, spread }) {
   const x = match.merkur;
   return (
     <>
@@ -222,7 +222,7 @@ function SportRow({ match, competition, expanded, onToggle }) {
             </td>
           );
         })}
-        <SportLineCells cell={match.spread} sides={SPORT_ML} signed />
+        {spread && <SportLineCells cell={match.spread} sides={SPORT_ML} signed />}
         <SportLineCells cell={match.total} sides={SPORT_OU} />
       </tr>
     </>
@@ -239,17 +239,21 @@ function SportCompareTable({ sport, matches, competitions, selectedId, onOpen })
           <tr>
             <th rowSpan={2} className="mc-match">Meč</th>
             <th colSpan={6} className="mc-group-strong">Pobednik {cfg.winnerNote && <small>{cfg.winnerNote}</small>}</th>
-            <th colSpan={7} className="mc-group-strong">{cfg.spreadTitle}</th>
+            {cfg.spreadTitle && <th colSpan={7} className="mc-group-strong">{cfg.spreadTitle}</th>}
             <th colSpan={7} className="mc-group-strong">{cfg.totalTitle}</th>
           </tr>
           <tr className="mc-sub">
             {["No-vig", "Pinnacle", "MerkurXtip"].map((title) => (
               <th key={`ml${title}`} colSpan={2} className="mc-group">{title}</th>
             ))}
-            <th className="mc-line mc-group-strong">linija</th>
-            {["No-vig", "Pinnacle", "MerkurXtip"].map((title) => (
-              <th key={`h${title}`} colSpan={2} className="mc-group">{title}</th>
-            ))}
+            {cfg.spreadTitle && (
+              <>
+                <th className="mc-line mc-group-strong">linija</th>
+                {["No-vig", "Pinnacle", "MerkurXtip"].map((title) => (
+                  <th key={`h${title}`} colSpan={2} className="mc-group">{title}</th>
+                ))}
+              </>
+            )}
             <th className="mc-line mc-group-strong">linija</th>
             {["No-vig", "Pinnacle", "MerkurXtip"].map((title) => (
               <th key={`t${title}`} colSpan={2} className="mc-group">{title}</th>
@@ -264,6 +268,7 @@ function SportCompareTable({ sport, matches, competitions, selectedId, onOpen })
               competition={byId.get(match.leagueId)}
               expanded={String(match.id) === selectedId}
               onToggle={() => onOpen(String(match.id))}
+              spread={!!cfg.spreadTitle}
             />
           ))}
         </tbody>

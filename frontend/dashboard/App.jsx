@@ -65,7 +65,7 @@ function KeyPanel({ onSaved }) {
 function initialSport() {
   const fromUrl = new URLSearchParams(window.location.search).get("sport");
   const sport = fromUrl || readStored("pb.sport", "football");
-  return ["basketball", "tennis", "hockey"].includes(sport) ? sport : "football";
+  return ["basketball", "tennis", "hockey", "mma"].includes(sport) ? sport : "football";
 }
 
 export default function App() {
@@ -79,6 +79,7 @@ export default function App() {
   const bb = useSportBoard("basketball", setCallsToday, setApiKeySet);
   const tn = useSportBoard("tennis", setCallsToday, setApiKeySet);
   const hk = useSportBoard("hockey", setCallsToday, setApiKeySet);
+  const mm = useSportBoard("mma", setCallsToday, setApiKeySet);
   const [competition, setCompetition] = useState(() => readStored("pb.competition", "all"));
   const [dayFilter, setDayFilter] = useState(() => readStored("pb.day", "all"));
   const [query, setQuery] = useState("");
@@ -129,11 +130,11 @@ export default function App() {
   }, []);
 
   const twoWay = sport !== "football";
-  const pane = { basketball: bb, tennis: tn, hockey: hk }[sport] || null;
+  const pane = { basketball: bb, tennis: tn, hockey: hk, mma: mm }[sport] || null;
   const reload = pane ? pane.load : loadBoard;
   const cur = pane ? pane.board : board;
   const curLoading = pane ? pane.loading : loading;
-  const drops = useDropAlerts({ football: board, basketball: bb.board, tennis: tn.board, hockey: hk.board }, dropAlerts, dropPct, apiKeySet, dropEdge);
+  const drops = useDropAlerts({ football: board, basketball: bb.board, tennis: tn.board, hockey: hk.board, mma: mm.board }, dropAlerts, dropPct, apiKeySet, dropEdge);
   const pickSport = useCallback((key) => {
     setAlertsOpen(false);
     setSport(key);
@@ -152,11 +153,12 @@ export default function App() {
     if (apiKeySet && !bb.board && !bb.loading && !bb.error) bb.load();
     if (apiKeySet && !tn.board && !tn.loading && !tn.error) tn.load();
     if (apiKeySet && !hk.board && !hk.loading && !hk.error) hk.load();
+    if (apiKeySet && !mm.board && !mm.loading && !mm.error) mm.load();
     if (apiKeySet && !board && !loading && !error) loadBoard();
-  }, [apiKeySet, bb, tn, hk, board, loading, error, loadBoard]);
+  }, [apiKeySet, bb, tn, hk, mm, board, loading, error, loadBoard]);
   const sportCounts = {
     football: board?.matches.length, basketball: bb.board?.matches.length, tennis: tn.board?.matches.length,
-    hockey: hk.board?.matches.length,
+    hockey: hk.board?.matches.length, mma: mm.board?.matches.length,
   };
 
   useEffect(() => {
@@ -385,7 +387,7 @@ export default function App() {
         </div>
       )}
 
-      {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); bb.reset(); tn.reset(); hk.reset(); reload("full"); }} />}
+      {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); bb.reset(); tn.reset(); hk.reset(); mm.reset(); reload("full"); }} />}
 
       {apiKeySet && alertsOpen && (
         <div className="shell">
