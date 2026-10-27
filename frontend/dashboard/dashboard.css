@@ -259,6 +259,19 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.qatsl { --badge: #8a1538; }
 .comp-badge.vnmv2 { --badge: #c8102e; }
 .comp-badge.botpremierleag { --badge: #3a5a78; }
+.comp-badge.espcup { --badge: #c60b1e; }
+.comp-badge.norcup { --badge: #ba0c2f; }
+.comp-badge.engslcentral { --badge: #4a3a8c; }
+.comp-badge.nedcup { --badge: #ea6a00; }
+.comp-badge.afccl2 { --badge: #0b4f8a; }
+.comp-badge.turcup { --badge: #c8102e; }
+.comp-badge.autcup { --badge: #c8102e; }
+.comp-badge.czecup { --badge: #11457e; }
+.comp-badge.gresl { --badge: #0d5eaf; }
+.comp-badge.ausch { --badge: #1b5e9b; }
+.comp-badge.kor1 { --badge: #2c4ea3; }
+.comp-badge.prypd { --badge: #d52b1e; }
+.comp-badge.engisthmian { --badge: #4a3a8c; }
 .comp-badge.fraligue3,
 .comp-badge.ruscup,
 .comp-badge.afcchampionsle,
