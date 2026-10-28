@@ -300,6 +300,16 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.scoll { --badge: #005eb8; }
 .comp-badge.srbcup { --badge: #c6363c; }
 .comp-badge.urucup { --badge: #3b8fd1; }
+.comp-badge.egy2b { --badge: #c9a227; }
+.comp-badge.kenpl { --badge: #1f7a3a; }
+.comp-badge.jpnlc { --badge: #bc002d; }
+.comp-badge.mkdcup { --badge: #d2302c; }
+.comp-badge.cypcup { --badge: #2c4ea3; }
+.comp-badge.kwtpl { --badge: #007a3d; }
+.comp-badge.esptercera { --badge: #a8322d; }
+.comp-badge.itaseried { --badge: #1f6fb4; }
+.comp-badge.nicpd { --badge: #3b8fd1; }
+.comp-badge.zmbsl { --badge: #198a00; }
 .comp-badge.fraligue3,
 .comp-badge.ruscup,
 .comp-badge.afcchampionsle,

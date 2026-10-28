@@ -280,6 +280,16 @@ COMPETITIONS = [
     {"id": 283715, "key": "scoll", "name": "Lowland League", "country": "Škotska", "code": "SCO5", "merkur": "SCO LL"},
     {"id": 2435, "key": "srbcup", "name": "Kup", "country": "Srbija", "code": "SRBC", "merkur": "SRB CUP"},
     {"id": 5594, "key": "urucup", "name": "Kup", "country": "Urugvaj", "code": "URUC", "merkur": "URU CUP"},
+    {"id": 233451, "key": "egy2b", "name": "2. divizija B", "country": "Egipat", "code": "EGY3", "merkur": "EGY 2D"},
+    {"id": 187707, "key": "kenpl", "name": "Premier liga", "country": "Kenija", "code": "KEN", "merkur": "KEN PL"},
+    {"id": 4995, "key": "jpnlc", "name": "Liga kup", "country": "Japan", "code": "JPNLC", "merkur": "JPN LC"},
+    {"id": 207309, "key": "mkdcup", "name": "Kup", "country": "Severna Makedonija", "code": "MKDC", "merkur": "MKD CUP"},
+    {"id": 1888, "key": "cypcup", "name": "Kup", "country": "Kipar", "code": "CYPC", "merkur": "CYP CUP"},
+    {"id": 10380, "key": "kwtpl", "name": "Premier liga", "country": "Kuvajt", "code": "KUW", "merkur": "KWT PL"},
+    {"id": 199926, "key": "esptercera", "name": "Tercera Division", "country": "Španija", "code": "ESP5", "merkur": "ESP TER"},
+    {"id": 200813, "key": "itaseried", "name": "Serie D", "country": "Italija", "code": "ITA4", "merkur": "ITA SD"},
+    {"id": 197584, "key": "nicpd", "name": "Primera Division", "country": "Nikaragva", "code": "NCA", "merkur": "NIC LP"},
+    {"id": 211601, "key": "zmbsl", "name": "Super liga", "country": "Zambija", "code": "ZAM", "merkur": "ZMB SL"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
