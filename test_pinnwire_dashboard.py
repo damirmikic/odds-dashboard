@@ -1188,12 +1188,20 @@ class CompetitionTableTests(unittest.TestCase):
                     self.assertEqual(self.duplicates(c[field] for c in table), set())
 
     def test_each_merkur_league_maps_to_one_competition(self):
-        football = [m for c in dash.COMPETITIONS for m in [c["merkur"], *c.get("merkur_also", [])]]
+        football = [m for c in dash.COMPETITIONS
+                    for m in [*([c["merkur"]] if "merkur" in c else []), *c.get("merkur_also", [])]]
         basketball = [m for c in bb.COMPETITIONS for m in (c["mx_id"], *c.get("mx_extra", ()))]
         for sport, ids in (("football", football), ("basketball", basketball),
                            ("hockey", [c["mx_id"] for c in hockey.COMPETITIONS])):
             with self.subTest(sport=sport):
                 self.assertEqual(self.duplicates(ids), set())
+
+    def test_shared_merkur_league_points_at_a_competition_with_its_own(self):
+        own = {c["id"] for c in dash.COMPETITIONS if "merkur" in c}
+        for c in dash.COMPETITIONS:
+            with self.subTest(key=c["key"]):
+                self.assertTrue(("merkur" in c) != ("merkur_of" in c))
+                self.assertIn(c.get("merkur_of", c["id"]), own)
 
     def test_every_competition_has_a_badge_colour(self):
         with open(os.path.join(os.path.dirname(dash.__file__), "frontend", "dashboard", "dashboard.css"),

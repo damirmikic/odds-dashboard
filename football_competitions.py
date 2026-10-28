@@ -7,7 +7,7 @@ frontend/dashboard/dashboard.css; test_pinnwire_dashboard.CompetitionTableTests 
 
 # PinnWire league_id -> display info; order is the tab order in the UI.
 # `merkur` is the MerkurXtip `leagueShort` of the same competition, or its numeric `leagueId` when the
-# offer has no `leagueShort` for it.
+# offer has no `leagueShort` for it; `merkur_of` instead names the competition whose MerkurXtip league this one shares.
 COMPETITIONS = [
     {"id": 1980, "key": "epl", "name": "Premier League", "country": "Engleska", "code": "ENG", "merkur": "ENG PL"},
     {"id": 2196, "key": "laliga", "name": "La Liga", "country": "Španija", "code": "ESP", "merkur": "ESP LL"},
@@ -188,7 +188,7 @@ COMPETITIONS = [
     {"id": 2259, "key": "nirpremiership", "name": "Premiership", "country": "Severna Irska", "code": "NIR", "merkur": "NIR PRM"},
     {"id": 2457, "key": "svnprvaliga", "name": "Prva Liga", "country": "Slovenija", "code": "SVN", "merkur": "SLO 1L"},
     {"id": 2518, "key": "suichallengele", "name": "Challenge League", "country": "Švajcarska", "code": "SUI2", "merkur": "SWI CL"},
-    {"id": 201236, "key": "tunleague2", "name": "League 2", "country": "Tunis", "code": "TUN", "merkur": "TUN L2"},
+    {"id": 201236, "key": "tunleague2", "name": "League 2", "country": "Tunis", "code": "TUN2", "merkur": "TUN L2"},
     {"id": 197559, "key": "engefltrophy", "name": "EFL Trophy", "country": "Engleska", "code": "EFLT", "merkur": "ENG EFLT"},
     {"id": 211244, "key": "ethpremierleag", "name": "Premier League", "country": "Etiopija", "code": "ETH", "merkur": "ETH PL"},
     {"id": 209758, "key": "mexligadeexpan", "name": "Liga de Expansión MX", "country": "Meksiko", "code": "MEX2", "merkur": "MEX EXP"},
@@ -280,7 +280,9 @@ COMPETITIONS = [
     {"id": 283715, "key": "scoll", "name": "Lowland League", "country": "Škotska", "code": "SCO5", "merkur": "SCO LL"},
     {"id": 2435, "key": "srbcup", "name": "Kup", "country": "Srbija", "code": "SRBC", "merkur": "SRB CUP"},
     {"id": 5594, "key": "urucup", "name": "Kup", "country": "Urugvaj", "code": "URUC", "merkur": "URU CUP"},
-    {"id": 233451, "key": "egy2b", "name": "2. divizija B", "country": "Egipat", "code": "EGY3", "merkur": "EGY 2D"},
+    {"id": 210213, "key": "egy2a", "name": "2. divizija A", "country": "Egipat", "code": "EGY2", "merkur": "EGY 2D"},
+    # MerkurXtip lists both Egyptian second divisions as one "EGY 2D" league
+    {"id": 233451, "key": "egy2b", "name": "2. divizija B", "country": "Egipat", "code": "EGY3", "merkur_of": 210213},
     {"id": 187707, "key": "kenpl", "name": "Premier liga", "country": "Kenija", "code": "KEN", "merkur": "KEN PL"},
     {"id": 4995, "key": "jpnlc", "name": "Liga kup", "country": "Japan", "code": "JPNLC", "merkur": "JPN LC"},
     {"id": 207309, "key": "mkdcup", "name": "Kup", "country": "Severna Makedonija", "code": "MKDC", "merkur": "MKD CUP"},
@@ -290,6 +292,12 @@ COMPETITIONS = [
     {"id": 200813, "key": "itaseried", "name": "Serie D", "country": "Italija", "code": "ITA4", "merkur": "ITA SD"},
     {"id": 197584, "key": "nicpd", "name": "Primera Division", "country": "Nikaragva", "code": "NCA", "merkur": "NIC LP"},
     {"id": 211601, "key": "zmbsl", "name": "Super liga", "country": "Zambija", "code": "ZAM", "merkur": "ZMB SL"},
+    {"id": 10355, "key": "tunl1", "name": "Liga 1", "country": "Tunis", "code": "TUN", "merkur": "TUN LP1"},
+    {"id": 208764, "key": "anggir", "name": "Girabola", "country": "Angola", "code": "ANG", "merkur": "ANG GIR"},
+    {"id": 204985, "key": "carcup", "name": "Caribbean Cup", "country": "CONCACAF", "code": "CARC", "merkur": "CAR CUP"},
+    {"id": 10921, "key": "colpb", "name": "Primera B", "country": "Kolumbija", "code": "COL2", "merkur": "COL PB"},
+    {"id": 2138, "key": "isrtoto", "name": "Toto kup", "country": "Izrael", "code": "ISRLC", "merkur": "ISR TC"},
+    {"id": 210948, "key": "tzapl", "name": "Premier liga", "country": "Tanzanija", "code": "TAN", "merkur": "TZA LKB"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {

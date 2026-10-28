@@ -45,7 +45,10 @@ PRICES_PATH = os.path.join(DATA, "prices.sqlite3")
 
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
 # `merkur_also`: further MerkurXtip leagues that PinnWire quotes under the same league_id
-MERKUR_COMP = {m: c["id"] for c in COMPETITIONS for m in [c["merkur"], *c.get("merkur_also", [])]}
+MERKUR_COMP = {m: c["id"] for c in COMPETITIONS
+               for m in [*([c["merkur"]] if "merkur" in c else []), *c.get("merkur_also", [])]}
+# `merkur_of`: a competition sharing another one's MerkurXtip league pairs under that competition's id
+PAIR_COMP = {c["id"]: c.get("merkur_of", c["id"]) for c in COMPETITIONS}
 
 
 def merkur_comp(row):
@@ -335,7 +338,7 @@ PAIR_WINDOW = 6 * 60
 
 
 def pair_inputs(events, offer):
-    pin = [{"id": str(e["event_id"]), "comp": e["league_id"], "home": e.get("home", ""),
+    pin = [{"id": str(e["event_id"]), "comp": PAIR_COMP[e["league_id"]], "home": e.get("home", ""),
             "away": e.get("away", ""), "ts": event_ts(e)} for e in events]
     mer = [{"id": r["id"], "comp": merkur_comp(r), "home": r.get("home", ""),
             "away": r.get("away", ""), "ts": merkur_ts(r), "row": r}
