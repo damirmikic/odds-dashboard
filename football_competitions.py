@@ -298,6 +298,7 @@ COMPETITIONS = [
     {"id": 10921, "key": "colpb", "name": "Primera B", "country": "Kolumbija", "code": "COL2", "merkur": "COL PB"},
     {"id": 2138, "key": "isrtoto", "name": "Toto kup", "country": "Izrael", "code": "ISRLC", "merkur": "ISR TC"},
     {"id": 210948, "key": "tzapl", "name": "Premier liga", "country": "Tanzanija", "code": "TAN", "merkur": "TZA LKB"},
+    {"id": 6619, "key": "uyl", "name": "Liga mladih U19", "country": "UEFA", "code": "UYL", "merkur": "UEFA YL"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
