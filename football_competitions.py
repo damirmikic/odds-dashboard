@@ -318,4 +318,10 @@ HIDDEN_MISSING_LEAGUES = {
     "Austria - Amateur Cup",
     "Jordan - U20 League",
     "Uruguay - Primera Division Amateur",
+    "Malaysia - President Cup U20",
+    "Myanmar - National League U20",
+    "Thailand - U21 League",
+    "Brazil - Goiano Women",
+    "Croatia - 3. NL",
+    "Slovenia - 3. SNL",
 }
