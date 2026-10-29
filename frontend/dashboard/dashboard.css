@@ -137,10 +137,11 @@ button:disabled { cursor: default; opacity: .45; }
 .segmented button { padding: 5px 11px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; }
 .segmented button.active { background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
 .search {
-  width: 220px; height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px;
-  background: var(--panel); outline: none;
+  width: 220px; height: 30px; padding: 0 10px; border: 1px solid var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
+  border-radius: 7px; background: var(--panel); outline: none;
 }
-.search:focus { border-color: var(--accent); }
+.search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 .search-wrap { position: relative; }
 .search-hits {
   position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; width: min(460px, calc(100vw - 32px));
