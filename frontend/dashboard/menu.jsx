@@ -4,7 +4,7 @@ import { readStored, writeStored } from "./api.js";
 import { evClass, fmtEv } from "./format.js";
 import { CompBadge } from "./ui.jsx";
 
-const SPORTS = [
+export const SPORTS = [
   { key: "football", label: "Fudbal", live: true },
   { key: "basketball", label: "Košarka", live: true },
   { key: "tennis", label: "Tenis", live: true },
@@ -13,7 +13,7 @@ const SPORTS = [
 ];
 
 // Line icons (24px grid, currentColor); the `sport-*` classes drive the hover animations in dashboard.css.
-function SportIcon({ sport }) {
+export function SportIcon({ sport }) {
   const shape = {
     football: (
       <>
@@ -80,7 +80,8 @@ function sortedGroups(groups, favorites) {
   return starred.length ? [favoriteGroup, ...rest] : rest;
 }
 
-export function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, label, alerts }) {
+// `searching`: sportCounts are the search hits per sport, not the match counts
+export function SideMenu({ sport, onSport, sportCounts, searching, groups, all, onPick, label, alerts }) {
   const [favoriteMap, setFavoriteMap] = useState(() => readStored(FAVORITES_KEY, {}) || {});
   const favorites = new Set(favoriteMap[sport] || []);
   const toggleFavorite = (key) => {
@@ -103,9 +104,11 @@ export function SideMenu({ sport, onSport, sportCounts, groups, all, onPick, lab
             className={`sport-btn${sport === item.key ? " active" : ""}`}
             disabled={!item.live}
             onClick={() => onSport(item.key)}
-            title={item.live ? item.label : `${item.label} — uskoro`}
+            title={item.live ? (searching ? `${item.label}: ${sportCounts?.[item.key] ?? 0} pogodaka pretrage` : item.label) : `${item.label} — uskoro`}
           >
-            {sportCounts?.[item.key] != null && <b className="sport-count">{sportCounts[item.key]}</b>}
+            {sportCounts?.[item.key] != null && (
+              <b className={`sport-count${searching ? " hits" : ""}`}>{sportCounts[item.key]}</b>
+            )}
             <SportIcon sport={item.key} />
             <span>{item.label}</span>
           </button>

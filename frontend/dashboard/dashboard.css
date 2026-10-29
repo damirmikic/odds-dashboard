@@ -141,6 +141,25 @@ button:disabled { cursor: default; opacity: .45; }
   background: var(--panel); outline: none;
 }
 .search:focus { border-color: var(--accent); }
+.search-wrap { position: relative; }
+.search-hits {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; width: min(460px, calc(100vw - 32px));
+  max-height: 60vh; overflow-y: auto; padding: 4px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+.search-hit {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--text); font-size: 12px; text-align: left;
+}
+.search-hit:hover { background: var(--panel-2); }
+.search-hit .sport-icon { flex: none; width: 16px; height: 16px; color: var(--muted); }
+.search-teams { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.search-time { flex: none; color: var(--faint); font-size: 11px; }
+.search-ev { flex: none; min-width: 52px; font-size: 11px; font-weight: 700; text-align: right; }
+.search-ev.edge-pos { color: var(--edge-pos); }
+.search-ev.edge-near { color: var(--edge-near); }
+.search-ev.edge-neg { color: var(--faint); }
+.search-empty { margin: 0; padding: 6px 8px; color: var(--faint); font-size: 12px; }
 .legend { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--faint); font-size: 11px; }
 .legend .price { display: inline; }
 .legend-fair { margin-left: 10px; }
@@ -416,6 +435,7 @@ button:disabled { cursor: default; opacity: .45; }
   background: var(--panel-2); color: var(--muted); font-size: 10px; font-weight: 800; line-height: 1.3; text-align: center;
 }
 .sport-btn.active .sport-count { background: var(--accent); color: var(--accent-ink); }
+.sport-count.hits, .sport-btn.active .sport-count.hits { background: var(--accent); color: var(--accent-ink); }
 .sport-icon { transition: color .2s; transform-origin: 50% 50%; }
 .sport-btn.active .sport-icon { color: var(--accent); }
 @keyframes sport-spin { to { transform: rotate(360deg); } }
@@ -587,7 +607,7 @@ footer { padding: 14px 20px; border-top: 1px solid var(--line); color: var(--fai
   .topbar, .tabs, .filters { padding-left: 12px; padding-right: 12px; }
   .workspace { padding: 0 12px 12px; }
   .status { margin-left: 0; order: 3; width: 100%; }
-  .search { width: 100%; }
+  .search, .search-wrap { width: 100%; }
 }
 
 /* ---------------------------------------------------------------- MerkurXtip comparison */

@@ -11,6 +11,7 @@ import { SPORT_VIEWS } from "./sportViews.js";
 import { SportPane, useSportBoard } from "./sport.jsx";
 import { AlertsPage, useDropAlerts } from "./alerts.jsx";
 import { ClvPage } from "./clv.jsx";
+import { GlobalSearch, matchesQuery, searchAll } from "./search.jsx";
 
 const AUTO_OPTIONS = [0, 3, 5, 10, 15, 30, 60, 120, 300];
 
@@ -160,6 +161,16 @@ export default function App() {
     football: board?.matches.length, basketball: bb.board?.matches.length, tennis: tn.board?.matches.length,
     hockey: hk.board?.matches.length, mma: mm.board?.matches.length,
   };
+  const search = useMemo(
+    () => searchAll({ football: board, basketball: bb.board, tennis: tn.board, hockey: hk.board, mma: mm.board }, query),
+    [board, bb.board, tn.board, hk.board, mm.board, query],
+  );
+  const searching = query.trim() !== "";
+  const menuCounts = searching ? search.counts : sportCounts;
+  const searchBox = (
+    <GlobalSearch query={query} setQuery={setQuery} hits={search.hits}
+      onOpen={(hit) => openAlert({ sport: hit.sport, matchId: hit.match.id })} />
+  );
 
   useEffect(() => {
     requestJson("/api/status")
@@ -212,7 +223,7 @@ export default function App() {
           return false;
         }
       }
-      return !q || `${m.home} ${m.away} ${m.merkur?.home || ""} ${m.merkur?.away || ""}`.toLocaleLowerCase().includes(q);
+      return matchesQuery(m, q);
     });
   }, [board, competition, dayFilter, query, compById, otherKeys, view, edgeFilter]);
 
@@ -391,7 +402,7 @@ export default function App() {
 
       {apiKeySet && alertsOpen && (
         <div className="shell">
-          <SideMenu sport="" onSport={pickSport} sportCounts={sportCounts} alerts={alertsTab} />
+          <SideMenu sport="" onSport={pickSport} sportCounts={menuCounts} searching={searching} alerts={alertsTab} />
           <div className="content">
         <div className="segmented view-switch">
           <button type="button" className={alertsPage === "drops" ? "active" : ""} onClick={() => setAlertsPage("drops")}>Padovi</button>
@@ -422,11 +433,12 @@ export default function App() {
           dayFilter={dayFilter}
           setDayFilter={setDayFilter}
           query={query}
-          setQuery={setQuery}
+          searchBox={searchBox}
           sport={sport}
           onSport={pickSport}
           alertsTab={alertsTab}
-          sportCounts={sportCounts}
+          sportCounts={menuCounts}
+          searching={searching}
           setCallsToday={setCallsToday}
           openReq={paneOpen}
         />
@@ -439,7 +451,8 @@ export default function App() {
               sport={sport}
               onSport={pickSport}
               alerts={alertsTab}
-              sportCounts={sportCounts}
+              sportCounts={menuCounts}
+              searching={searching}
               groups={menuGroups}
               all={allItem}
               onPick={(item) => (view === "value"
@@ -508,13 +521,7 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <input
-                className="search"
-                type="search"
-                placeholder="Pretraga timova…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
+              {searchBox}
               {view === "pinnacle" ? (
                 <span className="legend">
                   <span className="price up"><span className="price-odds">▲</span></span> kvota raste

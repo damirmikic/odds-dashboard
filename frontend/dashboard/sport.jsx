@@ -8,6 +8,7 @@ import { VALUE_LEVELS, ValueRange, ValueTable, bestPerMarket, isTopLeague, range
 import { SideMenu, buildMenuGroups } from "./menu.jsx";
 import { MissingTable, missingEmpty } from "./missing.jsx";
 import { SPORT_VIEWS } from "./sportViews.js";
+import { matchesQuery } from "./search.jsx";
 
 const SPORT_ML = [["home", "1"], ["away", "2"]];
 
@@ -277,7 +278,7 @@ function SportCompareTable({ sport, matches, competitions, selectedId, onOpen })
   );
 }
 
-export function SportPane({ board, error, loading, dayFilter, setDayFilter, query, setQuery, sport, onSport, sportCounts, setCallsToday, alertsTab, openReq }) {
+export function SportPane({ board, error, loading, dayFilter, setDayFilter, query, searchBox, sport, onSport, sportCounts, searching, setCallsToday, alertsTab, openReq }) {
   const cfg = SPORT_VIEWS[sport];
   const store = useCallback((name) => `pb.${cfg.store}.${name}`, [cfg.store]);
   const [competition, setCompetition] = useState(() => readStored(store("competition"), "all"));
@@ -310,10 +311,7 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
   const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
   const matchesById = useMemo(() => new Map((board?.matches || []).map((m) => [m.id, m])), [board]);
   const q = query.trim().toLocaleLowerCase();
-  const textOk = useCallback(
-    (m) => !q || `${m.home} ${m.away} ${m.merkur?.home || ""} ${m.merkur?.away || ""}`.toLocaleLowerCase().includes(q),
-    [q],
-  );
+  const textOk = useCallback((m) => matchesQuery(m, q), [q]);
 
   const missingCounts = useMemo(() => {
     const counts = new Map();
@@ -401,6 +399,7 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
         onSport={onSport}
         alerts={alertsTab}
         sportCounts={sportCounts}
+        searching={searching}
         groups={menuGroups}
         all={allItem}
         onPick={(item) => (inValue
@@ -468,7 +467,7 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
               </button>
             ))}
           </div>
-          <input className="search" type="search" placeholder="Pretraga timova…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          {searchBox}
           <span className="legend mc-legend">
             <span className="mc-cell mx-fair">MX ≥ fer</span>
             <span className="mc-cell mx-above">MX &gt; Pinnacle</span>
