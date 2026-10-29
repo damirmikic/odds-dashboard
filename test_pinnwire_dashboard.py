@@ -320,6 +320,7 @@ class MerkurPairingTests(unittest.TestCase):
         self.assertEqual(mx.name_score("Borussia Dortmund", "Dortmund"), 1.0)
         self.assertEqual(mx.name_score("AGF", "Aarhus"), 1.0)
         self.assertEqual(mx.name_score("Olympiakos", "Olympiacos"), 1.0)
+        self.assertEqual(mx.name_score("The New Saints", "TNS"), 1.0)
         self.assertEqual(mx.name_score("Chelsea", "Arsenal"), 0.0)
         self.assertEqual(mx.name_score("Colchester United", "Colchester U21"), 1.0)
         self.assertEqual(mx.name_score("Queens Park Rangers", "QPR U21"), 1.0)

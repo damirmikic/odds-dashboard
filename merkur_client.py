@@ -221,6 +221,7 @@ ALIASES = {
     "odds bk 2": "odd bk ii",
     "flora u21": "flora tallinn ii",
     "j a hernandez": "alex hernandez",
+    "tns": "the new saints",
 }
 
 
