@@ -346,6 +346,7 @@ COMPETITIONS = [
     {"id": 199487, "key": "ngapl", "name": "NPFL", "country": "Nigerija", "code": "NGA", "merkur": "NGA NPFL"},
     {"id": 211116, "key": "rwapl", "name": "Premier League", "country": "Ruanda", "code": "RWA", "merkur": "RWA NFL"},
     {"id": 201145, "key": "ukr2", "name": "Perša liga", "country": "Ukrajina", "code": "UKR2", "merkur": "UKR PER"},
+    {"id": 10895, "key": "czeu19", "name": "U19 liga", "country": "Češka", "code": "CZEU19", "merkur": "CZE U19"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {

@@ -222,6 +222,8 @@ ALIASES = {
     "flora u21": "flora tallinn ii",
     "j a hernandez": "alex hernandez",
     "tns": "the new saints",
+    "union sg 2": "union saint gilloise ii",
+    "renaissance mons": "raec mons",
 }
 
 
