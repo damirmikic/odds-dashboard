@@ -383,6 +383,10 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.rwapl { --badge: #00a1de; }
 .comp-badge.ukr2 { --badge: #0057b7; }
 .comp-badge.czeu19 { --badge: #11457e; }
+.comp-badge.cypd2 { --badge: #2c4ea3; }
+.comp-badge.gerrlsw { --badge: #3a3a3a; }
+.comp-badge.nirch { --badge: #1f6f3f; }
+.comp-badge.smrcs { --badge: #5eb6e4; }
 .comp-badge.fraligue3,
 .comp-badge.ruscup,
 .comp-badge.afcchampionsle,
