@@ -349,6 +349,36 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.albsl { --badge: #b3202a; }
 .comp-badge.hkgpl { --badge: #de2910; }
 .comp-badge.uecw { --badge: #5b2a86; }
+.comp-badge.espsegfed { --badge: #c60b1e; }
+.comp-badge.por3 { --badge: #006600; }
+.comp-badge.chnjia { --badge: #de2910; }
+.comp-badge.alg2 { --badge: #006233; }
+.comp-badge.autrs { --badge: #c8102e; }
+.comp-badge.kor3 { --badge: #003478; }
+.comp-badge.kor4 { --badge: #003478; }
+.comp-badge.slvpd { --badge: #0047ab; }
+.comp-badge.idn2 { --badge: #ce1126; }
+.comp-badge.jpnfl { --badge: #bc002d; }
+.comp-badge.walch { --badge: #c8102e; }
+.comp-badge.cpl { --badge: #d52b1e; }
+.comp-badge.franat1 { --badge: #0055a4; }
+.comp-badge.jorpro { --badge: #1f7a3a; }
+.comp-badge.nzlnl { --badge: #00247d; }
+.comp-badge.uae1 { --badge: #00732f; }
+.comp-badge.usl1 { --badge: #1f3f7a; }
+.comp-badge.vnmv1 { --badge: #da251d; }
+.comp-badge.autrn { --badge: #c8102e; }
+.comp-badge.autre { --badge: #c8102e; }
+.comp-badge.bfapl { --badge: #009e49; }
+.comp-badge.chlpb { --badge: #0039a6; }
+.comp-badge.chl2d { --badge: #0039a6; }
+.comp-badge.gerrlno { --badge: #3a3a3a; }
+.comp-badge.indil { --badge: #ff9933; }
+.comp-badge.lbnpl { --badge: #00a651; }
+.comp-badge.myssl { --badge: #010066; }
+.comp-badge.zafpsl { --badge: #007a4d; }
+.comp-badge.thal1 { --badge: #2d2a4a; }
+.comp-badge.mlsnp { --badge: #1f3f7a; }
 .comp-badge.fraligue3,
 .comp-badge.ruscup,
 .comp-badge.afcchampionsle,
