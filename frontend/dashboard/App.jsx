@@ -11,6 +11,7 @@ import { SPORT_VIEWS } from "./sportViews.js";
 import { SportPane, useSportBoard } from "./sport.jsx";
 import { AlertsPage, useDropAlerts } from "./alerts.jsx";
 import { ClvPage } from "./clv.jsx";
+import { AllValuePane, collectValues } from "./allValue.jsx";
 import { GlobalSearch, matchesQuery, searchAll } from "./search.jsx";
 
 const AUTO_OPTIONS = [0, 3, 5, 10, 15, 30, 60, 120, 300];
@@ -62,11 +63,11 @@ function KeyPanel({ onSaved }) {
   );
 }
 
-// ?sport=basketball deep-links to a sport; otherwise the last one used
+// ?sport=basketball deep-links to a sport (?sport=value: the all-sports Value screen); otherwise the last one used
 function initialSport() {
   const fromUrl = new URLSearchParams(window.location.search).get("sport");
   const sport = fromUrl || readStored("pb.sport", "football");
-  return ["basketball", "tennis", "hockey", "mma"].includes(sport) ? sport : "football";
+  return ["basketball", "tennis", "hockey", "mma", "value"].includes(sport) ? sport : "football";
 }
 
 export default function App() {
@@ -131,16 +132,33 @@ export default function App() {
   }, []);
 
   const twoWay = sport !== "football";
+  const allValue = sport === "value";
   const pane = { basketball: bb, tennis: tn, hockey: hk, mma: mm }[sport] || null;
-  const reload = pane ? pane.load : loadBoard;
+  const boards = useMemo(
+    () => ({ football: board, basketball: bb.board, tennis: tn.board, hockey: hk.board, mma: mm.board }),
+    [board, bb.board, tn.board, hk.board, mm.board],
+  );
+  // the all-sports Value screen refreshes every board (one request per sport)
+  const { load: bbLoad } = bb;
+  const { load: tnLoad } = tn;
+  const { load: hkLoad } = hk;
+  const { load: mmLoad } = mm;
+  const reloadAll = useCallback(
+    (mode) => Promise.all([loadBoard, bbLoad, tnLoad, hkLoad, mmLoad].map((load) => load(mode))),
+    [loadBoard, bbLoad, tnLoad, hkLoad, mmLoad],
+  );
+  const reload = allValue ? reloadAll : pane ? pane.load : loadBoard;
   const cur = pane ? pane.board : board;
-  const curLoading = pane ? pane.loading : loading;
-  const drops = useDropAlerts({ football: board, basketball: bb.board, tennis: tn.board, hockey: hk.board, mma: mm.board }, dropAlerts, dropPct, apiKeySet, dropEdge);
+  const curLoading = allValue ? loading || bb.loading || tn.loading || hk.loading || mm.loading
+    : pane ? pane.loading : loading;
+  const drops = useDropAlerts(boards, dropAlerts, dropPct, apiKeySet, dropEdge);
   const pickSport = useCallback((key) => {
     setAlertsOpen(false);
     setSport(key);
   }, []);
   const alertsTab = { count: drops.alerts.length, active: alertsOpen, onOpen: () => setAlertsOpen(true) };
+  const fairCount = useMemo(() => collectValues(boards).filter((v) => v.ev >= 0 && !v.modeled).length, [boards]);
+  const valueTab = { count: fairCount, active: allValue && !alertsOpen, onOpen: () => pickSport("value") };
   const openAlert = useCallback((a) => {
     setAlertsOpen(false);
     setSport(a.sport);
@@ -161,10 +179,7 @@ export default function App() {
     football: board?.matches.length, basketball: bb.board?.matches.length, tennis: tn.board?.matches.length,
     hockey: hk.board?.matches.length, mma: mm.board?.matches.length,
   };
-  const search = useMemo(
-    () => searchAll({ football: board, basketball: bb.board, tennis: tn.board, hockey: hk.board, mma: mm.board }, query),
-    [board, bb.board, tn.board, hk.board, mm.board, query],
-  );
+  const search = useMemo(() => searchAll(boards, query), [boards, query]);
   const searching = query.trim() !== "";
   const menuCounts = searching ? search.counts : sportCounts;
   const searchBox = (
@@ -328,7 +343,7 @@ export default function App() {
           <span className="logo" aria-hidden="true">P</span>
           <div>
             <strong>Xtip Monitor</strong>
-            <small>{SPORT_VIEWS[sport]?.label || "Fudbal"} · Pinnacle vs MerkurXtip</small>
+            <small>{allValue ? "Value, svi sportovi" : SPORT_VIEWS[sport]?.label || "Fudbal"} · Pinnacle vs MerkurXtip</small>
           </div>
         </div>
 
@@ -402,7 +417,7 @@ export default function App() {
 
       {apiKeySet && alertsOpen && (
         <div className="shell">
-          <SideMenu sport="" onSport={pickSport} sportCounts={menuCounts} searching={searching} alerts={alertsTab} />
+          <SideMenu sport="" onSport={pickSport} sportCounts={menuCounts} searching={searching} alerts={alertsTab} valueTab={valueTab} />
           <div className="content">
         <div className="segmented view-switch">
           <button type="button" className={alertsPage === "drops" ? "active" : ""} onClick={() => setAlertsPage("drops")}>Padovi</button>
@@ -437,10 +452,28 @@ export default function App() {
           sport={sport}
           onSport={pickSport}
           alertsTab={alertsTab}
+          valueTab={valueTab}
           sportCounts={menuCounts}
           searching={searching}
           setCallsToday={setCallsToday}
           openReq={paneOpen}
+        />
+      )}
+
+      {apiKeySet && !alertsOpen && allValue && (
+        <AllValuePane
+          boards={boards}
+          errors={{ football: error, basketball: bb.error, tennis: tn.error, hockey: hk.error, mma: mm.error }}
+          dayFilter={dayFilter}
+          setDayFilter={setDayFilter}
+          query={query}
+          searchBox={searchBox}
+          onSport={pickSport}
+          alertsTab={alertsTab}
+          valueTab={valueTab}
+          sportCounts={menuCounts}
+          searching={searching}
+          setCallsToday={setCallsToday}
         />
       )}
 
@@ -451,6 +484,7 @@ export default function App() {
               sport={sport}
               onSport={pickSport}
               alerts={alertsTab}
+              valueTab={valueTab}
               sportCounts={menuCounts}
               searching={searching}
               groups={menuGroups}

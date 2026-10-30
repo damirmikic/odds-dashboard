@@ -118,7 +118,7 @@ function SportDetail({ match, periodKey = "ft", history }) {
   );
 }
 
-function SportOddsModal({ sport, matchId, boardMatch, onClose, onCalls }) {
+export function SportOddsModal({ sport, matchId, boardMatch, onClose, onCalls }) {
   const [detail, setDetail] = useState(null);
   const [periodKey, setPeriodKey] = useState("ft");
   const [error, setError] = useState("");
@@ -278,7 +278,7 @@ function SportCompareTable({ sport, matches, competitions, selectedId, onOpen })
   );
 }
 
-export function SportPane({ board, error, loading, dayFilter, setDayFilter, query, searchBox, sport, onSport, sportCounts, searching, setCallsToday, alertsTab, openReq }) {
+export function SportPane({ board, error, loading, dayFilter, setDayFilter, query, searchBox, sport, onSport, sportCounts, searching, setCallsToday, alertsTab, valueTab, openReq }) {
   const cfg = SPORT_VIEWS[sport];
   const store = useCallback((name) => `pb.${cfg.store}.${name}`, [cfg.store]);
   const [competition, setCompetition] = useState(() => readStored(store("competition"), "all"));
@@ -398,6 +398,7 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
         sport={sport}
         onSport={onSport}
         alerts={alertsTab}
+        valueTab={valueTab}
         sportCounts={sportCounts}
         searching={searching}
         groups={menuGroups}

@@ -28,6 +28,12 @@ export function SportIcon({ sport }) {
         <path d="M12 3v18M3 12h18M5.6 5.6c3.4 3.4 3.4 9.4 0 12.8M18.4 5.6c-3.4 3.4-3.4 9.4 0 12.8" />
       </>
     ),
+    value: (
+      <>
+        <path d="M4 20h16M6 16l4-5 3 3 5-7" />
+        <path d="M15 7h3v3" />
+      </>
+    ),
     alerts: (
       <>
         <path d="M6 16V11a6 6 0 0 1 12 0v5l1.6 2H4.4z" />
@@ -81,7 +87,8 @@ function sortedGroups(groups, favorites) {
 }
 
 // `searching`: sportCounts are the search hits per sport, not the match counts
-export function SideMenu({ sport, onSport, sportCounts, searching, groups, all, onPick, label, alerts }) {
+// `valueTab`: the all-sports Value screen ({count, active, onOpen}), shown before the alerts
+export function SideMenu({ sport, onSport, sportCounts, searching, groups, all, onPick, label, alerts, valueTab }) {
   const [favoriteMap, setFavoriteMap] = useState(() => readStored(FAVORITES_KEY, {}) || {});
   const favorites = new Set(favoriteMap[sport] || []);
   const toggleFavorite = (key) => {
@@ -113,6 +120,20 @@ export function SideMenu({ sport, onSport, sportCounts, searching, groups, all, 
             <span>{item.label}</span>
           </button>
         ))}
+        {valueTab && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={valueTab.active}
+            className={`sport-btn${valueTab.active ? " active" : ""}`}
+            onClick={valueTab.onOpen}
+            title={`Value iz svih sportova: ${valueTab.count} ishoda gde je MX ≥ fer`}
+          >
+            {valueTab.count > 0 && <b className="sport-count">{valueTab.count}</b>}
+            <SportIcon sport="value" />
+            <span>Value</span>
+          </button>
+        )}
         {alerts && (
           <button
             type="button"

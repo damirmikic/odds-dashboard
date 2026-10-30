@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { evClass, fmt2, fmtEv, fmtKickoffShort, fmtMargins, fmtOdds, marketLine } from "./format.js";
 import { CompBadge, DerivedTag, KickoffWarning, ModeledTag, StaleTag } from "./ui.jsx";
 import { ChangeTimes } from "./priceHistory.jsx";
+import { SportIcon } from "./menu.jsx";
 
 export const VALUE_LEVELS = [
   ["all", "MX > Pinnacle"],
@@ -66,6 +67,7 @@ export function ValueRange({ min, max, setMin, setMax, topOnly, setTopOnly }) {
   );
 }
 
+// Rows of the all-sports screen carry their own `match`, `comp` and `sport` (shown as an icon); onOdds/onSelect get the row too.
 export function ValueTable({ values, matchesById, competitions, selectedId, onSelect, onOdds }) {
   const byComp = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
   return (
@@ -87,21 +89,22 @@ export function ValueTable({ values, matchesById, competitions, selectedId, onSe
         </thead>
         <tbody>
           {values.map((v) => {
-            const match = matchesById.get(v.matchId);
-            const comp = byComp.get(match.leagueId);
+            const match = v.match || matchesById.get(v.matchId);
+            const comp = v.comp || byComp.get(match.leagueId);
             const id = String(v.matchId);
             const oddsClick = (event) => {
               event.stopPropagation();
-              onOdds(id);
+              onOdds(id, v);
             };
             return (
               <tr
-                key={`${v.matchId}-${v.period}-${v.group}-${v.line}-${v.key}`}
+                key={`${v.sport || ""}-${v.matchId}-${v.period}-${v.group}-${v.line}-${v.key}`}
                 className={`mc-row${id === selectedId ? " selected" : ""}`}
-                onClick={() => onSelect(id)}
+                onClick={() => onSelect(id, v)}
               >
                 <td className="mc-match">
                   <div className="mc-when">
+                    {v.sport && <SportIcon sport={v.sport} />}
                     {fmtKickoffShort(new Date(match.starts))}
                     {comp && <CompBadge competition={comp} />}
                     <KickoffWarning diff={match.merkur?.kickoffDiff} />

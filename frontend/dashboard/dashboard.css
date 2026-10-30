@@ -456,7 +456,7 @@ button:disabled { cursor: default; opacity: .45; }
   position: sticky; top: 53px; max-height: calc(100vh - 53px); overflow-y: auto; padding: 12px 10px;
   border-right: 1px solid var(--line); background: var(--panel); scrollbar-width: thin;
 }
-.sport-switch { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
+.sport-switch { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
 .sport-btn {
   display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0 5px; border: 0; border-radius: 8px;
   background: transparent; color: var(--faint); font-size: 9px; font-weight: 700; letter-spacing: .02em;
@@ -767,6 +767,7 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .view-count { margin-left: 4px; padding: 0 5px; border-radius: 8px; background: rgba(0, 0, 0, .12); font-size: 10.5px; }
 .value-board .mc-match { min-width: 230px; }
 .value-board .mc-when .comp-badge { margin-left: 2px; }
+.value-board .mc-when .sport-icon { flex: none; width: 15px; height: 15px; }
 .value-board td { padding-top: 5px; padding-bottom: 5px; }
 .value-board .mc-cell { min-height: 32px; }
 .value-market { text-align: left !important; padding-left: 10px !important; white-space: nowrap; font-size: 12.5px; }
