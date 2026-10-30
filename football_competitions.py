@@ -351,6 +351,7 @@ COMPETITIONS = [
     {"id": 6543, "key": "gerrlsw", "name": "Regionalliga jugozapad", "country": "Nemačka", "code": "GER4SW", "merkur": "GER RLS"},
     {"id": 204919, "key": "nirch", "name": "Championship", "country": "Severna Irska", "code": "NIR2", "merkur": "NIR CH"},
     {"id": 210115, "key": "smrcs", "name": "Campionato", "country": "San Marino", "code": "SMR", "merkur": "SNM CS"},
+    {"id": 200047, "key": "engplcu21", "name": "Premier League Cup U21", "country": "Engleska", "code": "ENGU21", "merkur": "ENG PLC"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
