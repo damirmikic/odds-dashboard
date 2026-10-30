@@ -379,6 +379,9 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.zafpsl { --badge: #007a4d; }
 .comp-badge.thal1 { --badge: #2d2a4a; }
 .comp-badge.mlsnp { --badge: #1f3f7a; }
+.comp-badge.ngapl { --badge: #008751; }
+.comp-badge.rwapl { --badge: #00a1de; }
+.comp-badge.ukr2 { --badge: #0057b7; }
 .comp-badge.fraligue3,
 .comp-badge.ruscup,
 .comp-badge.afcchampionsle,
