@@ -1,0 +1,8 @@
+# Caddy site for the subdomain: HTTPS certificate from Let's Encrypt, password in front of the whole app.
+# Hash: caddy hash-password  (Caddy older than 2.8 spells the directive `basicauth`)
+oddsmonitor.merkurxtip.app {
+	basic_auth {
+		damir <hash from caddy hash-password>
+	}
+	reverse_proxy 127.0.0.1:8070
+}

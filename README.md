@@ -21,6 +21,18 @@ Enter a PinnWire API key in the app. It is saved to `data/pinnwire_config.json`;
 
 Stop with `Ctrl+C`. Options: `--port 9000`, `--no-browser`.
 
+## Server (subdomain on Linux)
+
+The app has no login of its own, so on a server it listens only on `127.0.0.1:8070` and a reverse proxy in front adds HTTPS and a password. Files are in `deploy/`; Python 3.10+, git and Caddy (or nginx) are needed on the server, Node is not (the bundle is committed).
+
+1. DNS: an `A` record for the subdomain (`oddsmonitor.merkurxtip.app`) pointing to the server.
+2. Check the server can reach MerkurXtip (it may block foreign IPs): `curl -sI https://www.merkurxtip.rs/restapi/offer/sr/ttg_lang`.
+3. As root: `git clone <repo> /opt/xtip && sh /opt/xtip/deploy/install.sh`. It creates the `xtip` user, a venv, `/etc/xtip.env` and the `xtip` systemd service. Put the key in `/etc/xtip.env` (`PINNWIRE_API_KEY=...`) and `systemctl restart xtip`. To keep the history, copy `data/*.sqlite3` and `data/dashboard_history.json` to `/opt/xtip/data/` (owner `xtip`) before the first start.
+4. Proxy: copy `deploy/Caddyfile` into `/etc/caddy/Caddyfile` with your subdomain and a hash from `caddy hash-password`, then `systemctl reload caddy`. With nginx use `deploy/nginx.conf`, `htpasswd` and `certbot --nginx`.
+5. Updates: commit and push (with the rebuilt bundle), then on the server `sh /opt/xtip/deploy/update.sh`. Logs: `journalctl -u xtip -f`.
+
+The service runs with `--no-browser`, so the CLV worker and the drop stream keep recording without a browser open. The PWA installs from the subdomain (HTTPS); the manifest is requested with credentials so the password does not block it.
+
 ## What it shows
 
 - **Board:** one row per match with Pinnacle 1X2 and fair (no-vig) odds, margin, the main Asian handicap and goal line, and the move since opening. Prices that changed since the previous refresh are green (up) or red (down). A side menu lists the competitions grouped by country; there are also day filters and search.

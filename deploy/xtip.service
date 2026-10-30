@@ -1,0 +1,24 @@
+# systemd unit for Xtip Monitor; deploy/install.sh copies it to /etc/systemd/system with the real checkout path.
+[Unit]
+Description=Xtip Monitor (Pinnacle vs MerkurXtip dashboard)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=xtip
+Group=xtip
+WorkingDirectory=/opt/xtip
+# PINNWIRE_API_KEY=... (chmod 600, owned by root)
+EnvironmentFile=/etc/xtip.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/xtip/.venv/bin/python pinnwire_dashboard.py --no-browser --host 127.0.0.1 --port 8070
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/xtip/data
+
+[Install]
+WantedBy=multi-user.target
