@@ -149,6 +149,7 @@ def pinnacle_limits(event, period="ft"):
     }
 
 
+@bb.reversible
 def merkur_markets(row, period="ft"):
     """One MerkurXtip tennis offer row -> the same shape as pinnacle_markets(), for one period."""
     raw = row.get("odds") or {}
@@ -211,8 +212,8 @@ def pair_inputs(events, offer):
     # tournaments are named differently by the two books, so only the players and the kickoff pair a match
     pin = [{"id": str(e["event_id"]), "comp": "T", "home": e.get("home", ""), "away": e.get("away", ""),
             "ts": bb.event_ts(e)} for e in events]
-    mer = [{"id": r["id"], "comp": "T", "home": r.get("home", ""), "away": r.get("away", ""),
-            "ts": r.get("kickOffTime") or 0, "row": r} for r in offer if mx.is_prematch(r)]
+    mer = [m for r in offer if mx.is_prematch(r)
+           for m in bb.swapped_entries({"id": r["id"], "comp": "T", "ts": r.get("kickOffTime") or 0}, r)]
     return pin, mer
 
 

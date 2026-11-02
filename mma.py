@@ -25,7 +25,7 @@ SPORT_ID = 8
 OFFER_PATH = "/restapi/custom/offer/sr/sport/MM/mob"
 MIN_PAIR_SCORE = 0.75
 PAIR_WINDOW = 12 * 60
-SWAPPED = "pinSwapped"  # MerkurXtip row whose fighters are in the reverse of Pinnacle's order
+SWAPPED = bb.SWAPPED  # MerkurXtip row whose fighters are in the reverse of Pinnacle's order
 
 ML = ("264", "265")  # "$h pobeđuje na meču" / "$a pobeđuje na meču"
 # (line param, over code, under code)
@@ -146,9 +146,6 @@ def shape_match(event, hit):
     if hit:
         rows = compare(pin, merkur_markets(hit[0]), pinnacle_limits(event))
     match, every_row = bb.board_match(event, pin, hit, rows, {}, ("Hendikep", "Ukupno rundi"), PREFIXES)
-    if hit and hit[0].get(SWAPPED):  # MerkurXtip's names in Pinnacle's order, like its prices
-        merkur = match["merkur"]
-        merkur["home"], merkur["away"] = merkur["away"], merkur["home"]
     items = common.value_items(event.get("event_id"), [(r["period"], r) for r in every_row], PERIOD_LABELS)
     return match, items
 

@@ -129,6 +129,7 @@ def pinnacle_limits(event, period="ft"):
     }
 
 
+@bb.reversible
 def merkur_markets(row, period="ft"):
     """One MerkurXtip hockey offer row -> the same shape as pinnacle_markets(), for one period."""
     raw = row.get("odds") or {}
