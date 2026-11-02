@@ -114,3 +114,34 @@ export function MissingTable({ matches: unsorted, competitions, sport }) {
     </>
   );
 }
+
+// Matches Pinnacle quoted and then stopped quoting (suspended, or taken off the feed) before kickoff.
+export function SuspendedTable({ matches }) {
+  return (
+    <div className="board-scroll mc-wrap">
+      <table className="mc-board missing-board">
+        <thead>
+          <tr>
+            <th className="mc-match">Meč</th>
+            <th className="mc-group">Poslednja Pinnacle {`1X2 / pobednik`}</th>
+            <th className="mc-group">Početak</th>
+            <th className="mc-group">Nestala kvota</th>
+          </tr>
+        </thead>
+        <tbody>
+          {matches.map((m) => (
+            <tr key={m.id}>
+              <td className="mc-match">
+                <b>{m.home} – {m.away}</b>
+                <small>{m.leagueName}</small>
+              </td>
+              <td>{ML_SIDES.filter(([side]) => m.ml?.[side]).map(([side]) => fmt2(m.ml[side])).join(" · ") || "–"}</td>
+              <td>{fmtKickoffShort(m.starts)}</td>
+              <td>{fmtKickoffShort(m.since)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

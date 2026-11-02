@@ -515,6 +515,7 @@ class DashboardState(common.SnapshotState):
             "matches": matches,
             "otherCompetitions": other_competitions(missing_other),
             "otherMissing": missing_other,
+            "suspended": self.suspended_items(),
             "otherOffered": self.offered_other(),
             "fetchedAt": self.fetched_at,
             "mode": self.mode,

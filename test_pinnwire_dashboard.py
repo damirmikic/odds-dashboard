@@ -170,6 +170,68 @@ class BoardTests(unittest.TestCase):
             state.match("999")
 
 
+class ReversedPairTests(unittest.TestCase):
+    """MerkurXtip lists some games (US college) with the teams the other way round than Pinnacle."""
+
+    def test_swap_sides_turns_prices_to_pinnacle_order(self):
+        out = bb.swap_sides({"ml": {"home": 4.4, "away": 1.17}, "spreads": {-10.5: {"home": 1.82, "away": 1.9}},
+                             "totals": {164.5: {"over": 1.85, "under": 1.9}},
+                             "home": {80.5: {"over": 1.8}}, "away": {}, "main": {"spreads": -10.5, "totals": 164.5}})
+        self.assertEqual(out["ml"], {"home": 1.17, "away": 4.4})
+        self.assertEqual(out["spreads"], {10.5: {"home": 1.9, "away": 1.82}})
+        self.assertEqual(out["totals"], {164.5: {"over": 1.85, "under": 1.9}})
+        self.assertEqual((out["home"], out["away"]), ({}, {80.5: {"over": 1.8}}))
+        self.assertEqual(out["main"], {"spreads": 10.5, "totals": 164.5})
+
+    def test_game_listed_in_the_other_order_pairs_swapped(self):
+        event = {"event_id": 5, "league_id": 1, "home": "Murray State", "away": "Tennessee State",
+                 "starts": "2026-11-02T17:30:00Z"}
+        ts = int(common.parse_time(event["starts"]).timestamp() * 1000)
+        row = {"id": 9, "leagueId": 77, "home": "Tennessee State", "away": "Murray State", "kickOffTime": ts}
+        pairs = bb.pair_events([event], [row], {77: 1})
+        hit, score = pairs["5"]
+        self.assertTrue(hit.get(bb.SWAPPED))
+        self.assertEqual(score, 1.0)
+
+    def test_same_order_is_not_swapped(self):
+        event = {"event_id": 5, "league_id": 1, "home": "Murray State", "away": "Tennessee State",
+                 "starts": "2026-11-02T17:30:00Z"}
+        ts = int(common.parse_time(event["starts"]).timestamp() * 1000)
+        row = {"id": 9, "leagueId": 77, "home": "Murray State", "away": "Tennessee State", "kickOffTime": ts}
+        self.assertFalse(bb.pair_events([event], [row], {77: 1})["5"][0].get(bb.SWAPPED))
+
+
+class SuspendedTests(unittest.TestCase):
+    def state(self):
+        return common.SnapshotState(mock.Mock(), lambda: "k")
+
+    def priced(self, **kw):
+        return {"event_id": 1, "home": "A", "away": "B", "starts": "2999-01-01T00:00:00Z", "league_id": 7,
+                "periods": {"num_0": {"money_line": {"home": 2.0, "draw": 3.0, "away": 4.0}}}, **kw}
+
+    def test_has_prices_ignores_nulled_markets(self):
+        self.assertTrue(common.has_prices(self.priced()))
+        self.assertFalse(common.has_prices(self.priced(periods={"num_0": {"money_line": {"home": None}}})))
+        self.assertFalse(common.has_prices(self.priced(is_have_odds=False)))
+
+    def test_event_dropped_from_full_snapshot_is_suspended_until_priced_again(self):
+        st = self.state()
+        st.track_suspended({"1": self.priced()}, {}, True, "t1")
+        items = st.suspended_items()
+        self.assertEqual([i["id"] for i in items], ["1"])
+        self.assertEqual(items[0]["ml"], {"home": 2.0, "draw": 3.0, "away": 4.0})
+        st.track_suspended({}, {"1": self.priced()}, False, "t2")
+        self.assertEqual(st.suspended_items(), [])
+
+    def test_delta_without_prices_suspends_but_missing_in_delta_does_not(self):
+        st = self.state()
+        st.track_suspended({"1": self.priced()}, {}, False, "t")
+        self.assertEqual(st.suspended_items(), [])
+        bare = self.priced(periods={"num_0": {"money_line": {"home": None, "draw": None, "away": None}}})
+        st.track_suspended({"1": self.priced()}, {"1": bare}, False, "t")
+        self.assertEqual(len(st.suspended_items()), 1)
+
+
 class ClientTests(unittest.TestCase):
     def test_devig_power_sums_to_one_and_removes_margin(self):
         odds = {"home": 2.45, "draw": 3.30, "away": 2.90}

@@ -4,7 +4,7 @@ import { usePwa, useStickyHeaderOffsets, useTheme } from "./hooks.js";
 import { DAY_FILTERS, clockFmt, dayKey, dayLabel, evClass, fmtEv, fmtOdds, inDayFilter } from "./format.js";
 import { VALUE_GROUPS, VALUE_LEVELS, ValueRange, ValueTable, isTopLeague, rangePasses, valuePasses } from "./value.jsx";
 import { SideMenu } from "./menu.jsx";
-import { MissingTable, OtherOffered, missingEmpty } from "./missing.jsx";
+import { MissingTable, OtherOffered, SuspendedTable, missingEmpty } from "./missing.jsx";
 import { BoardTable, CompareTable } from "./football/board.jsx";
 import { DetailPanel, OddsModal } from "./football/detail.jsx";
 import { SPORT_VIEWS } from "./sportViews.js";
@@ -93,7 +93,7 @@ export default function App() {
   const [alertsPage, setAlertsPage] = useState("drops");
   const [view, setView] = useState(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("view");
-    const view = ["compare", "value", "missing"].includes(fromUrl) ? fromUrl : readStored("pb.view", "compare");
+    const view = ["compare", "value", "missing", "suspended"].includes(fromUrl) ? fromUrl : readStored("pb.view", "compare");
     return view === "pinnacle" ? "compare" : view;
   });
   const [edgeFilter, setEdgeFilter] = useState(() => readStored("pb.edge", "all"));
@@ -516,6 +516,14 @@ export default function App() {
                 >
                   Nedostaju <span className="view-count">{missingTotal}</span>
                 </button>
+                <button
+                  type="button"
+                  className={view === "suspended" ? "active" : ""}
+                  onClick={() => setView("suspended")}
+                  title="Mečevi kojima je Pinnacle imao kvotu, a sada je nema"
+                >
+                  Suspended <span className="view-count">{board?.suspended?.length || 0}</span>
+                </button>
               </div>
               {view === "value" && (
                 <>
@@ -581,11 +589,14 @@ export default function App() {
               <section className="board-wrap">
                 {error && <p className="state error" role="alert">{error}</p>}
                 {!board && loading && <p className="state">Učitavam ponudu…</p>}
-                {board && view !== "value" && !filtered.length && (
+                {board && view !== "value" && view !== "suspended" && !filtered.length && (
                   <p className="state">
                     {view === "missing" ? missingEmpty(missingTotal, competition !== "all", () => setCompetition("all")) : "Nema mečeva za izabrani filter."}
                   </p>
                 )}
+                {view === "suspended" && (board?.suspended?.length
+                  ? <SuspendedTable matches={board.suspended} />
+                  : <p className="state">Nijedan meč nije izgubio Pinnacle kvotu od pokretanja servera.</p>)}
                 {view === "missing" && <OtherOffered leagues={board?.otherOffered} />}
                 {!!filtered.length && view === "missing" && (
                   <MissingTable matches={filtered} competitions={allCompetitions} sport="football" />

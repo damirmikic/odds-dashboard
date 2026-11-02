@@ -6,7 +6,7 @@ import { CompBadge, KickoffWarning, ModeledTag, StaleTag } from "./ui.jsx";
 import { PriceChart, Sparkline, histKey, usePriceHistory } from "./priceHistory.jsx";
 import { VALUE_LEVELS, ValueRange, ValueTable, bestPerMarket, isTopLeague, rangePasses } from "./value.jsx";
 import { SideMenu, buildMenuGroups } from "./menu.jsx";
-import { MissingTable, OtherOffered, missingEmpty } from "./missing.jsx";
+import { MissingTable, OtherOffered, SuspendedTable, missingEmpty } from "./missing.jsx";
 import { SPORT_VIEWS } from "./sportViews.js";
 import { matchesQuery } from "./search.jsx";
 
@@ -283,7 +283,7 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
   const store = useCallback((name) => `pb.${cfg.store}.${name}`, [cfg.store]);
   const [competition, setCompetition] = useState(() => readStored(store("competition"), "all"));
   const [view, setView] = useState(() => (
-    ["value", "missing"].includes(new URLSearchParams(window.location.search).get("view"))
+    ["value", "missing", "suspended"].includes(new URLSearchParams(window.location.search).get("view"))
       ? new URLSearchParams(window.location.search).get("view") : readStored(store("view"), "compare")
   ));
   const [valueLevel, setValueLevel] = useState(() => readStored(store("valueLevel"), "fair"));
@@ -483,11 +483,14 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
           <section className="board-wrap">
             {error && <p className="state error" role="alert">{error}</p>}
             {!board && loading && <p className="state">Učitavam ponudu…</p>}
-            {board && !inValue && !filtered.length && (
+            {board && !inValue && view !== "suspended" && !filtered.length && (
               <p className="state">
                 {inMissing ? missingEmpty(missingTotal, competition !== "all", () => setCompetition("all")) : "Nema mečeva za izabrani filter."}
               </p>
             )}
+            {view === "suspended" && (board?.suspended?.length
+              ? <SuspendedTable matches={board.suspended} />
+              : <p className="state">Nijedan meč nije izgubio Pinnacle kvotu od pokretanja servera.</p>)}
             {inMissing && <OtherOffered leagues={board?.otherOffered} />}
             {inMissing && !!filtered.length && <MissingTable matches={filtered} competitions={allCompetitions} sport={sport} />}
             {view === "compare" && groups.map((group) => (

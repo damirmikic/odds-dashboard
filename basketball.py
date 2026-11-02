@@ -6,6 +6,7 @@ compared: winner, handicap, total points and team totals. Lines are matched exac
 """
 from __future__ import annotations
 
+import functools
 from statistics import NormalDist
 
 import common
@@ -151,6 +152,41 @@ def pinnacle_markets(event, number=0):
     }
 
 
+SWAPPED = "pinSwapped"  # MerkurXtip row whose teams are in the reverse of Pinnacle's order
+_FLIP = {"home": "away", "away": "home"}
+
+
+def _flip_sides(prices):
+    return {_FLIP.get(side, side): odds for side, odds in prices.items()}
+
+
+def swap_sides(markets):
+    """merkur_markets() of a SWAPPED row turned to Pinnacle's order: home and away prices exchange, a handicap line
+    changes sign, the team totals trade places; totals and the draw stay."""
+    out = dict(markets)
+    for key, value in markets.items():
+        if key == "ml" and value:
+            out[key] = _flip_sides(value)
+        elif key in ("spreads", "setspreads"):
+            out[key] = {-line: _flip_sides(prices) for line, prices in value.items()}
+    if "home" in markets or "away" in markets:
+        out["home"], out["away"] = markets.get("away"), markets.get("home")
+    if markets.get("main"):
+        line = markets["main"].get("spreads")
+        out["main"] = {**markets["main"], "spreads": None if line is None else -line}
+    return out
+
+
+def reversible(fn):
+    """Decorate a merkur_markets(row, ...): a row flagged SWAPPED is returned in Pinnacle's team order."""
+    @functools.wraps(fn)
+    def wrapper(row, *args, **kwargs):
+        out = fn(row, *args, **kwargs)
+        return swap_sides(out) if row.get(SWAPPED) else out
+    return wrapper
+
+
+@reversible
 def merkur_markets(row, period="ft"):
     """One MerkurXtip basketball offer row -> the same shape as pinnacle_markets(), for one period."""
     params = row.get("params") or {}
@@ -308,12 +344,20 @@ def value_items(match_id, rows, stale=None):
     return common.value_items(match_id, [(r.get("period", "ft"), r) for r in rows], PERIOD_LABELS, stale=gap)
 
 
+def swapped_entries(base, row):
+    """A MerkurXtip row offered in both team orders: the second entry has home and away exchanged and its row
+    flagged SWAPPED, so a game MerkurXtip lists the other way round than Pinnacle still pairs (and is priced
+    the right way round). mx.pair keeps one entry per offer id."""
+    return [{**base, "home": row.get("home", ""), "away": row.get("away", ""), "row": row},
+            {**base, "home": row.get("away", ""), "away": row.get("home", ""), "row": {**row, SWAPPED: True}}]
+
+
 def pair_inputs(events, offer, mx_comp=MX_COMP):
     pin = [{"id": str(e["event_id"]), "comp": e["league_id"], "home": e.get("home", ""),
             "away": e.get("away", ""), "ts": event_ts(e)} for e in events]
-    mer = [{"id": r["id"], "comp": mx_comp[r["leagueId"]], "home": r.get("home", ""), "away": r.get("away", ""),
-            "ts": r.get("kickOffTime") or 0, "row": r}
-           for r in offer if r.get("leagueId") in mx_comp and mx.is_prematch(r)]
+    mer = [m for r in offer if r.get("leagueId") in mx_comp and mx.is_prematch(r)
+           for m in swapped_entries({"id": r["id"], "comp": mx_comp[r["leagueId"]],
+                                     "ts": r.get("kickOffTime") or 0}, r)]
     return pin, mer
 
 
@@ -338,9 +382,11 @@ def board_match(event, pin, hit, rows, periods, groups, prefixes, stale=None, le
     merkur = None
     if hit:
         row, score = hit
+        swapped = bool(row.get(SWAPPED))  # names in Pinnacle's order, like the prices
         ml_row = next((r for r in rows if r["group"] == "Pobednik"), None)
         merkur = {
-            "id": row.get("id"), "home": row.get("home", ""), "away": row.get("away", ""), "score": score,
+            "id": row.get("id"), "home": row.get("away" if swapped else "home", ""),
+            "away": row.get("home" if swapped else "away", ""), "score": score,
             "kickoffDiff": round(((row.get("kickOffTime") or 0) - event_ts(event)) / 60000),
             "ml": {o["key"]: {"odds": o["merkur"], "ev": o["ev"]} for o in ml_row["outcomes"]} if ml_row else None,
             "best": common.best_edge([(r.get("period", "ft"), r) for r in every_row], prefixes),
@@ -507,6 +553,7 @@ class BasketballState(common.SnapshotState):
             "matches": matches,
             "otherCompetitions": common.other_competitions(missing_other),
             "otherMissing": missing_other,
+            "suspended": self.suspended_items(),
             "otherOffered": self.other_cache[4] if self.other_cache else [],
             "fetchedAt": self.fetched_at,
             "mode": self.mode,

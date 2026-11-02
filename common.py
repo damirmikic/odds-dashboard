@@ -59,6 +59,22 @@ def merge_event(old, new):
     return merged
 
 
+PRICED_MARKETS = ("money_line", "spreads", "totals", "team_total", "team_totals")
+
+
+def _quoted(value):
+    if isinstance(value, dict):
+        return any(_quoted(v) for v in value.values())
+    return value not in (None, "", 0)
+
+
+def has_prices(event):
+    """True while any period of the event still carries a Pinnacle price (a market merged in as null does not count)."""
+    return event.get("is_have_odds") is not False and any(
+        isinstance(markets, dict) and any(_quoted(markets.get(k)) for k in PRICED_MARKETS)
+        for markets in (event.get("periods") or {}).values())
+
+
 # ------------------------------------------------------------------------- decoding
 
 def team_ladders(markets):
@@ -245,6 +261,7 @@ class SnapshotState:
         self.fetched_at = ""
         self.mode = ""
         self.changed = 0
+        self.suspended = {}  # event id str -> {"event": last priced event, "since": stamp}; matches Pinnacle stopped quoting
 
     # ----- hooks
     def incoming(self, data):
@@ -267,6 +284,7 @@ class SnapshotState:
                 self.api_key = key
                 self.events = None
                 self.last = None
+                self.suspended = {}
             return self.api
 
     def reset(self):
@@ -275,6 +293,7 @@ class SnapshotState:
             self.api_key = None
             self.events = None
             self.last = None
+            self.suspended = {}
 
     def _fetch(self, full):
         api = self.get_api()
@@ -292,7 +311,9 @@ class SnapshotState:
                 key = str(raw["event_id"])
                 events[key] = self.merge(events[key], raw) if key in events and since else raw
             now = utc_now()
+            previous = self.events
             self.events = {k: e for k, e in events.items() if is_upcoming(e, now)}
+            self.track_suspended(previous, self.events, since is None, stamp)
             if since is None:
                 self.full_at = time.monotonic()
             self.last = data.get("last") or self.last
@@ -303,6 +324,34 @@ class SnapshotState:
             self.history.save()
         except OSError:
             pass
+
+    def track_suspended(self, previous, current, full, stamp):
+        """Remember upcoming matches that had a Pinnacle price and lost it: dropped from a full snapshot, or kept
+        in a delta without any price. A match that is priced again leaves the list (caller holds `lock`)."""
+        for key, event in current.items():
+            if has_prices(event):
+                self.suspended.pop(key, None)
+        for key, old in (previous or {}).items():
+            if key in self.suspended or not has_prices(old):
+                continue
+            now = current.get(key)
+            if (now is None and full) or (now is not None and not has_prices(now)):
+                self.suspended[key] = {"event": old, "since": stamp}
+        now = utc_now()
+        self.suspended = {k: v for k, v in self.suspended.items() if is_upcoming(v["event"], now)}
+
+    def suspended_items(self):
+        with self.lock:
+            entries = list(self.suspended.items())
+        out = []
+        for key, entry in entries:
+            event = entry["event"]
+            prices = pw.full_match(event).get("money_line") or {}
+            out.append({"id": key, "leagueId": event.get("league_id"), "leagueName": event.get("league_name"),
+                        "home": event.get("home"), "away": event.get("away"), "starts": starts(event),
+                        "since": entry["since"],
+                        "ml": {k: v for k, v in prices.items() if k in ("home", "draw", "away") and v}})
+        return sorted(out, key=lambda m: (m["starts"] or "", m["home"] or ""))
 
     def refresh(self, full=False, if_empty=False):
         with self.fetch_lock:
