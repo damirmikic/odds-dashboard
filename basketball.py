@@ -50,6 +50,7 @@ COMPETITIONS = [
     {"id": 472, "key": "itaa", "name": "Lega A", "country": "Italija", "code": "ITA", "mx_id": 2314021},
     {"id": 197913, "key": "tursl", "name": "Super liga", "country": "Turska", "code": "TUR", "mx_id": 2313839},
     {"id": 462, "key": "isrpl", "name": "Premier liga", "country": "Izrael", "code": "ISR", "mx_id": 2314182},
+    {"id": 415, "key": "fraprob", "name": "Pro B", "country": "Francuska", "code": "FRA2", "mx_id": 2387819},
     {"id": 417, "key": "fracup", "name": "Kup Francuske", "country": "Francuska", "code": "FRAC", "mx_id": 2326061},
     {"id": 565, "key": "swebl", "name": "Basketligan", "country": "Švedska", "code": "SWE", "mx_id": 2313843},
     {"id": 297, "key": "bulnbl", "name": "NBL", "country": "Bugarska", "code": "BUL", "mx_id": 2314214},
