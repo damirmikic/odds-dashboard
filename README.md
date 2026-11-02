@@ -77,7 +77,7 @@ The dashboard runs on the **Pro + Drops** plan (10 requests per second, SSE drop
 
 ## Drop alerts
 
-The server keeps one connection to PinnWire's prematch drop stream (`/odds-drop-prematch`, SSE, not counted as REST requests) with `min_drop=1` and `recheck=15`: PinnWire holds each drop 15 s and sends it only if the price has not come back. Moneyline, handicap and total drops of football, basketball, tennis, hockey and MMA are kept for 3 hours (team total drops do not say which team and are skipped). The UI polls the local `/api/drops?sport=` every 3 s and shows the drops of matches on its boards at or above the chosen threshold.
+The server keeps one connection to PinnWire's prematch drop stream (`/odds-drop-prematch`, SSE, not counted as REST requests) with `min_drop=1` and `recheck=15`: PinnWire holds each drop 15 s and sends it only if the price has not come back. Moneyline, handicap and total drops of football, basketball, tennis, hockey, MMA, handball and volleyball are kept for 3 hours (team total drops do not say which team and are skipped). The UI polls the local `/api/drops?sport=` every 3 s and shows the drops of matches on its boards at or above the chosen threshold.
 
 For a paired match each drop carries the MerkurXtip price of the same outcome (from the last board) and its edge `Merkur / nvp − 1`, where `nvp` is PinnWire's no-vig price after the drop. A positive edge means MerkurXtip has not followed the move yet. **Samo gde Merkur kasni** limits the list, the toasts and the sound to those. Spread drops on the away side carry the away line (away +4 is the home handicap −4); tennis games drops come on the games side event and are mapped to the main match.
 
@@ -153,6 +153,14 @@ Pick the MMA icon (or open `/?sport=mma`). The board is built in `mma.py` and re
 - MerkurXtip codes: winner `264` / `265` ("W1" / "W2"; the draw `2` is ignored), total rounds over `54291` / under `54290` with the line in `params.our`. Lines are matched exactly, half-point lines only, no model.
 - Every PinnWire MMA league is shown, the promotion is the competition (badges for UFC, PFL, Bellator, ONE, Oktagon, KSW, the rest "MMA"). Fights pair by fighter names (tennis rules: "Reese, Zach" against "Zachary Reese") and kickoff within 12 hours, with no competition check: Pinnacle gives the card's start, MerkurXtip each fight's own time, so the ⏱ tag is normal here.
 - The two books often list the fighters the other way round. A fight pairs in either order; a reversed MerkurXtip row is flagged `pinSwapped` and its winner prices and names are turned to Pinnacle's order. Fighters known under another name (Yana Kunitskaya is Yana Santos at Pinnacle) go in `mma.ALIASES`.
+
+## Handball and volleyball
+
+Pick the "Rukomet i odbojka" icon (or open `/?sport=handball`). One board for two sports, built in `handball.py` on the basketball state and pane. PinnWire files both under sport 10 (one request per refresh) and tells them apart only by the lines: a total of 20-99 goals is handball, 3.5-4.5 sets or 100+ points is volleyball; an event with no total yet is not shown until it has one. The MerkurXtip feeds are the same URL with the sport letters `HB` and `V`, fetched together (one feed down still shows the other); each row says its `sport` and a match pairs only within its own.
+
+- Handball: winner `264` / `265` (draw refunded, like Pinnacle's two-way line; a three-way Pinnacle price is compared with the 1X2 `1` / `2` / `3` instead), handicap `hd2w` (`53877` / `53878`) and total goals `overUnder` (`227` / `228`), first half `hd2wp1` / `overUnderP` when Pinnacle quotes period 1. Half-point lines, matched exactly, no model.
+- Volleyball: the match winner only (`1` / `3`). MerkurXtip sells point handicaps and totals, Pinnacle set lines; their numbers collide (2.5 sets, 2.5 points), so they are not compared.
+- The competitions are the PinnWire leagues ("Serbia - Superliga", badge colour per sport), not mapped to MerkurXtip leagues. Matches pair by team names and kickoff within 3 hours; a women's side pairs only with a women's side (a `W` marker is added from a "Women" league name).
 
 ## Football "Nedostaju" and the full feed
 

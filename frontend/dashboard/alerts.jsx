@@ -7,7 +7,7 @@ const DROP_MARKETS = { moneyline: "Pobednik", spread: "Hendikep", total: "Ukupno
 
 const DROP_SIDES = { home: "1", draw: "X", away: "2", over: "V", under: "M" };
 
-const DROP_PERIODS = { football: { 1: "1. pol. " }, basketball: { 1: "1. pol. ", 3: "1. čet. " }, tennis: { 1: "1. set " }, hockey: { 1: "1. per. ", 2: "2. per. ", 3: "3. per. " }, mma: {} };
+const DROP_PERIODS = { football: { 1: "1. pol. " }, basketball: { 1: "1. pol. ", 3: "1. čet. " }, tennis: { 1: "1. set " }, hockey: { 1: "1. per. ", 2: "2. per. ", 3: "3. per. " }, mma: {}, handball: { 1: "1. pol. " } };
 
 // One alert per match, market, period and side: of several drops on different lines the one with the largest
 // MerkurXtip edge stays (without a MerkurXtip price, the largest drop).
@@ -123,7 +123,7 @@ export function AlertsPage({ alerts, threshold, setThreshold, notify, setNotify,
           </select>
         </label>
         <div className="segmented">
-          {[["all", "Svi"], ["football", "Fudbal"], ["basketball", "Košarka"], ["tennis", "Tenis"], ["hockey", "Hokej"], ["mma", "MMA"]].map(([key, label]) => (
+          {[["all", "Svi"], ["football", "Fudbal"], ["basketball", "Košarka"], ["tennis", "Tenis"], ["hockey", "Hokej"], ["mma", "MMA"], ["handball", "Rukomet i odbojka"]].map(([key, label]) => (
             <button key={key} type="button" className={sportFilter === key ? "active" : ""} onClick={() => setSportFilter(key)}>
               {label}
             </button>

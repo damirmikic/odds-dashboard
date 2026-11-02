@@ -15,6 +15,7 @@ from unittest import mock
 import basketball as bb
 import clv
 import common
+import handball
 import hockey
 import merkur_client as mx
 import mma
@@ -756,6 +757,102 @@ class TennisTests(unittest.TestCase):
         self.assertEqual(tennis.tournament("ATP Lyon - Doubles"), "ATP Lyon")
 
 
+class HandballTests(unittest.TestCase):
+    KICK = "2030-03-17T17:00:00Z"
+    HB_ROW = {
+        "id": 21, "sport": "HB", "home": "Vojvodina", "away": "Metaloplastika", "leagueName": "Super Liga",
+        "kickOffTime": 1_900_000_000_000,
+        "odds": {"264": 1.13, "265": 4.5, "1": 1.2, "2": 12.0, "3": 5.25, "53877": 1.83, "53878": 1.85,
+                 "227": 1.75, "228": 1.9, "229": 1.9, "230": 1.75, "53903": 1.83, "53904": 1.8},
+        "params": {"overUnder": "62.5", "hd2w": "-4.5", "overUnderP": "31.5", "hd2wp1": "-2.5"},
+    }
+    V_ROW = {"id": 22, "sport": "V", "home": "Jaworzno", "away": "Bydgoszcz", "leagueName": "1. Liga",
+             "kickOffTime": 1_900_000_000_000, "odds": {"1": 1.6, "3": 2.15, "50882": 1.85, "50884": 1.9},
+             "params": {"handicapPoints": "-3.5", "overUnderPoints": "181.5"}}
+
+    @classmethod
+    def handball(cls, **extra):
+        return {"event_id": 7, "league_id": 222897, "league_name": "Serbia - Superliga", "units": "Regular",
+                "home": "RK Vojvodina", "away": "RK Metaloplastika", "starts": cls.KICK,
+                "periods": {
+                    "num_0": {"money_line": {"home": 1.163, "away": 4.01},
+                              "spreads": {"-4.5": {"hdp": -4.5, "home": 1.9, "away": 1.8, "max": 100},
+                                          "-4": {"hdp": -4, "home": 1.8, "away": 1.9}},
+                              "totals": {"62.5": {"points": 62.5, "over": 1.704, "under": 2.01, "max": 200}}},
+                    "num_1": {"money_line": {"home": 1.3, "away": 3.4},
+                              "totals": {"31.5": {"points": 31.5, "over": 1.8, "under": 1.95}}}},
+                **extra}
+
+    @classmethod
+    def volleyball(cls):
+        return {"event_id": 8, "league_id": 215953, "league_name": "Poland - Liga 1", "units": "Regular",
+                "home": "McKis Energetyk Jaworzno", "away": "BKS Visla Bydgoszcz", "starts": cls.KICK,
+                "periods": {"num_0": {"money_line": {"home": 1.7, "away": 2.2},
+                                      "spreads": {"-1.5": {"hdp": -1.5, "home": 2.4, "away": 1.55}},
+                                      "totals": {"3.5": {"points": 3.5, "over": 2.1, "under": 1.7}}}}}
+
+    def test_kind_tells_handball_from_volleyball_by_the_totals(self):
+        self.assertEqual(handball.kind(self.handball()), "HB")
+        self.assertEqual(handball.kind(self.volleyball()), "V")
+        points = {"periods": {"num_0": {"totals": {"181.5": {"points": 181.5}}}}}
+        self.assertEqual(handball.kind(points), "V")
+        self.assertIsNone(handball.kind({"periods": {"num_0": {"money_line": {"home": 1.5, "away": 2.5}}}}))
+
+    def test_handball_compares_winner_exact_lines_and_first_half(self):
+        match, values = handball.shape_match(self.handball(), (self.HB_ROW, 1.0))
+        self.assertEqual({(r["group"], r["line"]) for r in match["rows"]},
+                         {("Pobednik", None), ("Hendikep", -4.5), ("Ukupno golova", 62.5)})  # AH -4 is a whole line
+        self.assertEqual({r["group"] for r in match["periods"]["h1"]}, {"Ukupno golova"})  # 31.5 in both books
+        self.assertEqual(match["sport"], "HB")
+        self.assertEqual(match["merkur"]["ml"]["home"]["odds"], 1.13)
+        self.assertTrue(values)
+
+    def test_three_way_winner_compares_with_the_1x2(self):
+        event = self.handball()
+        event["periods"]["num_0"]["money_line"] = {"home": 1.2, "draw": 11.0, "away": 5.0}
+        pin = handball.pinnacle_markets(event)
+        self.assertIsNone(pin["ml"])
+        self.assertEqual(pin["x12"], {"home": 1.2, "draw": 11.0, "away": 5.0})
+        rows = handball.shape_match(event, (self.HB_ROW, 1.0))[0]["rows"]
+        self.assertIn("1X2", {r["group"] for r in rows})
+
+    def test_volleyball_compares_the_winner_only(self):
+        match, _ = handball.shape_match(self.volleyball(), (self.V_ROW, 1.0))
+        self.assertEqual([r["group"] for r in match["rows"]], ["Pobednik"])
+        self.assertEqual(match["sport"], "V")
+        self.assertIsNone(match["spread"])  # set handicaps are not handball goals
+        self.assertEqual(handball.merkur_markets(self.V_ROW)["spreads"], {})
+
+    def test_a_match_pairs_only_within_its_sport_and_sex(self):
+        ts = bb.event_ts(self.handball())
+        hb, vb = ({**row, "kickOffTime": ts, "live": False} for row in (self.HB_ROW, self.V_ROW))
+        clash = {**self.V_ROW, "id": 23, "home": "Vojvodina", "away": "Metaloplastika", "kickOffTime": ts, "live": False}
+        pairs = handball.pair_events([self.handball(), self.volleyball()], [hb, vb, clash])
+        self.assertEqual({pid: row["id"] for pid, (row, _) in pairs.items()}, {"7": 21, "8": 22})
+        women = {**self.handball(), "event_id": 9, "league_name": "Serbia - Superliga Women"}
+        self.assertEqual(handball.pair_events([women], [hb]), {})  # a men side is not the women side
+        women_row = {**hb, "id": 24, "home": "Vojvodina W", "away": "Metaloplastika W"}
+        self.assertIn("9", handball.pair_events([women], [women_row]))
+
+    def test_board_keeps_both_sports_and_ignores_unknown_events(self):
+        ts = bb.event_ts(self.handball())
+        rows = [{**self.HB_ROW, "kickOffTime": ts, "live": False}, {**self.V_ROW, "kickOffTime": ts, "live": False}]
+        bare = {**self.handball(), "event_id": 10, "periods": {"num_0": {"money_line": {"home": 1.5, "away": 2.5}}}}
+        state = handball.HandballState(dash.History(path=None), str, mx.OfferCache(api=FakeMerkurAPI(rows)))
+        state.get_api = lambda: FakeAPI([self.handball(), self.volleyball(), bare])
+        board = state.board()
+        self.assertEqual(sorted(m["id"] for m in board["matches"]), [7, 8])  # the event without a total is neither yet
+        self.assertEqual({c["badge"] for c in board["competitions"]}, {"handball", "volleyball"})
+        self.assertEqual(board["merkur"]["paired"], 2)
+        self.assertTrue(state.owns(7) and state.owns("8") and not state.owns(10))
+
+    def test_competition_uses_the_pinnwire_league(self):
+        entry = handball.competition(222897, "Serbia - Superliga")
+        self.assertEqual((entry["country"], entry["name"], entry["code"], entry["badge"]),
+                         ("Srbija", "Superliga", "SRB", "handball"))
+        self.assertEqual(handball.competition(1, "Austria - AVL Women", "V")["badge"], "volleyball")
+
+
 class HockeyTests(unittest.TestCase):
     ROW = {
         "id": 9, "home": "Zurich", "away": "Langnau", "kickOffTime": 1_900_000_000_000, "leagueId": 2313897,
@@ -1290,7 +1387,7 @@ class CompetitionTableTests(unittest.TestCase):
         for sport, table in self.TABLES.items():
             with self.subTest(sport=sport):
                 self.assertEqual([c["key"] for c in table if c["key"] not in coloured], [])
-        badges = [badge for _, _, badge in mma.PROMOTIONS] + [mma.OTHER_PROMOTION[2]]
+        badges = [badge for _, _, badge in mma.PROMOTIONS] + [mma.OTHER_PROMOTION[2], *handball.BADGES.values()]
         self.assertEqual([b for b in badges if b not in coloured], [])
 
 
@@ -1396,11 +1493,13 @@ class HandlerTests(unittest.TestCase):
             self.assertEqual(self.request("/api/hockey/board?full=1")[0], 200)
             self.assertEqual(self.request("/api/tennis/match/12")[1], {"id": "12"})
             self.assertEqual(self.request("/api/mma/board")[0], 200)
+            self.assertEqual(self.request("/api/handball/board")[0], 200)
             self.assertEqual(self.request("/api/match/34?refresh=1")[1], {"id": "34"})
         self.assertEqual(states["football"].calls, [("board", True, False), ("match", "34", {"refresh": True})])
         self.assertEqual(states["hockey"].calls, [("board", False, True)])
         self.assertEqual(states["tennis"].calls, [("match", "12", {})])  # only football re-reads a match
         self.assertEqual(states["mma"].calls, [("board", False, False)])
+        self.assertEqual(states["handball"].calls, [("board", False, False)])
         self.assertEqual(states["basketball"].calls, [])
 
     def test_bad_ids_and_unknown_routes(self):

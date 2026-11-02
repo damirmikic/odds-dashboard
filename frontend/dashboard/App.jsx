@@ -67,7 +67,7 @@ function KeyPanel({ onSaved }) {
 function initialSport() {
   const fromUrl = new URLSearchParams(window.location.search).get("sport");
   const sport = fromUrl || readStored("pb.sport", "football");
-  return ["basketball", "tennis", "hockey", "mma", "value"].includes(sport) ? sport : "football";
+  return ["basketball", "tennis", "hockey", "mma", "handball", "value"].includes(sport) ? sport : "football";
 }
 
 export default function App() {
@@ -82,6 +82,7 @@ export default function App() {
   const tn = useSportBoard("tennis", setCallsToday, setApiKeySet);
   const hk = useSportBoard("hockey", setCallsToday, setApiKeySet);
   const mm = useSportBoard("mma", setCallsToday, setApiKeySet);
+  const hb = useSportBoard("handball", setCallsToday, setApiKeySet);
   const [competition, setCompetition] = useState(() => readStored("pb.competition", "all"));
   const [dayFilter, setDayFilter] = useState(() => readStored("pb.day", "all"));
   const [query, setQuery] = useState("");
@@ -133,23 +134,24 @@ export default function App() {
 
   const twoWay = sport !== "football";
   const allValue = sport === "value";
-  const pane = { basketball: bb, tennis: tn, hockey: hk, mma: mm }[sport] || null;
+  const pane = { basketball: bb, tennis: tn, hockey: hk, mma: mm, handball: hb }[sport] || null;
   const boards = useMemo(
-    () => ({ football: board, basketball: bb.board, tennis: tn.board, hockey: hk.board, mma: mm.board }),
-    [board, bb.board, tn.board, hk.board, mm.board],
+    () => ({ football: board, basketball: bb.board, tennis: tn.board, hockey: hk.board, mma: mm.board, handball: hb.board }),
+    [board, bb.board, tn.board, hk.board, mm.board, hb.board],
   );
   // the all-sports Value screen refreshes every board (one request per sport)
   const { load: bbLoad } = bb;
   const { load: tnLoad } = tn;
   const { load: hkLoad } = hk;
   const { load: mmLoad } = mm;
+  const { load: hbLoad } = hb;
   const reloadAll = useCallback(
-    (mode) => Promise.all([loadBoard, bbLoad, tnLoad, hkLoad, mmLoad].map((load) => load(mode))),
-    [loadBoard, bbLoad, tnLoad, hkLoad, mmLoad],
+    (mode) => Promise.all([loadBoard, bbLoad, tnLoad, hkLoad, mmLoad, hbLoad].map((load) => load(mode))),
+    [loadBoard, bbLoad, tnLoad, hkLoad, mmLoad, hbLoad],
   );
   const reload = allValue ? reloadAll : pane ? pane.load : loadBoard;
   const cur = pane ? pane.board : board;
-  const curLoading = allValue ? loading || bb.loading || tn.loading || hk.loading || mm.loading
+  const curLoading = allValue ? loading || bb.loading || tn.loading || hk.loading || mm.loading || hb.loading
     : pane ? pane.loading : loading;
   const drops = useDropAlerts(boards, dropAlerts, dropPct, apiKeySet, dropEdge);
   const pickSport = useCallback((key) => {
@@ -173,11 +175,13 @@ export default function App() {
     if (apiKeySet && !tn.board && !tn.loading && !tn.error) tn.load();
     if (apiKeySet && !hk.board && !hk.loading && !hk.error) hk.load();
     if (apiKeySet && !mm.board && !mm.loading && !mm.error) mm.load();
+    if (apiKeySet && !hb.board && !hb.loading && !hb.error) hb.load();
     if (apiKeySet && !board && !loading && !error) loadBoard();
-  }, [apiKeySet, bb, tn, hk, mm, board, loading, error, loadBoard]);
+  }, [apiKeySet, bb, tn, hk, mm, hb, board, loading, error, loadBoard]);
   const sportCounts = {
     football: board?.matches.length, basketball: bb.board?.matches.length, tennis: tn.board?.matches.length,
     hockey: hk.board?.matches.length, mma: mm.board?.matches.length,
+    handball: hb.board?.matches.length,
   };
   const search = useMemo(() => searchAll(boards, query), [boards, query]);
   const searching = query.trim() !== "";
@@ -413,7 +417,7 @@ export default function App() {
         </div>
       )}
 
-      {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); bb.reset(); tn.reset(); hk.reset(); mm.reset(); reload("full"); }} />}
+      {apiKeySet === false && <KeyPanel onSaved={() => { setApiKeySet(true); bb.reset(); tn.reset(); hk.reset(); mm.reset(); hb.reset(); reload("full"); }} />}
 
       {apiKeySet && alertsOpen && (
         <div className="shell">
@@ -463,7 +467,7 @@ export default function App() {
       {apiKeySet && !alertsOpen && allValue && (
         <AllValuePane
           boards={boards}
-          errors={{ football: error, basketball: bb.error, tennis: tn.error, hockey: hk.error, mma: mm.error }}
+          errors={{ football: error, basketball: bb.error, tennis: tn.error, hockey: hk.error, mma: mm.error, handball: hb.error }}
           dayFilter={dayFilter}
           setDayFilter={setDayFilter}
           query={query}

@@ -1,4 +1,4 @@
-// Texts and market groups per sport for the basketball, tennis, hockey and MMA screens.
+// Texts and market groups per sport for the basketball, tennis, hockey, MMA and handball/volleyball screens.
 // Per-sport texts and market groups of the sports that share one pane; `spreadTitle: null` hides the handicap columns.
 export const SPORT_VIEWS = {
   basketball: {
@@ -53,6 +53,23 @@ export const SPORT_VIEWS = {
       ["Hendikep", "Hendikep"],
       ["Ukupno golova", "Ukupno golova"],
       ["team", "Golovi timova"],
+    ],
+  },
+  handball: {
+    label: "Rukomet i odbojka",
+    store: "hb",
+    winnerNote: null,
+    spreadTitle: "Hendikep (golovi)",
+    totalTitle: "Ukupno golova",
+    teamPrefix: null,
+    periods: { ft: "Ceo meč", h1: "1. poluvreme" },
+    modeled: false,
+    valueGroups: [
+      ["all", "Sva tržišta"],
+      ["Pobednik", "Pobednik"],
+      ["1X2", "1X2"],
+      ["Hendikep", "Hendikep"],
+      ["Ukupno golova", "Ukupno golova"],
     ],
   },
   mma: {

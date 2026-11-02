@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { readStored, requestJson, writeStored } from "./api.js";
 import { LOCALE, evClass, fmtEv, fmtLine, fmtOdds } from "./format.js";
 
-const CLV_SPORTS = { football: "Fudbal", basketball: "Košarka", tennis: "Tenis", hockey: "Hokej", mma: "MMA" };
+const CLV_SPORTS = { football: "Fudbal", basketball: "Košarka", tennis: "Tenis", hockey: "Hokej", mma: "MMA", handball: "Rukomet i odbojka" };
 
 const CLV_PERIODS = { ft: "", ht: "1. pol. ", q1: "1. čet. ", s1: "1. set ", p1: "1. per. ", p2: "2. per. ", p3: "3. per. " };
 
@@ -63,7 +63,7 @@ export function ClvPage() {
           </select>
         </label>
         <div className="segmented">
-          {[["", "Svi"], ["football", "Fudbal"], ["basketball", "Košarka"], ["tennis", "Tenis"], ["hockey", "Hokej"], ["mma", "MMA"]].map(([key, label]) => (
+          {[["", "Svi"], ["football", "Fudbal"], ["basketball", "Košarka"], ["tennis", "Tenis"], ["hockey", "Hokej"], ["mma", "MMA"], ["handball", "Rukomet i odbojka"]].map(([key, label]) => (
             <button key={key} type="button" className={sport === key ? "active" : ""} onClick={() => setSport(key)}>{label}</button>
           ))}
         </div>

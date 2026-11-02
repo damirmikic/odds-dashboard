@@ -25,6 +25,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 import basketball as bb
 import clv
 import common
+import handball
 import hockey
 import merkur_client as mx
 import mma
@@ -646,10 +647,11 @@ BB_STATE = bb.BasketballState(STATE.history, current_api_key)
 TN_STATE = tennis.TennisState(STATE.history, current_api_key)
 HK_STATE = hockey.HockeyState(STATE.history, current_api_key)
 MM_STATE = mma.MmaState(STATE.history, current_api_key)
+HB_STATE = handball.HandballState(STATE.history, current_api_key)
 
 
 DROP_SPORTS = {"football": pw.SOCCER, "basketball": bb.SPORT_ID, "tennis": tennis.SPORT_ID, "hockey": hockey.SPORT_ID,
-               "mma": mma.SPORT_ID}
+               "mma": mma.SPORT_ID, "handball": handball.SPORT_ID}
 DROP_RECHECK = 15  # seconds PinnWire holds a drop and re-reads the price before pushing it (drops that bounce back are dropped)
 DROP_KEEP = 3 * 3600  # seconds of drops kept for the UI, like PinnWire's own /api/drops buffer
 
@@ -737,7 +739,8 @@ class DropFeed:
         return min(wait * 2, 30)
 
 DROPS = DropFeed(current_api_key)
-SPORT_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "hockey": HK_STATE, "mma": MM_STATE}
+SPORT_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "hockey": HK_STATE, "mma": MM_STATE,
+                "handball": HB_STATE}
 
 CLV_REFRESH = 30  # seconds between background boards when nobody refreshes in the browser
 CLV_REFRESH_SOON = 10  # ... while a signalled match starts within 15 minutes, to catch its closing line
@@ -836,10 +839,14 @@ def drops_response(query):
         max_age = min(DROP_KEEP, max(10, int((query.get("age") or ["300"])[0])))
     except ValueError:
         raise LookupError("Neispravni parametri.")
-    quotes = SPORT_STATES[sport].quotes
+    state = SPORT_STATES[sport]
+    quotes = state.quotes
+    owns = getattr(state, "owns", None)  # handball shares its PinnWire sport with volleyball
     now = time.time()
     out = []
     for d in DROPS.recent(DROP_SPORTS[sport], min_pct, max_age):
+        if owns and not owns(d["event_id"]):
+            continue
         match_id, index = quotes.get(str(d["event_id"]), (None, {}))
         quote = index.get(pw.drop_key(d["market"], d["period"], d["side"], d["points"]))
         merkur = None
@@ -851,7 +858,7 @@ def drops_response(query):
 
 
 # /api/board, /api/match/<id>, /api/<sport>/board, /api/<sport>/match/<id>
-SPORT_ROUTE = re.compile(r"/api/(?:(basketball|tennis|hockey|mma)/)?(board|match/(.*))")
+SPORT_ROUTE = re.compile(r"/api/(?:(basketball|tennis|hockey|mma|handball)/)?(board|match/(.*))")
 
 
 class Handler(BaseHTTPRequestHandler):

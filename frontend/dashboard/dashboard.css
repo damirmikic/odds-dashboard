@@ -459,6 +459,8 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.oktagon { --badge: #2b2b2b; }
 .comp-badge.ksw { --badge: #3d6b35; }
 .comp-badge.mma { --badge: #5c6878; }
+.comp-badge.handball { --badge: #b5541c; }
+.comp-badge.volleyball { --badge: #1f7a8c; }
 .tabs button:disabled .comp-badge { opacity: .5; }
 
 /* ---------------------------------------------------------------- side menu */
@@ -495,6 +497,7 @@ button:disabled { cursor: default; opacity: .45; }
   .sport-btn:hover:not(:disabled) .sport-tennis { animation: sport-spin 1s ease-in-out 1; }
   .sport-btn:hover:not(:disabled) .sport-basketball { animation: sport-bounce .7s ease-out 1; }
   .sport-btn:hover:not(:disabled) .sport-hockey { animation: sport-bounce .7s ease-out 1; }
+  .sport-btn:hover:not(:disabled) .sport-handball { animation: sport-bounce .7s ease-out 1; }
   .sport-btn:hover:not(:disabled) .sport-mma { animation: sport-slide .5s ease-out 1; }
   .sport-football .ball-core { transform-box: fill-box; transform-origin: center; }
   .sport-btn:hover:not(:disabled) .sport-football .ball-core { animation: sport-core .5s ease-in-out 1; }

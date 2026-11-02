@@ -10,6 +10,7 @@ export const SPORTS = [
   { key: "tennis", label: "Tenis", live: true },
   { key: "hockey", label: "Hokej", live: true },
   { key: "mma", label: "MMA", live: true },
+  { key: "handball", label: "Rukomet i odbojka", live: true },
 ];
 
 // Line icons (24px grid, currentColor); the `sport-*` classes drive the hover animations in dashboard.css.
@@ -50,6 +51,12 @@ export function SportIcon({ sport }) {
       <>
         <path d="M7 3l6 13h6" />
         <ellipse cx="8" cy="20" rx="4" ry="1.6" />
+      </>
+    ),
+    handball: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3.4 9.5c5.5 1.6 11.7 1.6 17.2 0M3.4 14.5c5.5-1.6 11.7-1.6 17.2 0M12 3c-2.6 3.2-2.6 15 0 18" />
       </>
     ),
     mma: (
