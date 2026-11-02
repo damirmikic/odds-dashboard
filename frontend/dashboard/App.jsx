@@ -4,7 +4,7 @@ import { usePwa, useStickyHeaderOffsets, useTheme } from "./hooks.js";
 import { DAY_FILTERS, clockFmt, dayKey, dayLabel, evClass, fmtEv, fmtOdds, inDayFilter } from "./format.js";
 import { VALUE_GROUPS, VALUE_LEVELS, ValueRange, ValueTable, isTopLeague, rangePasses, valuePasses } from "./value.jsx";
 import { SideMenu } from "./menu.jsx";
-import { MissingTable, missingEmpty } from "./missing.jsx";
+import { MissingTable, OtherOffered, missingEmpty } from "./missing.jsx";
 import { BoardTable, CompareTable } from "./football/board.jsx";
 import { DetailPanel, OddsModal } from "./football/detail.jsx";
 import { SPORT_VIEWS } from "./sportViews.js";
@@ -586,19 +586,7 @@ export default function App() {
                     {view === "missing" ? missingEmpty(missingTotal, competition !== "all", () => setCompetition("all")) : "Nema mečeva za izabrani filter."}
                   </p>
                 )}
-                {view === "missing" && !!board?.otherOffered?.length && (
-                  <details className="other-offered">
-                    <summary>U ponudi MerkurXtip, a ne pratimo ({board.otherOffered.length} liga)</summary>
-                    <ul>
-                      {board.otherOffered.map((o) => (
-                        <li key={o.leagueId}>
-                          <b>{o.leagueName}</b> · {o.count} {o.count === 1 ? "meč" : "mečeva"}
-                          <small> · PinnWire {o.leagueId} · MerkurXtip {o.mxLeague} ({o.mxLeagueId})</small>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
+                {view === "missing" && <OtherOffered leagues={board?.otherOffered} />}
                 {!!filtered.length && view === "missing" && (
                   <MissingTable matches={filtered} competitions={allCompetitions} sport="football" />
                 )}

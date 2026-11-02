@@ -845,6 +845,19 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.wnbl { --badge: #c9a227; }
 .comp-badge.lnbarg { --badge: #3b8fd1; }
 .comp-badge.rus { --badge: #9c2f2f; }
+.comp-badge.ncaa { --badge: #00539b; }
+.comp-badge.aba { --badge: #e2231a; }
+.comp-badge.itaa { --badge: #0b5ca8; }
+.comp-badge.tursl { --badge: #c8102e; }
+.comp-badge.isrpl { --badge: #0038b8; }
+.comp-badge.fracup { --badge: #1d3f8f; }
+.comp-badge.swebl { --badge: #006aa7; }
+.comp-badge.bulnbl { --badge: #00966e; }
+.comp-badge.icelandw { --badge: #4a6fc4; }
+.comp-badge.cba { --badge: #de2910; }
+.comp-badge.kbl, .comp-badge.wkbl { --badge: #0f3d8c; }
+.comp-badge.qbl { --badge: #8a1538; }
+.comp-badge.slv { --badge: #0f47af; }
 .stale-tag {
   margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--edge-pos-bg); color: var(--edge-pos);
   font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;

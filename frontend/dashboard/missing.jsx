@@ -16,6 +16,24 @@ export function missingEmpty(total, filtered, showAll) {
   );
 }
 
+// Untracked leagues whose matches MerkurXtip does offer: everything a new competition entry needs.
+export function OtherOffered({ leagues }) {
+  if (!leagues?.length) return null;
+  return (
+    <details className="other-offered">
+      <summary>U ponudi MerkurXtip, a ne pratimo ({leagues.length} liga)</summary>
+      <ul>
+        {leagues.map((o) => (
+          <li key={o.leagueId}>
+            <b>{o.leagueName}</b> · {o.count} {o.count === 1 ? "meč" : "mečeva"}
+            <small> · PinnWire {o.leagueId} · MerkurXtip {o.mxLeague} ({o.mxLeagueId})</small>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 // Matches Pinnacle prices but MerkurXtip does not offer (or could not be paired by team names).
 export function MissingTable({ matches: unsorted, competitions, sport }) {
   const [sortBy, setSortBy] = useState(() => readStored("missingSort", "time"));

@@ -121,7 +121,7 @@ Pick the basketball icon at the top of the side menu (or open `/?sport=basketbal
 
 - PinnWire sport 3 against the MerkurXtip basketball offer (`/restapi/custom/offer/sr/sport/B/mob`). Both are cached and refreshed like football (delta requests), so basketball adds one PinnWire request per refresh.
 - Compared markets are full game with overtime: winner, handicap, total points and home/away team totals. Lines are matched exactly and only half-point lines (x.5) are used; whole-number lines are dropped because a push refunds the stake. Quarters and halves are not compared yet.
-- Competitions are the `COMPETITIONS` list in `basketball.py`: PinnWire `league_id` plus the MerkurXtip `leagueId` (basketball `leagueShort` values are not unique, so the numeric id is used). Add an entry to track another league.
+- Competitions are the `COMPETITIONS` list in `basketball.py`: PinnWire `league_id` plus the MerkurXtip `leagueId` (basketball `leagueShort` values are not unique, so the numeric id is used). Add an entry to track another league. The other PinnWire leagues are paired against the whole MerkurXtip offer by names and kickoff (like football): their matches MerkurXtip does not offer show under "Nedostaju", and leagues MerkurXtip does offer are listed there with their PinnWire `league_id` and MerkurXtip `leagueId`, ready to be added.
 - MerkurXtip codes: winner `50291/50293`; handicap, total and team-total lines come in numbered sets (`handicapOvertime`, `handicapOvertime2` … in `params`) with the codes listed in `basketball.py`. The board shows the shared line closest to Pinnacle's main line; click a row for every compared line.
 
 
@@ -139,7 +139,7 @@ Pick the tennis icon (or open `/?sport=tennis`). The board is built in `tennis.p
 
 Pick the hockey icon (or open `/?sport=hockey`). The board is built in `hockey.py` and reuses the basketball state and pane; the MerkurXtip feed is the same URL with the sport letter `H` (`/restapi/custom/offer/sr/sport/H/mob`).
 
-- PinnWire sport 4, one request per refresh like basketball. Periods: 0 is the whole game with overtime and shootout (two-way winner), 6 is regulation time (60 minutes: three-way winner, handicap, totals, team totals) and 1, 2, 3 are the thirds (two-way winner that refunds a drawn third, handicap, totals). Only the leagues in `COMPETITIONS` are tracked.
+- PinnWire sport 4, one request per refresh like basketball. Periods: 0 is the whole game with overtime and shootout (two-way winner), 6 is regulation time (60 minutes: three-way winner, handicap, totals, team totals) and 1, 2, 3 are the thirds (two-way winner that refunds a drawn third, handicap, totals). Only the leagues in `COMPETITIONS` are compared; the rest feed "Nedostaju" as in basketball.
 - The board winner is the game winner with overtime (MerkurXtip "P1" / "P2"); the handicap and total columns are the 60 minutes. The odds modal's "Ceo meč" tab adds the 60-minute 1X2, the level handicap (AH 0, MerkurXtip "X vraća ulog") and team goals; the period tabs compare the winner without the draw ("W1"/"W2"), handicap and totals of a third. Lines are matched exactly, half-point lines only (plus AH 0), no model.
 - MerkurXtip codes are listed in `hockey.py` (`MX_PERIOD`); the line params are `hd2w`, `overUnder`…`overUnder4`, `homeOverUnder`/`awayOverUnder` and `handicap…Period`/`overUnder…Period` for the thirds.
 - Pairing is by competition, kickoff (3 h) and team names. MerkurXtip's short names that the token rules cannot pair ("Zurich" for ZSC Lions) go in `hockey.ALIASES`, which applies to hockey only.

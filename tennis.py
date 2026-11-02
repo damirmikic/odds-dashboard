@@ -281,6 +281,9 @@ class TennisState(bb.BasketballState):
     def merge(self, old, new):
         return merge_event(old, new)
 
+    def tracked(self, event):
+        return True  # every tournament
+
     def complete(self, event):
         # a games event can arrive before (or without) its main event
         return bool(event.get("home") and event.get("away"))

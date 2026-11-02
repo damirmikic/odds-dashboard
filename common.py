@@ -5,8 +5,10 @@ This module must not import `pinnwire_dashboard` (run as a script that module is
 """
 from __future__ import annotations
 
+import re
 import threading
 import time
+import unicodedata
 from datetime import datetime, timezone
 
 import merkur_client as mx
@@ -145,6 +147,70 @@ def value_items(match_id, period_rows, period_labels, label=None, stale=None):
                 "stale": stale(period, r, o) if stale else None,
             })
     return pw.best_per_line_market(items)
+
+
+# ------------------------------------------------------------------------- leagues outside the tracked ones
+
+# Matches of leagues a sport does not track: they are paired against the whole MerkurXtip offer, so the "missing"
+# view can show what MerkurXtip does not sell. Without a competition check only names and kickoff pair a match,
+# hence the stricter rules.
+OTHER_WINDOW = 3 * 60
+OTHER_MIN_SCORE = 0.75
+# a women's, youth or reserve side never pairs with the senior side of the same club
+SIDE_MARKERS = {"w", "women", "u17", "u18", "u19", "u20", "u21", "u23", "ii", "b", "res", "reserves"}
+
+
+def side_markers(name):
+    text = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
+    return SIDE_MARKERS.intersection(re.findall(r"[a-z0-9]+", text))
+
+
+def other_score(pinnacle, merkur):
+    return 0.0 if side_markers(pinnacle) != side_markers(merkur) else mx.name_score(pinnacle, merkur)
+
+
+def split_league(name):
+    """"England - EFL Cup" -> ("England", "EFL Cup"); names without a country stay whole."""
+    country, sep, league = (name or "").partition(" - ")
+    return (country.strip(), league.strip()) if sep else ("Ostalo", (name or "").strip())
+
+
+def other_competitions(matches):
+    counts = {}
+    for m in matches:
+        counts[m["leagueId"]] = (m["leagueName"], counts.get(m["leagueId"], (None, 0))[1] + 1)
+    out = []
+    for league_id, (name, count) in counts.items():
+        country, league = split_league(name)
+        out.append({"id": league_id, "key": f"x{league_id}", "name": league or name, "country": country,
+                    "code": "•", "badge": "other", "count": count})
+    return sorted(out, key=lambda c: (c["country"], c["name"]))
+
+
+def offered_other(events, rows):
+    """Untracked leagues whose matches MerkurXtip offers, for adding them: PinnWire league, the MerkurXtip league
+    its matches pair with and how many matches."""
+    league = {str(e["event_id"]): e for e in events}
+    out = {}
+    for pid, row in rows.items():
+        e = league[pid]
+        entry = out.setdefault(e["league_id"], {"leagueId": e["league_id"], "leagueName": e.get("league_name") or "",
+                                                "mxLeagueId": row.get("leagueId"), "mxLeague": row.get("leagueShort") or "",
+                                                "count": 0})
+        entry["count"] += 1
+    return sorted(out.values(), key=lambda x: (-x["count"], x["leagueName"]))
+
+
+def unpaired_other(events, offer, used, merkur_ts=lambda r: r.get("kickOffTime") or 0):
+    """({pinnacle id} unpaired, {pinnacle id: hint}, {pinnacle id: MerkurXtip row} paired) of untracked events;
+    `used` are MerkurXtip ids already paired within the tracked competitions."""
+    pin = [{"id": str(e["event_id"]), "comp": "*", "home": e.get("home", ""), "away": e.get("away", ""),
+            "ts": event_ts(e)} for e in events]
+    mer = [{"id": r["id"], "comp": "*", "home": r.get("home", ""), "away": r.get("away", ""),
+            "ts": merkur_ts(r), "row": r} for r in offer if r["id"] not in used and mx.is_prematch(r)]
+    paired = mx.pair(pin, mer, OTHER_WINDOW, OTHER_MIN_SCORE, other_score)
+    hints = mx.hints(pin, mer, paired, OTHER_WINDOW, other_score)
+    return {p["id"] for p in pin} - paired.keys(), hints, {pid: m["row"] for pid, (m, _) in paired.items()}
 
 
 # ------------------------------------------------------------------------- state

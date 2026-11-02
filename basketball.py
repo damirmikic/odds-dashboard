@@ -45,6 +45,21 @@ COMPETITIONS = [
     {"id": 282, "key": "wnbl", "name": "WNBL", "country": "Australija", "code": "WNBL", "mx_id": 2328102},
     {"id": 274, "key": "lnbarg", "name": "Liga Nacional", "country": "Argentina", "code": "ARG", "mx_id": 2315603},
     {"id": 238365, "key": "rus", "name": "Superliga", "country": "Rusija", "code": "RUS", "mx_id": 2339821},
+    {"id": 493, "key": "ncaa", "name": "NCAA", "country": "SAD", "code": "NCAA", "mx_id": 2313823},
+    {"id": 268, "key": "aba", "name": "ABA liga", "country": "Evropa", "code": "ABA", "mx_id": 2314107},
+    {"id": 472, "key": "itaa", "name": "Lega A", "country": "Italija", "code": "ITA", "mx_id": 2314021},
+    {"id": 197913, "key": "tursl", "name": "Super liga", "country": "Turska", "code": "TUR", "mx_id": 2313839},
+    {"id": 462, "key": "isrpl", "name": "Premier liga", "country": "Izrael", "code": "ISR", "mx_id": 2314182},
+    {"id": 417, "key": "fracup", "name": "Kup Francuske", "country": "Francuska", "code": "FRAC", "mx_id": 2326061},
+    {"id": 565, "key": "swebl", "name": "Basketligan", "country": "Švedska", "code": "SWE", "mx_id": 2313843},
+    {"id": 297, "key": "bulnbl", "name": "NBL", "country": "Bugarska", "code": "BUL", "mx_id": 2314214},
+    {"id": 213144, "key": "icelandw", "name": "Úrvalsdeild (Ž)", "country": "Island", "code": "ISLW",
+     "mx_id": 2394983},
+    {"id": 303, "key": "cba", "name": "CBA", "country": "Kina", "code": "CBA", "mx_id": 2313954},
+    {"id": 482, "key": "kbl", "name": "KBL", "country": "Južna Koreja", "code": "KBL", "mx_id": 2380450},
+    {"id": 481, "key": "wkbl", "name": "WKBL (Ž)", "country": "Južna Koreja", "code": "WKBL", "mx_id": 2313974},
+    {"id": 211487, "key": "qbl", "name": "QBL", "country": "Katar", "code": "QAT", "mx_id": 2377351},
+    {"id": 207009, "key": "slv", "name": "Liga Mayor", "country": "El Salvador", "code": "SLV", "mx_id": 2330227},
 ]
 MX_COMP = {mid: c["id"] for c in COMPETITIONS for mid in (c["mx_id"], *c.get("mx_extra", ()))}
 
@@ -406,11 +421,15 @@ class BasketballState(common.SnapshotState):
     mx_comp = MX_COMP  # MerkurXtip leagueId -> PinnWire league_id
     league_ids = frozenset(c["id"] for c in COMPETITIONS)
     score_fn = None  # team name score for pairing, None for merkur_client.name_score
+    other_cache = None  # (offer, signature, unpaired ids, hints, offered) of the untracked leagues
 
     # ----- hooks
     def incoming(self, data):
-        return [e for e in data.get("events") or []
-                if e.get("event_id") and e.get("league_id") in self.league_ids and pw.is_main_fixture(e)]
+        # every league: the untracked ones feed the "missing" view
+        return [e for e in data.get("events") or [] if e.get("event_id") and pw.is_main_fixture(e)]
+
+    def tracked(self, event):
+        return event.get("league_id") in self.league_ids
 
     def complete(self, event):
         return True
@@ -442,7 +461,7 @@ class BasketballState(common.SnapshotState):
             self.refresh(if_empty=True)
         with self.lock:
             event = (self.events or {}).get(event_id)
-        if event is None or not self.complete(event):
+        if event is None or not self.complete(event) or not self.tracked(event):
             raise LookupError("Meč nije u ponudi (možda je počeo ili uklonjen).")
         hit = self.pairs.get(event_id)
         error, fetched = "", self.merkur.stamp
@@ -462,7 +481,9 @@ class BasketballState(common.SnapshotState):
         offer = self.merkur_offer(refresh=refresh or full)
         with self.lock:
             now = common.utc_now()
-            events = [e for e in (self.events or {}).values() if common.is_upcoming(e, now) and self.complete(e)]
+            upcoming = [e for e in (self.events or {}).values() if common.is_upcoming(e, now) and self.complete(e)]
+        events = [e for e in upcoming if self.tracked(e)]
+        others = [e for e in upcoming if not self.tracked(e)]
         pairs = self.pair(events, offer)
         self.pairs = pairs
         hints = self.hints(events, offer, pairs)
@@ -479,9 +500,13 @@ class BasketballState(common.SnapshotState):
         matches.sort(key=lambda m: (m["starts"], m["home"]))
         self.quotes = quotes
         self.record(self.clv_name, clv_matches(matches), values)
+        missing_other = self.missing_other(others, offer, {row["id"] for row, _ in pairs.values()})
         return {
             "competitions": self.competitions(matches),
             "matches": matches,
+            "otherCompetitions": common.other_competitions(missing_other),
+            "otherMissing": missing_other,
+            "otherOffered": self.other_cache[4] if self.other_cache else [],
             "fetchedAt": self.fetched_at,
             "mode": self.mode,
             "changed": self.changed,
@@ -494,3 +519,23 @@ class BasketballState(common.SnapshotState):
                 "offered": self.offered(offer),
             },
         }
+
+    def missing_other(self, events, offer, used):
+        """Board entries of untracked events MerkurXtip does not offer (cached until the offer or the set of events
+        changes: the pairing without a competition check is slow)."""
+        signature = (frozenset(str(e["event_id"]) for e in events), frozenset(used))
+        cache = self.other_cache
+        if cache is None or cache[0] is not offer or cache[1] != signature:
+            missing, hints, paired = common.unpaired_other(events, offer, used)
+            cache = self.other_cache = (offer, signature, missing, hints, common.offered_other(events, paired))
+        _, _, missing, hints, _ = cache
+        out = []
+        for e in events:
+            key = str(e["event_id"])
+            if key not in missing:
+                continue
+            match, _ = self.shape(e, None)
+            if match["ml"] or match["spread"] or match["total"]:
+                out.append({**{k: v for k, v in match.items() if k not in ("rows", "periods")},
+                            "hint": hints.get(key)})
+        return sorted(out, key=lambda m: (m["starts"], m["home"]))

@@ -6,7 +6,7 @@ import { CompBadge, KickoffWarning, ModeledTag, StaleTag } from "./ui.jsx";
 import { PriceChart, Sparkline, histKey, usePriceHistory } from "./priceHistory.jsx";
 import { VALUE_LEVELS, ValueRange, ValueTable, bestPerMarket, isTopLeague, rangePasses } from "./value.jsx";
 import { SideMenu, buildMenuGroups } from "./menu.jsx";
-import { MissingTable, missingEmpty } from "./missing.jsx";
+import { MissingTable, OtherOffered, missingEmpty } from "./missing.jsx";
 import { SPORT_VIEWS } from "./sportViews.js";
 import { matchesQuery } from "./search.jsx";
 
@@ -309,24 +309,29 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
 
   const competitions = useMemo(() => board?.competitions || [], [board]);
   const compById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
+  // "Nedostaju" also lists the untracked leagues of the PinnWire feed that MerkurXtip does not offer
+  const otherCompetitions = board?.otherCompetitions;
+  const allCompetitions = useMemo(() => [...competitions, ...(otherCompetitions || [])], [competitions, otherCompetitions]);
+  const allById = useMemo(() => new Map(allCompetitions.map((c) => [c.id, c])), [allCompetitions]);
   const matchesById = useMemo(() => new Map((board?.matches || []).map((m) => [m.id, m])), [board]);
   const q = query.trim().toLocaleLowerCase();
   const textOk = useCallback((m) => matchesQuery(m, q), [q]);
 
   const missingCounts = useMemo(() => {
     const counts = new Map();
-    for (const m of board?.matches || []) if (!m.merkur) counts.set(m.leagueId, (counts.get(m.leagueId) || 0) + 1);
+    for (const m of [...(board?.matches || []), ...(board?.otherMissing || [])]) if (!m.merkur) counts.set(m.leagueId, (counts.get(m.leagueId) || 0) + 1);
     return counts;
   }, [board]);
   const missingTotal = useMemo(() => [...missingCounts.values()].reduce((a, b) => a + b, 0), [missingCounts]);
 
   const filtered = useMemo(
-    () => (board?.matches || []).filter((m) => (
-      (competition === "all" || compById.get(m.leagueId)?.key === competition)
-      && inDayFilter(new Date(m.starts), dayFilter) && textOk(m)
-      && (view !== "missing" || !m.merkur)
-    )),
-    [board, competition, dayFilter, textOk, compById, view],
+    () => (view === "missing" ? [...(board?.matches || []), ...(board?.otherMissing || [])] : board?.matches || [])
+      .filter((m) => (
+        (competition === "all" || (view === "missing" ? allById : compById).get(m.leagueId)?.key === competition)
+        && inDayFilter(new Date(m.starts), dayFilter) && textOk(m)
+        && (view !== "missing" || !m.merkur)
+      )),
+    [board, competition, dayFilter, textOk, compById, allById, view],
   );
   const valueList = useMemo(
     () => (board?.values || []).filter((v) => {
@@ -365,8 +370,8 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
   const inValue = view === "value";
   const inMissing = view === "missing";
   const menuCompetitions = useMemo(
-    () => (inMissing ? competitions.map((c) => ({ ...c, count: missingCounts.get(c.id) || 0 })) : competitions),
-    [competitions, inMissing, missingCounts],
+    () => (inMissing ? allCompetitions.map((c) => ({ ...c, count: missingCounts.get(c.id) || 0 })) : competitions),
+    [competitions, allCompetitions, inMissing, missingCounts],
   );
   const menuGroups = useMemo(
     () => buildMenuGroups({
@@ -483,7 +488,8 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
                 {inMissing ? missingEmpty(missingTotal, competition !== "all", () => setCompetition("all")) : "Nema mečeva za izabrani filter."}
               </p>
             )}
-            {inMissing && !!filtered.length && <MissingTable matches={filtered} competitions={competitions} sport={sport} />}
+            {inMissing && <OtherOffered leagues={board?.otherOffered} />}
+            {inMissing && !!filtered.length && <MissingTable matches={filtered} competitions={allCompetitions} sport={sport} />}
             {view === "compare" && groups.map((group) => (
               <div key={group.key} className="bb-day">
                 <h3 className="bb-day-title">{group.title} <span>{group.matches.length}</span></h3>

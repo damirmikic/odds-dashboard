@@ -760,10 +760,21 @@ class HockeyTests(unittest.TestCase):
         row = {**self.ROW, "kickOffTime": bb.event_ts(self.event()), "live": False}
         self.assertIn("4", hockey.pair_events([self.event()], [row]))
 
-    def test_only_tracked_leagues_are_kept(self):
-        other = {**self.event(), "event_id": 5, "league_id": 1}
-        out = hockey.HockeyState(dash.History(path=None), str).incoming({"events": [self.event(), other]})
-        self.assertEqual([e["event_id"] for e in out], [4])
+    def test_untracked_leagues_only_feed_the_missing_view(self):
+        other = {**self.event(), "event_id": 5, "league_id": 1, "league_name": "Norway - Eliteserien",
+                 "home": "Stavanger Oilers", "away": "Storhamar"}
+        third = {**other, "event_id": 6, "home": "Valerenga", "away": "Frisk Asker"}
+        offered = {**self.ROW, "id": 10, "home": "Valerenga", "away": "Frisk Asker", "leagueId": 77,
+                   "leagueShort": "NOR EL", "kickOffTime": bb.event_ts(self.event()), "live": False}
+        state = hockey.HockeyState(dash.History(path=None), str, mx.OfferCache(api=FakeMerkurAPI([offered])))
+        state.get_api = lambda: FakeAPI([self.event(), other, third])
+        board = state.board()
+        self.assertEqual([m["id"] for m in board["matches"]], [4])
+        self.assertEqual([m["id"] for m in board["otherMissing"]], [5])  # 6 is offered under an untracked league
+        self.assertEqual([(c["key"], c["country"]) for c in board["otherCompetitions"]], [("x1", "Norway")])
+        self.assertEqual([(o["leagueId"], o["mxLeagueId"], o["count"]) for o in board["otherOffered"]], [(1, 77, 1)])
+        with self.assertRaises(LookupError):
+            state.match("5")
 
     def test_drop_quotes_use_game_period_for_winner_and_regulation_for_the_rest(self):
         match, _ = hockey.shape_match(self.event(), (self.ROW, 1.0))

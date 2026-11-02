@@ -179,6 +179,9 @@ class MmaState(bb.BasketballState):
         # every MMA league: promotions come and go, and fights pair by the fighters' names
         return [e for e in data.get("events") or [] if e.get("event_id") and pw.is_main_fixture(e)]
 
+    def tracked(self, event):
+        return True  # every promotion
+
     def shape(self, event, hit):
         return shape_match(event, hit)
 
