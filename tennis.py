@@ -201,11 +201,11 @@ def player_score(pinnacle, merkur):
     full_a, full_b = [t for t in ta if len(t) > 1], [t for t in tb if len(t) > 1]
     if not full_a or not full_b:
         return 0.0
-    short, long_ = (full_a, full_b) if len(full_a) <= len(full_b) else (full_b, full_a)
-    found = sum(1 for t in short if any(mx._token_match(t, u) for u in long_)) / len(short)
     initials = [(t, full_b) for t in ta if len(t) == 1] + [(t, full_a) for t in tb if len(t) == 1]
-    ok = all(any(u.startswith(t) for u in names) for t, names in initials)
-    return found if ok else 0.0
+    if not all(any(u.startswith(t) for u in names) for t, names in initials):
+        return 0.0
+    short, long_ = (full_a, full_b) if len(full_a) <= len(full_b) else (full_b, full_a)
+    return sum(1 for t in short if any(mx._token_match(t, u) for u in long_)) / len(short)
 
 
 def pair_inputs(events, offer):

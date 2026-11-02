@@ -392,6 +392,7 @@ class MerkurPairingTests(unittest.TestCase):
         self.assertEqual(mx.name_score("Mekelakeya", "Defence Force"), 1.0)
         self.assertEqual(mx.name_score("Union Saint-Gilloise II", "Union SG 2"), 1.0)
         self.assertEqual(mx.name_score("RAEC Mons", "Renaissance Mons"), 1.0)
+        self.assertEqual(mx.name_score("Diosgyori VTK", "DVTK"), 1.0)
         self.assertEqual(dash.other_score("Colchester United", "Colchester U21"), 0.0)
 
     def test_pair_is_one_to_one_within_competition_and_window(self):

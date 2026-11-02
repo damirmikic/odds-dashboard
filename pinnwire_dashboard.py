@@ -174,8 +174,9 @@ def period_detail(event, number):
     }
 
 
-def summary(event, track):
-    event = clean_ah0(event)
+def summary(event, track, cleaned=False):
+    if not cleaned:
+        event = clean_ah0(event)
     ml, margin = money_line(event)
     spreads = pw.build_lines(event, "spreads", ("home", "away"), "hdp")
     totals = pw.build_lines(event, "totals", ("over", "under"), "points")
@@ -209,9 +210,10 @@ OU_SIDES = (("over", "Više"), ("under", "Manje"))
 DROP_GROUPS = {"1X2": "moneyline", "Hendikep": "spread", "Ukupno golova": "total"}
 
 
-def pinnacle_lines(event, number):
+def pinnacle_lines(event, number, cleaned=False):
     """Pinnacle prices of one period keyed like merkur_client.markets()."""
-    event = clean_ah0(event)
+    if number == 0 and not cleaned:
+        event = clean_ah0(event)
     markets = pw.period(event, number)
     ml = pw.priced(markets.get("money_line") or {}, ML_SIDES)
     return {
@@ -223,9 +225,10 @@ def pinnacle_lines(event, number):
     }
 
 
-def pinnacle_max(event, number):
+def pinnacle_max(event, number, cleaned=False):
     """Pinnacle limit (max bet) per line, shaped like pinnacle_lines(); the 1X2 price carries no limit."""
-    event = clean_ah0(event)
+    if number == 0 and not cleaned:
+        event = clean_ah0(event)
     markets = pw.period(event, number)
     return {
         "totals": pw.ladder_limits(markets.get("totals"), "points"),
@@ -235,9 +238,11 @@ def pinnacle_max(event, number):
     }
 
 
-def compare_period(event, merkur_period, number):
-    pin = pinnacle_lines(event, number)
-    limits = pinnacle_max(event, number)
+def compare_period(event, merkur_period, number, cleaned=False):
+    if number == 0 and not cleaned:
+        event = clean_ah0(event)
+    pin = pinnacle_lines(event, number, cleaned=True)
+    limits = pinnacle_max(event, number, cleaned=True)
     rows = []
     for key, group, labels in COMPARE_GROUPS:
         if key == "ml":
@@ -293,10 +298,11 @@ def value_items(match, rows):
     return common.value_items(match["id"], period_rows(rows), PERIOD_LABELS, label=label)
 
 
-def merkur_summary(row, event, score):
+def merkur_summary(row, event, score, cleaned=False):
     """Board cell data: 1X2 against fair odds, comparable goal lines and the largest edge anywhere."""
     decoded = mx.markets(row)
-    rows = {"ft": compare_period(event, decoded[0], 0), "ht": compare_period(event, decoded[1], 1)}
+    rows = {"ft": compare_period(event, decoded[0], 0, cleaned=cleaned),
+            "ht": compare_period(event, decoded[1], 1, cleaned=True)}
     ml = next((r for r in rows["ft"] if r["group"] == "1X2"), None)
     return {
         **merkur_info(row, event, score),
@@ -471,9 +477,9 @@ class DashboardState(common.SnapshotState):
         with self.lock:
             now = utc_now()
             upcoming = [e for e in (self.events or {}).values() if is_upcoming(e, now)]
-            events = [e for e in upcoming if is_tracked(e)]
+            events = [clean_ah0(e) for e in upcoming if is_tracked(e)]
             others = [e for e in upcoming if not is_tracked(e)]
-            matches = [summary(e, self.history.track(e["event_id"])) for e in events]
+            matches = [summary(e, self.history.track(e["event_id"]), cleaned=True) for e in events]
         pairs = pair_events(events, offer)
         hints = unpaired_hints(events, offer, pairs)
         self.pairs = pairs
@@ -481,7 +487,7 @@ class DashboardState(common.SnapshotState):
         values, quotes, clv_rows = [], {}, {}
         for m in matches:
             hit = pairs.get(str(m["id"]))
-            m["merkur"] = merkur_summary(hit[0], by_id[str(m["id"])], hit[1]) if hit else None
+            m["merkur"] = merkur_summary(hit[0], by_id[str(m["id"])], hit[1], cleaned=True) if hit else None
             m["hint"] = hints.get(str(m["id"]))
             if m["merkur"]:
                 m["merkur"].update(self.track_merkur(m["merkur"]))

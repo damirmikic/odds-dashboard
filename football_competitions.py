@@ -361,6 +361,7 @@ COMPETITIONS = [
     {"id": 1800, "key": "bhrkc", "name": "Kup kralja", "country": "Bahrein", "code": "BHRC", "merkur": "BHR KC"},
     {"id": 218174, "key": "egylc", "name": "Liga kup", "country": "Egipat", "code": "EGYLC", "merkur": "EGY LC"},
     {"id": 2230, "key": "mkd1", "name": "1. liga", "country": "Severna Makedonija", "code": "MKD", "merkur": "MKD 1MFL"},
+    {"id": 201214, "key": "hunnb2", "name": "NB 2", "country": "Mađarska", "code": "HUN2", "merkur": "HUN NB2"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {

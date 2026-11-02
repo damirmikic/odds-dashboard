@@ -161,22 +161,17 @@ def devig(odds):
 
 def _shin(q):
     """Shin probabilities for implied probabilities q (sum > 1); z is the share of insider money."""
-    total = sum(q)
-
-    def probs(z):
-        return [(math.sqrt(z * z + 4 * (1 - z) * x * x / total) - z) / (2 * (1 - z)) for x in q]
-
-    lo, hi = 0.0, 0.4
-    for _ in range(200):  # bisection: sum(probs) falls from > 1 at z = 0 towards 1 as z grows
-        mid = 0.5 * (lo + hi)
-        if sum(probs(mid)) > 1.0:
-            lo = mid
-        else:
-            hi = mid
-        if hi - lo < 1e-12:
-            break
-    p = probs(0.5 * (lo + hi))
-    return [x / sum(p) for x in p]
+    q0, q1 = q
+    total = q0 + q1
+    diff = q0 - q1
+    if abs(diff) < 1.0:
+        z = (total - 1.0) * (total - diff * diff) / (total * (1.0 - diff * diff))
+        if z <= 0.4:
+            return [0.5 * (1.0 + diff), 0.5 * (1.0 - diff)]
+    z = 0.4
+    p = [(math.sqrt(z * z + 4 * (1 - z) * x * x / total) - z) / (2 * (1 - z)) for x in q]
+    s = p[0] + p[1]
+    return [p[0] / s, p[1] / s]
 
 
 def _power(q):
@@ -335,18 +330,20 @@ def lines_from(lines, sides, line_key, market="totals"):
     for line in lines:
         if not isinstance(line, dict):
             continue
+        value = _num(line.get(line_key))
+        if not allowed_line(value, market):
+            continue
         prices = priced(line, sides)
         if len(prices) < 2:
             continue
         fair, margin = fair_odds(prices)
         rows.append({
-            "line": _num(line.get(line_key)),
+            "line": value,
             "odds": prices,
             "fair": {side: round(odds, 3) for side, odds in fair.items()},
             "margin": margin,
             "max": line.get("max"),
         })
-    rows = [row for row in rows if allowed_line(row["line"], market)]
     # main line first: the one whose prices are closest to even
     rows.sort(key=lambda row: abs(row["odds"][sides[0]] - row["odds"][sides[1]]))
     if rows:

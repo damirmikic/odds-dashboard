@@ -16,6 +16,7 @@ sides come from different markets, so no margin is computed for it.
 from __future__ import annotations
 
 import difflib
+import functools
 import re
 import time
 import unicodedata
@@ -225,22 +226,35 @@ ALIASES = {
     "union sg 2": "union saint gilloise ii",
     "renaissance mons": "raec mons",
     "chelbasket": "chelyabinsk",
+    "dvtk": "diosgyori vtk",
 }
 
 
-def norm_tokens(name):
+_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+
+
+@functools.lru_cache(maxsize=16384)
+def _clean_name(name):
     text = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
-    text = re.sub(r"[^a-z0-9]+", " ", text).strip()
+    return _NON_ALNUM.sub(" ", text).strip()
+
+
+def norm_tokens(name):
+    text = _clean_name(name)
     text = ALIASES.get(text, text)
-    return [t for t in text.split() if t not in _STOP] or text.split()
+    tokens = text.split()
+    return [t for t in tokens if t not in _STOP] or tokens
 
 
 def _token_match(a, b):
     if a == b or a.startswith(b) or b.startswith(a):
         return True
-    if min(len(a), len(b)) >= 4 and (a in b or b in a):
+    la, lb = len(a), len(b)
+    if min(la, lb) >= 4 and (a in b or b in a):
         return True
-    return min(len(a), len(b)) >= 5 and difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
+    if min(la, lb) < 5 or 5 * abs(la - lb) > la + lb or 5 * len(set(a) ^ set(b)) > la + lb:
+        return False
+    return difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
 
 
 def name_score(a, b):
@@ -267,12 +281,16 @@ def pair(pinnacle, merkur, window_minutes=180, min_score=0.5, score_fn=None):
     for m in merkur:
         by_comp.setdefault(m["comp"], []).append(m)
     scored = []
+    min_first = 2 * min_score - 1.0
     for p in pinnacle:
         for m in by_comp.get(p["comp"], ()):
             diff = abs(m["ts"] - p["ts"]) / 60000
             if diff > window_minutes:
                 continue
-            score = (score_fn(p["home"], m["home"]) + score_fn(p["away"], m["away"])) / 2
+            home = score_fn(p["home"], m["home"])
+            if home < min_first:
+                continue
+            score = (home + score_fn(p["away"], m["away"])) / 2
             if score >= min_score:
                 scored.append((score, -diff, p["id"], m["id"], m))
     scored.sort(key=lambda row: (row[0], row[1]), reverse=True)
@@ -293,16 +311,23 @@ def closest_unpaired(pinnacle, merkur, pairs, window_minutes=180, score_fn=None)
     """
     score_fn = score_fn or name_score
     used = {m["id"] for m, _ in pairs.values()}
+    by_comp = {}
+    for m in merkur:
+        if m["id"] not in used:
+            by_comp.setdefault(m["comp"], []).append(m)
     out = {}
     for p in pinnacle:
         if p["id"] in pairs:
             continue
         best = None
-        for m in merkur:
+        for m in by_comp.get(p["comp"], ()):
             diff = abs(m["ts"] - p["ts"]) / 60000
-            if m["comp"] != p["comp"] or m["id"] in used or diff > window_minutes:
+            if diff > window_minutes:
                 continue
-            score = (score_fn(p["home"], m["home"]) + score_fn(p["away"], m["away"])) / 2
+            home = score_fn(p["home"], m["home"])
+            if best is not None and home + 1.0 < 2 * best[0][0]:
+                continue
+            score = (home + score_fn(p["away"], m["away"])) / 2
             if score > 0 and (best is None or (score, -diff) > best[0]):
                 best = ((score, -diff), m)
         if best:

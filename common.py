@@ -5,6 +5,7 @@ This module must not import `pinnwire_dashboard` (run as a script that module is
 """
 from __future__ import annotations
 
+import functools
 import re
 import threading
 import time
@@ -176,9 +177,13 @@ OTHER_MIN_SCORE = 0.75
 SIDE_MARKERS = {"w", "women", "u17", "u18", "u19", "u20", "u21", "u23", "ii", "b", "res", "reserves"}
 
 
+_ALNUM = re.compile(r"[a-z0-9]+")
+
+
+@functools.lru_cache(maxsize=16384)
 def side_markers(name):
     text = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
-    return SIDE_MARKERS.intersection(re.findall(r"[a-z0-9]+", text))
+    return frozenset(SIDE_MARKERS.intersection(_ALNUM.findall(text)))
 
 
 def other_score(pinnacle, merkur):
