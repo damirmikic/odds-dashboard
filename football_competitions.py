@@ -354,6 +354,8 @@ COMPETITIONS = [
     {"id": 217859, "key": "senl1", "name": "Ligue 1", "country": "Senegal", "code": "SEN", "merkur": "SEN L1"},
     {"id": 2068, "key": "gercupw", "name": "Kup (žene)", "country": "Nemačka", "code": "GERCW", "merkur": 2314209},
     {"id": 280748, "key": "nirres", "name": "Rezervna liga", "country": "Severna Irska", "code": "NIRR", "merkur": 2376489},
+    {"id": 201776, "key": "estesiliigab", "name": "Esiliiga B", "country": "Estonija", "code": "EST3", "merkur": 2353729},
+    {"id": 203351, "key": "itaseriaw", "name": "Serie A (žene)", "country": "Italija", "code": "ITAW", "merkur": "ITA SAW"},
     {"id": 210115, "key": "smrcs", "name": "Campionato", "country": "San Marino", "code": "SMR", "merkur": "SNM CS"},
     {"id": 200047, "key": "engplcu21", "name": "Premier League Cup U21", "country": "Engleska", "code": "ENGU21", "merkur": "ENG PLC"},
     {"id": 1979, "key": "facup", "name": "FA kup", "country": "Engleska", "code": "ENGC", "merkur": "ENG FAC"},

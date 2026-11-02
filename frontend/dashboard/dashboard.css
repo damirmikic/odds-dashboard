@@ -382,6 +382,8 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.senl1 { --badge: #00853f; }
 .comp-badge.gercupw { --badge: #3a3a3a; }
 .comp-badge.nirres { --badge: #5b6b7a; }
+.comp-badge.estesiliigab { --badge: #0072ce; }
+.comp-badge.itaseriaw { --badge: #c2185b; }
 .comp-badge.mlsnp { --badge: #1f3f7a; }
 .comp-badge.ngapl { --badge: #008751; }
 .comp-badge.rwapl { --badge: #00a1de; }
