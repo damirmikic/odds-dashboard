@@ -352,6 +352,15 @@ COMPETITIONS = [
     {"id": 204919, "key": "nirch", "name": "Championship", "country": "Severna Irska", "code": "NIR2", "merkur": "NIR CH"},
     {"id": 210115, "key": "smrcs", "name": "Campionato", "country": "San Marino", "code": "SMR", "merkur": "SNM CS"},
     {"id": 200047, "key": "engplcu21", "name": "Premier League Cup U21", "country": "Engleska", "code": "ENGU21", "merkur": "ENG PLC"},
+    {"id": 1979, "key": "facup", "name": "FA kup", "country": "Engleska", "code": "ENGC", "merkur": "ENG FAC"},
+    {"id": 2420, "key": "scochallcup", "name": "Challenge kup", "country": "Škotska", "code": "SCOCC", "merkur": "SCO CUP"},
+    {"id": 8126, "key": "uaepl", "name": "Pro liga", "country": "UAE", "code": "UAEP", "merkur": "UAE PRO"},
+    {"id": 200719, "key": "unla", "name": "Liga nacija A", "country": "UEFA", "code": "UNLA", "merkur": "UEFA NLA"},
+    {"id": 200721, "key": "unlb", "name": "Liga nacija B", "country": "UEFA", "code": "UNLB", "merkur": "UEFA NLB"},
+    {"id": 206162, "key": "srbprva", "name": "Prva liga", "country": "Srbija", "code": "SRB2", "merkur": "SRB 1L"},
+    {"id": 1800, "key": "bhrkc", "name": "Kup kralja", "country": "Bahrein", "code": "BHRC", "merkur": "BHR KC"},
+    {"id": 218174, "key": "egylc", "name": "Liga kup", "country": "Egipat", "code": "EGYLC", "merkur": "EGY LC"},
+    {"id": 2230, "key": "mkd1", "name": "1. liga", "country": "Severna Makedonija", "code": "MKD", "merkur": "MKD 1MFL"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {

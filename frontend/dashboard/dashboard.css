@@ -950,3 +950,12 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .value-change { font-size: 11px; white-space: nowrap; text-align: left !important; padding: 0 8px !important; color: var(--muted); }
 .value-change small { display: inline-block; min-width: 26px; color: var(--faint); font-size: 10px; font-weight: 700; }
 .value-change .recent { color: var(--text); font-weight: 700; }
+
+.comp-badge.facup { --badge: #c8102e; }
+.comp-badge.scochallcup { --badge: #1b4f9c; }
+.comp-badge.uaepl { --badge: #0a7d4b; }
+.comp-badge.unla, .comp-badge.unlb { --badge: #0b2a6f; }
+.comp-badge.srbprva { --badge: #a3262a; }
+.comp-badge.bhrkc { --badge: #8a1c2b; }
+.comp-badge.egylc { --badge: #c9a227; }
+.comp-badge.mkd1 { --badge: #d6452a; }
