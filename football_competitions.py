@@ -368,6 +368,20 @@ COMPETITIONS = [
     {"id": 218174, "key": "egylc", "name": "Liga kup", "country": "Egipat", "code": "EGYLC", "merkur": "EGY LC"},
     {"id": 2230, "key": "mkd1", "name": "1. liga", "country": "Severna Makedonija", "code": "MKD", "merkur": "MKD 1MFL"},
     {"id": 201214, "key": "hunnb2", "name": "NB 2", "country": "Mađarska", "code": "HUN2", "merkur": "HUN NB2"},
+    {"id": 9096, "key": "thalc", "name": "Liga kup", "country": "Tajland", "code": "THALC", "merkur": "THA LC"},
+    {"id": 212200, "key": "kwtd1", "name": "Divizija 1", "country": "Kuvajt", "code": "KUW2", "merkur": "KUW D1"},
+    {"id": 1856, "key": "chlcup", "name": "Kup", "country": "Čile", "code": "CHLC", "merkur": "CHL CUP"},
+    {"id": 216106, "key": "mozmoc", "name": "Mocambola", "country": "Mozambik", "code": "MOZ", "merkur": "MOZ MOC"},
+    {"id": 2454, "key": "svkcup", "name": "Kup", "country": "Slovačka", "code": "SVKC", "merkur": "SVK CUP"},
+    {"id": 219609, "key": "ecucup", "name": "Kup", "country": "Ekvador", "code": "ECUC", "merkur": "ECU CUP"},
+    {"id": 1946, "key": "egycup", "name": "Kup", "country": "Egipat", "code": "EGYC", "merkur": "EGY CUP"},
+    {"id": 125461, "key": "estcup", "name": "Kup", "country": "Estonija", "code": "ESTC", "merkur": "EST CUP"},
+    {"id": 201288, "key": "itasdcup", "name": "Serie D kup", "country": "Italija", "code": "ITAC4", "merkur": "ITA SDC"},
+    {"id": 210715, "key": "omnpro", "name": "Pro liga", "country": "Oman", "code": "OMN", "merkur": "OMN PRO"},
+    {"id": 237069, "key": "ruscupreg", "name": "Kup (regioni)", "country": "Rusija", "code": "RUSC2",
+     "merkur_of": 2409},
+    {"id": 219077, "key": "suipromo", "name": "Promotion League", "country": "Švajcarska", "code": "SUI3", "merkur": "SWI PRO"},
+    {"id": 208269, "key": "tur2l", "name": "2. Liga", "country": "Turska", "code": "TUR3", "merkur": "TUR 2L"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
