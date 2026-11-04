@@ -62,6 +62,12 @@ COMPETITIONS = [
     {"id": 481, "key": "wkbl", "name": "WKBL (Ž)", "country": "Južna Koreja", "code": "WKBL", "mx_id": 2313974},
     {"id": 211487, "key": "qbl", "name": "QBL", "country": "Katar", "code": "QAT", "mx_id": 2377351},
     {"id": 207009, "key": "slv", "name": "Liga Mayor", "country": "El Salvador", "code": "SLV", "mx_id": 2330227},
+    {"id": 317, "key": "denbl", "name": "Basketligaen", "country": "Danska", "code": "DEN", "mx_id": 2313968},
+    {"id": 280, "key": "nblau", "name": "NBL", "country": "Australija", "code": "AUS", "mx_id": 2315344},
+    {"id": 203908, "key": "chilnb", "name": "LNB", "country": "Čile", "code": "CHL", "mx_id": 2395984},
+    {"id": 207008, "key": "colbpc", "name": "Baloncesto Profesional", "country": "Kolumbija", "code": "COL",
+     "mx_id": 2370633},
+    {"id": 548, "key": "svnskl", "name": "1. SKL", "country": "Slovenija", "code": "SVN", "mx_id": 2313969},
 ]
 MX_COMP = {mid: c["id"] for c in COMPETITIONS for mid in (c["mx_id"], *c.get("mx_extra", ()))}
 

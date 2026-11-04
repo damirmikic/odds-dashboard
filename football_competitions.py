@@ -382,6 +382,8 @@ COMPETITIONS = [
      "merkur_of": 2409},
     {"id": 219077, "key": "suipromo", "name": "Promotion League", "country": "Švajcarska", "code": "SUI3", "merkur": "SWI PRO"},
     {"id": 208269, "key": "tur2l", "name": "2. Liga", "country": "Turska", "code": "TUR3", "merkur": "TUR 2L"},
+    {"id": 1849, "key": "cmreo", "name": "Elite One", "country": "Kamerun", "code": "CMR", "merkur": "CMR EO"},
+    {"id": 301689, "key": "idnlc", "name": "Liga kup", "country": "Indonezija", "code": "IDNLC", "merkur": "IDN LC"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {

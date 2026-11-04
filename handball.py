@@ -171,20 +171,24 @@ PREFIXES = {"ft": "", "h1": "1.pol "}
 
 # ------------------------------------------------------------------------- pairing
 
-def women(name, league):
-    """The side name with a "W" marker when its league is a women's one, so common.other_score keeps the sexes apart."""
-    if "women" in (league or "").lower() and "w" not in common.side_markers(name):
-        return f"{name} W"
-    return name
+def women(home, away, league):
+    """(home, away) with a "W" marker on both when the league or one of the sides says women's, so
+    common.other_score keeps the sexes apart (MerkurXtip may mark only one team, "Kaunas W" against "Avarca")."""
+    if "women" in (league or "").lower() or any("w" in common.side_markers(n) for n in (home, away)):
+        return tuple(n if "w" in common.side_markers(n) else f"{n} W" for n in (home, away))
+    return home, away
 
 
 def pair_inputs(events, offer):
-    pin = [{"id": str(e["event_id"]), "comp": kind(e), "ts": bb.event_ts(e),
-            "home": women(e.get("home", ""), e.get("league_name")),
-            "away": women(e.get("away", ""), e.get("league_name"))} for e in events]
-    mer = [{"id": r["id"], "comp": r.get("sport"), "ts": r.get("kickOffTime") or 0, "row": r,
-            "home": women(r.get("home", ""), r.get("leagueName")),
-            "away": women(r.get("away", ""), r.get("leagueName"))} for r in offer if mx.is_prematch(r)]
+    pin, mer = [], []
+    for e in events:
+        home, away = women(e.get("home", ""), e.get("away", ""), e.get("league_name"))
+        pin.append({"id": str(e["event_id"]), "comp": kind(e), "ts": bb.event_ts(e), "home": home, "away": away})
+    for r in offer:
+        if mx.is_prematch(r):
+            home, away = women(r.get("home", ""), r.get("away", ""), r.get("leagueName"))
+            mer.append({"id": r["id"], "comp": r.get("sport"), "ts": r.get("kickOffTime") or 0, "row": r,
+                        "home": home, "away": away})
     return pin, mer
 
 

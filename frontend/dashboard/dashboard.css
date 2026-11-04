@@ -982,3 +982,11 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.ruscupreg { --badge: #1c3f94; }
 .comp-badge.suipromo { --badge: #d52b1e; }
 .comp-badge.tur2l { --badge: #c8102e; }
+.comp-badge.cmreo { --badge: #1e8a4c; }
+.comp-badge.idnlc { --badge: #c4322c; }
+.comp-badge.denbl { --badge: #c8102e; }
+.comp-badge.nblau { --badge: #0b6e4f; }
+.comp-badge.chilnb { --badge: #1f4fa3; }
+.comp-badge.colbpc { --badge: #c9a227; }
+.comp-badge.svnskl { --badge: #2a62a8; }
+.comp-badge.cze2l { --badge: #3f6fb0; }

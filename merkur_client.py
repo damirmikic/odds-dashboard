@@ -227,6 +227,8 @@ ALIASES = {
     "renaissance mons": "raec mons",
     "chelbasket": "chelyabinsk",
     "dvtk": "diosgyori vtk",
+    "turkey": "turkiye",
+    "bih": "bosnia herzegovina",
 }
 
 

@@ -771,6 +771,15 @@ class TennisTests(unittest.TestCase):
 
 
 class HandballTests(unittest.TestCase):
+    def test_women_marker_covers_both_sides_and_country_aliases_pair(self):
+        # MerkurXtip marks only one team ("Kaunas W") and does not call the league a women's one
+        self.assertEqual(handball.women("Kaunas W", "Avarca de Menorca", "CEV"), ("Kaunas W", "Avarca de Menorca W"))
+        self.assertEqual(handball.women("TK Kaunas VDU", "Avarca", "CEV Challenge Cup Women"),
+                         ("TK Kaunas VDU W", "Avarca W"))
+        self.assertEqual(handball.women("Austria", "Turkey", "European Championships"), ("Austria", "Turkey"))
+        self.assertEqual(common.other_score("Turkiye", "Turkey"), 1.0)
+        self.assertEqual(common.other_score("Bosnia & Herzegovina", "BiH"), 1.0)
+
     KICK = "2030-03-17T17:00:00Z"
     HB_ROW = {
         "id": 21, "sport": "HB", "home": "Vojvodina", "away": "Metaloplastika", "leagueName": "Super Liga",
