@@ -48,6 +48,10 @@ MX_PERIOD = {
 }
 # "Ukupan broj setova 2" / "3": best of three only, so exactly 2 sets is the under of 2.5
 SET_TOTAL = (2.5, "261", "260")
+# "Igrač 1 / 2 osvaja set": MerkurXtip prices only the yes side; Pinnacle's set handicap gives both
+SET_WIN = {"home": "50271", "away": "50272"}
+SET_WIN_GROUPS = {"home": "Igrač 1 osvaja set", "away": "Igrač 2 osvaja set"}
+SET_WIN_LABELS = (("yes", "Da"), ("no", "Ne"))
 
 GROUPS = [
     # key in pinnacle_markets()/merkur_markets(), group label, outcome sides
@@ -60,6 +64,7 @@ GROUPS = [
     ("away", "Gemovi igrač 2", (("over", "Više"), ("under", "Manje"))),
 ]
 EMPTY = {key: {} for key in ("setspreads", "settotals", "spreads", "totals", "home", "away")}
+EMPTY["setwin"] = {}
 
 # (name prefix, category label, badge code, badge class); the first prefix that matches wins
 CATEGORIES = [
@@ -117,16 +122,39 @@ def merge_event(old, new):
 
 # ------------------------------------------------------------------------- decoding
 
+def set_win(setspreads, settotals):
+    """{side: {"yes": odds, "no": odds}} for "player wins a set", read off Pinnacle's set handicap.
+
+    A player fails to win a set only by losing every one, which is the handicap +1.5 in a best of three (the
+    total 2.5) and +2.5 in a best of five (totals 3.5 and up); without a set total the format is unknown.
+    """
+    if any(line >= 3.5 for line in settotals):
+        line = 2.5
+    elif 2.5 in settotals:
+        line = 1.5
+    else:
+        return {}
+    out = {}
+    if line in setspreads:
+        out["home"] = {"yes": setspreads[line]["home"], "no": setspreads[line]["away"]}
+    if -line in setspreads:
+        out["away"] = {"yes": setspreads[-line]["away"], "no": setspreads[-line]["home"]}
+    return out
+
+
 def pinnacle_markets(event, period="ft"):
     """Pinnacle prices of one period keyed like merkur_markets(): ml {side: odds}, lines {line: {side: odds}}."""
     number = NUMBERS[period]
     sets = pw.period(event, number)
     games = pw.period({"periods": event.get("games")}, number)
     ml = pw.priced(sets.get("money_line") or {}, ("home", "away"))
+    setspreads = pw.ladder(sets.get("spreads"), "hdp", ("home", "away"))
+    settotals = pw.ladder(sets.get("totals"), "points", ("over", "under"))
     return {
         "ml": ml if len(ml) == 2 else None,
-        "setspreads": pw.ladder(sets.get("spreads"), "hdp", ("home", "away")),
-        "settotals": pw.ladder(sets.get("totals"), "points", ("over", "under")),
+        "setspreads": setspreads,
+        "settotals": settotals,
+        "setwin": set_win(setspreads, settotals) if period == "ft" else {},
         "spreads": pw.ladder(games.get("spreads"), "hdp", ("home", "away")),
         "totals": pw.ladder(games.get("totals"), "points", ("over", "under")),
         **common.team_ladders(games),
@@ -139,8 +167,11 @@ def pinnacle_limits(event, period="ft"):
     sets = pw.period(event, number)
     games = pw.period({"periods": event.get("games")}, number)
     team = games.get("team_totals") or {}
+    setspreads = pw.ladder_limits(sets.get("spreads"), "hdp")
     return {
-        "setspreads": pw.ladder_limits(sets.get("spreads"), "hdp"),
+        "setspreads": setspreads,
+        "setwin": {"home": {1.5: setspreads.get(1.5), 2.5: setspreads.get(2.5)},
+                   "away": {1.5: setspreads.get(-1.5), 2.5: setspreads.get(-2.5)}},
         "settotals": pw.ladder_limits(sets.get("totals"), "points"),
         "spreads": pw.ladder_limits(games.get("spreads"), "hdp"),
         "totals": pw.ladder_limits(games.get("totals"), "points"),
@@ -165,6 +196,13 @@ def merkur_markets(row, period="ft"):
         prices = mx._pick(raw, {"over": over, "under": under})
         if prices:
             out["settotals"] = {line: prices}
+        # a swapped row has the players in the reverse of Pinnacle's order
+        sides = ("away", "home") if row.get(bb.SWAPPED) else ("home", "away")
+        out["setwin"] = {}
+        for side, mx_side in zip(("home", "away"), sides):
+            odds = mx._pick(raw, {"yes": SET_WIN[mx_side]})
+            if odds:
+                out["setwin"][side] = odds
     return out
 
 
@@ -182,9 +220,19 @@ def compare(pin, merkur, period="ft", limits=None):
             if line in pin[key]:
                 rows.append(common.compare_row(group, line, labels, merkur[key][line], pin[key][line],
                                            (limits or {}).get(key, {}).get(line)))
+    for side, group in SET_WIN_GROUPS.items():
+        if side in merkur["setwin"] and side in pin["setwin"]:
+            rows.append(common.compare_row(group, None, SET_WIN_LABELS, merkur["setwin"][side], pin["setwin"][side],
+                                           _set_win_limit(pin, limits, side)))
     for r in rows:
         r["period"] = period
     return rows
+
+
+def _set_win_limit(pin, limits, side):
+    """Pinnacle's limit of the set handicap line that carries "wins a set" (1.5 best of three, 2.5 best of five)."""
+    by_line = ((limits or {}).get("setwin") or {}).get(side) or {}
+    return by_line.get(2.5 if any(line >= 3.5 for line in pin["settotals"]) else 1.5)
 
 
 PERIOD_LABELS = {key: label for key, label, _ in PERIODS}

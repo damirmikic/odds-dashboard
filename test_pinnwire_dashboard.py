@@ -641,7 +641,8 @@ class TennisTests(unittest.TestCase):
         "id": 5, "home": "S. Wawrinka", "away": "M. Landaluce", "kickOffTime": 1_900_000_000_000,
         "odds": {"1": 2.4, "3": 1.5, "50510": 2.25, "50511": 1.55, "261": 2.35, "260": 1.48,
                  "50538": 1.57, "50539": 2.2, "251": 1.72, "253": 1.97, "256": 2.0, "254": 1.7,
-                 "259": 1.8, "257": 2.0, "50941": 1.75, "50940": 1.92},
+                 "259": 1.8, "257": 2.0, "50941": 1.75, "50940": 1.92,
+                 "50271": 1.2, "50272": 1.4},
         "params": {"hd2": "1.5", "handicapGames": "3.5", "overUnderGames": "22.5",
                    "overUnderGamesFirstSet": "9.5", "homeOverUnderGames": "11.5"},
     }
@@ -705,6 +706,17 @@ class TennisTests(unittest.TestCase):
         self.assertEqual(first_set["ml"], {"home": 2.25, "away": 1.55})
         self.assertEqual(first_set["totals"], {9.5: {"over": 1.8, "under": 2.0}})
 
+    def test_player_wins_a_set_is_the_set_handicap_plus_one_and_a_half(self):
+        pin = tennis.pinnacle_markets(self.merged())
+        spreads = pin["setspreads"]
+        self.assertEqual(pin["setwin"]["home"], {"yes": spreads[1.5]["home"], "no": spreads[1.5]["away"]})
+        self.assertEqual(pin["setwin"]["away"], {"yes": spreads[-1.5]["away"], "no": spreads[-1.5]["home"]})
+        self.assertEqual(tennis.merkur_markets(self.ROW)["setwin"], {"home": {"yes": 1.2}, "away": {"yes": 1.4}})
+        swapped = tennis.merkur_markets({**self.ROW, "pinSwapped": True})["setwin"]
+        self.assertEqual(swapped, {"home": {"yes": 1.4}, "away": {"yes": 1.2}})
+        self.assertEqual(tennis.set_win({1.5: {"home": 1.2, "away": 4.0}, 2.5: {"home": 1.1, "away": 7.0}},
+                                        {3.5: {}}), {"home": {"yes": 1.1, "no": 7.0}})
+
     def test_pinnacle_markets_read_sets_and_games(self):
         pin = tennis.pinnacle_markets(self.merged())
         self.assertEqual(set(pin["setspreads"]), {1.5, -1.5})
@@ -718,7 +730,8 @@ class TennisTests(unittest.TestCase):
         match, values = tennis.shape_match(self.merged(), (self.ROW, 1.0))
         groups = {(r["group"], r["line"]) for r in match["rows"]}
         self.assertEqual(groups, {("Pobednik", None), ("Hendikep setova", 1.5), ("Ukupno setova", 2.5),
-                                  ("Hendikep gemova", 3.5), ("Ukupno gemova", 22.5), ("Gemovi igrač 1", 11.5)})
+                                  ("Hendikep gemova", 3.5), ("Ukupno gemova", 22.5), ("Gemovi igrač 1", 11.5),
+                                  ("Igrač 1 osvaja set", None), ("Igrač 2 osvaja set", None)})
         self.assertEqual({(r["group"], r["line"]) for r in match["periods"]["s1"]},
                          {("Pobednik", None), ("Ukupno gemova", 9.5)})
         self.assertEqual(match["leagueId"], "ATP Lyon")

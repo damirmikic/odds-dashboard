@@ -34,6 +34,8 @@ export const SPORT_VIEWS = {
       ["Ukupno gemova", "Ukupno gemova"],
       ["Hendikep setova", "Hendikep setova"],
       ["Ukupno setova", "Ukupno setova"],
+      ["Igrač 1 osvaja set", "Igrač 1 osvaja set"],
+      ["Igrač 2 osvaja set", "Igrač 2 osvaja set"],
       ["team", "Gemovi igrača"],
     ],
   },
