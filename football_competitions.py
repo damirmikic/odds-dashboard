@@ -387,6 +387,7 @@ COMPETITIONS = [
      "merkur": 2388612},
     {"id": 197206, "key": "bolcup", "name": "Kup", "country": "Bolivija", "code": "BOLC", "merkur": "BLV LC"},
     {"id": 301689, "key": "idnlc", "name": "Liga kup", "country": "Indonezija", "code": "IDNLC", "merkur": "IDN LC"},
+    {"id": 196865, "key": "hndln", "name": "Liga Nacional", "country": "Honduras", "code": "HON", "merkur": "HND LN"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
