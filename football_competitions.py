@@ -383,6 +383,8 @@ COMPETITIONS = [
     {"id": 219077, "key": "suipromo", "name": "Promotion League", "country": "Švajcarska", "code": "SUI3", "merkur": "SWI PRO"},
     {"id": 208269, "key": "tur2l", "name": "2. Liga", "country": "Turska", "code": "TUR3", "merkur": "TUR 2L"},
     {"id": 1849, "key": "cmreo", "name": "Elite One", "country": "Kamerun", "code": "CMR", "merkur": "CMR EO"},
+    {"id": 197064, "key": "scow", "name": "Premier League (žene)", "country": "Škotska", "code": "SCOW",
+     "merkur": 2388612},
     {"id": 197206, "key": "bolcup", "name": "Kup", "country": "Bolivija", "code": "BOLC", "merkur": "BLV LC"},
     {"id": 301689, "key": "idnlc", "name": "Liga kup", "country": "Indonezija", "code": "IDNLC", "merkur": "IDN LC"},
 ]
