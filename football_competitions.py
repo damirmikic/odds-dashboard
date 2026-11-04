@@ -258,7 +258,7 @@ COMPETITIONS = [
     {"id": 2396, "key": "roucup", "name": "Kup", "country": "Rumunija", "code": "ROUC", "merkur": "ROM CUP"},
     {"id": 198700, "key": "bihcup", "name": "Kup", "country": "Bosna i Hercegovina", "code": "BIHC", "merkur": "BIH CUP"},
     {"id": 11693, "key": "engnpl", "name": "Northern Premier League", "country": "Engleska", "code": "ENG7N", "merkur": "ENG NPL"},
-    {"id": 238578, "key": "gccl", "name": "Gulf Club Champions League", "country": "Zaliv", "code": "GCCL", "merkur": "GCCL"},
+    {"id": 238578, "key": "gccl", "name": "Gulf Club Champions League", "country": "Zaliv", "code": "GCCL", "merkur": 2376332},
     {"id": 10806, "key": "itacupc", "name": "Coppa Italia Serie C", "country": "Italija", "code": "ITAC3", "merkur": "ITA CIC"},
     {"id": 230369, "key": "zaflc", "name": "League Cup", "country": "Južna Afrika", "code": "RSAC", "merkur": "ZAF LC"},
     {"id": 1796, "key": "azecup", "name": "Kup", "country": "Azerbejdžan", "code": "AZEC", "merkur": "AZE CUP"},
@@ -383,6 +383,7 @@ COMPETITIONS = [
     {"id": 219077, "key": "suipromo", "name": "Promotion League", "country": "Švajcarska", "code": "SUI3", "merkur": "SWI PRO"},
     {"id": 208269, "key": "tur2l", "name": "2. Liga", "country": "Turska", "code": "TUR3", "merkur": "TUR 2L"},
     {"id": 1849, "key": "cmreo", "name": "Elite One", "country": "Kamerun", "code": "CMR", "merkur": "CMR EO"},
+    {"id": 197206, "key": "bolcup", "name": "Kup", "country": "Bolivija", "code": "BOLC", "merkur": "BLV LC"},
     {"id": 301689, "key": "idnlc", "name": "Liga kup", "country": "Indonezija", "code": "IDNLC", "merkur": "IDN LC"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
