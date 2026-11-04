@@ -50,7 +50,13 @@ export function AllValuePane({ boards, errors, dayFilter, setDayFilter, query, s
   const [topOnly, setTopOnly] = useState(() => readStored("pb.all.topOnly", false));
   // "all", "<sport>" or "<sport>:<league id>"
   const [pick, setPick] = useState("all");
+  // sports ticked in the button row (multi-select); empty means every sport
+  const [sportSel, setSportSel] = useState(() => {
+    const stored = readStored("pb.all.sports", []);
+    return Array.isArray(stored) ? stored.filter((k) => SPORTS.some((s) => s.key === k)) : [];
+  });
   const [odds, setOdds] = useState(null);
+  useEffect(() => writeStored("pb.all.sports", sportSel), [sportSel]);
   useEffect(() => writeStored("pb.all.valueLevel", valueLevel), [valueLevel]);
   useEffect(() => writeStored("pb.all.valueGroup", valueGroup), [valueGroup]);
   useEffect(() => writeStored("pb.all.modeled", showModeled), [showModeled]);
@@ -73,11 +79,11 @@ export function AllValuePane({ boards, errors, dayFilter, setDayFilter, query, s
       .sort((a, b) => b.ev - a.ev),
     [valueList, valueLevel, valueGroup, evMin, evMax, topOnly],
   );
-  const shownValues = useMemo(
-    () => (pick === "all" ? levelValues
-      : levelValues.filter((v) => v.sport === pick || `${v.sport}:${v.match.leagueId}` === pick)),
-    [levelValues, pick],
-  );
+  const shownValues = useMemo(() => {
+    let list = sportSel.length ? levelValues.filter((v) => sportSel.includes(v.sport)) : levelValues;
+    if (pick !== "all") list = list.filter((v) => v.sport === pick || `${v.sport}:${v.match.leagueId}` === pick);
+    return list;
+  }, [levelValues, pick, sportSel]);
   const fairValueCount = useMemo(() => valueList.filter((v) => v.ev >= 0).length, [valueList]);
 
   // side menu: one group per sport (its own row narrows to the sport), its competitions with value outcomes
@@ -126,19 +132,28 @@ export function AllValuePane({ boards, errors, dayFilter, setDayFilter, query, s
         searching={searching}
         groups={menuGroups}
         all={allItem}
-        onPick={(item) => setPick((cur) => (item.id == null || cur === item.id ? "all" : item.id))}
+        onPick={(item) => {
+          if (item.id == null) setSportSel([]);
+          setPick((cur) => (item.id == null || cur === item.id ? "all" : item.id));
+        }}
         label="Value po sportovima"
       />
       <div className="content">
         <div className="filters">
           <div className="segmented view-switch">
-            <button type="button" className={pick === "all" ? "active" : ""} onClick={() => setPick("all")}
+            <button type="button" className={pick === "all" && !sportSel.length ? "active" : ""}
+              onClick={() => { setPick("all"); setSportSel([]); }}
               title={`${valueList.length} ishoda gde je MX > Pinnacle, od toga ${fairValueCount} gde je MX ≥ fer`}>
               Svi <span className="view-count">{levelValues.length}</span>
             </button>
             {sportItems.map((s) => (
-              <button key={s.key} type="button" className={pick === s.key ? "active" : ""}
-                onClick={() => setPick((cur) => (cur === s.key ? "all" : s.key))} disabled={!s.count}>
+              <button key={s.key} type="button" className={sportSel.includes(s.key) ? "active" : ""}
+                title="Klik bira više sportova"
+                onClick={() => {
+                  setPick("all");
+                  setSportSel((cur) => (cur.includes(s.key) ? cur.filter((k) => k !== s.key) : [...cur, s.key]));
+                }}
+                disabled={!s.count && !sportSel.includes(s.key)}>
                 {s.label} <span className="view-count">{s.count}</span>
               </button>
             ))}
