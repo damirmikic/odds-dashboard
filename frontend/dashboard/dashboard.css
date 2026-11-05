@@ -68,12 +68,12 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: var(--bg); }
+body { margin: 0; min-width: 320px; background: var(--bg); touch-action: pan-x pan-y; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: .45; }
 
-.app { min-height: 100vh; display: flex; flex-direction: column; }
+.app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 
 /* ---------------------------------------------------------------- top bar */
 .topbar {
@@ -660,6 +660,16 @@ footer { padding: 14px 20px; border-top: 1px solid var(--line); color: var(--fai
   .status { margin-left: 0; order: 3; width: 100%; }
   .search, .search-wrap { width: 100%; }
 }
+/* phones and the installed app: wide boards scroll sideways with a finger instead of running off screen */
+@media (max-width: 900px) {
+  .mc-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .board-scroll, .modal-backdrop, .modal { -webkit-overflow-scrolling: touch; }
+  .modal { padding: 12px; overflow-x: auto; }
+  .modal-backdrop { padding: 8px; }
+  .mx-table { font-size: 12px; }
+  .mx-table .mx-side { max-width: 80px; }
+  .detail { padding-bottom: env(safe-area-inset-bottom); }
+}
 
 /* ---------------------------------------------------------------- MerkurXtip comparison */
 :root { --mx: #e30613; --edge-pos: #f2555a; --edge-pos-bg: rgba(242, 85, 90, .16); --edge-near: #e6b450; --edge-near-bg: rgba(230, 180, 80, .12); }
@@ -803,6 +813,7 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 }
 
 /* ---------------------------------------------------------------- PWA */
+.offline-banner button { margin-left: 10px; }
 .offline-banner {
   position: sticky; top: 0; z-index: 6; padding: 8px 20px;
   background: var(--edge-near-bg); color: var(--edge-near); border-bottom: 1px solid var(--line);

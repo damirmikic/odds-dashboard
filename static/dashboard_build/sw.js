@@ -6,7 +6,7 @@
  *   an "X-PB-Cache: <time saved>" header so the page can say the odds are not live.
  * - Everything else (POST /api/config, other origins) passes through untouched.
  */
-const VERSION = "pb-v2";
+const VERSION = "pb-v3";
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 const API_CACHE = `${VERSION}-api`;

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { readStored, requestJson, writeStored } from "./api.js";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { readStored, requestJson, serverDownStore, writeStored } from "./api.js";
 import { usePwa, useStickyHeaderOffsets, useTheme } from "./hooks.js";
 import { DAY_FILTERS, clockFmt, dayKey, dayLabel, evClass, fmtEv, fmtOdds, inDayFilter } from "./format.js";
 import { VALUE_GROUPS, VALUE_LEVELS, ValueRange, ValueTable, isTopLeague, rangePasses, valuePasses } from "./value.jsx";
@@ -71,6 +71,7 @@ function initialSport() {
 }
 
 export default function App() {
+  const serverDown = useSyncExternalStore(serverDownStore.subscribe, serverDownStore.get);
   useStickyHeaderOffsets();
   const [apiKeySet, setApiKeySet] = useState(null);
   const [sport, setSport] = useState(initialSport);
@@ -406,14 +407,16 @@ export default function App() {
         </div>
       </header>
 
-      {(!pwa.online || cur?.__cachedAt) && (
+      {(!pwa.online || cur?.__cachedAt || serverDown) && (
         <div className="offline-banner" role="status">
           {!pwa.online ? "Offline." : "Server nije dostupan."}{" "}
           {cur?.__cachedAt
             ? `Prikazane su poslednje sačuvane kvote${
                 Number.isNaN(new Date(cur.__cachedAt).getTime()) ? "" : ` (${clockFmt.format(new Date(cur.__cachedAt))})`
               } — nisu žive.`
-            : "Kvote se ne mogu osvežiti dok veza ne proradi."}
+            : "Kvote se ne mogu osvežiti dok veza ne proradi."}{" "}
+          Osvežite stranu.
+          <button type="button" className="button small" onClick={() => window.location.reload()}>Osveži stranu</button>
         </div>
       )}
 
