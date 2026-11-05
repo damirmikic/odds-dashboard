@@ -907,7 +907,11 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.del, .comp-badge.del2 { --badge: #7a1f1f; }
 .comp-badge.nla, .comp-badge.czeext, .comp-badge.sloext, .comp-badge.slo1, .comp-badge.bely, .comp-badge.ihl,
 .comp-badge.magnus, .comp-badge.phl, .comp-badge.metal, .comp-badge.alps, .comp-badge.erste, .comp-badge.elite,
-.comp-badge.asia { --badge: #3a5a78; }
+.comp-badge.asia, .comp-badge.ecn, .comp-badge.eht { --badge: #3a5a78; }
+.comp-badge.azeil { --badge: #1f9d55; }
+.comp-badge.bihpl { --badge: #002395; }
+.comp-badge.pol1b { --badge: #c4263a; }
+.comp-badge.prylnb { --badge: #d52b1e; }
 .comp-badge.other { --badge: #5c6878; }
 .other-offered { margin: 0 0 10px; padding: 8px 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--panel-2); font-size: 13px; }
 .other-offered summary { cursor: pointer; font-weight: 600; }

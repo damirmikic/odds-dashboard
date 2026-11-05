@@ -155,6 +155,8 @@ COMPETITIONS = [
     {"id": 10030, "key": "aleaguew", "name": "A-League (žene)", "country": "Australija", "code": "AUSW", "merkur": "AUS AW",
      "merkur_also": [2392126]},
     {"id": 7167, "key": "azepl", "name": "Premier liga", "country": "Azerbejdžan", "code": "AZE", "merkur": "AZE PL"},
+    {"id": 201234, "key": "azeil", "name": "Prva liga", "country": "Azerbejdžan", "code": "AZE2", "merkur": "AZE IL"},
+    {"id": 1826, "key": "bihpl", "name": "Premijer liga", "country": "Bosna i Hercegovina", "code": "BIH", "merkur": "BIH PL"},
     {"id": 202447, "key": "belamat", "name": "Prva amaterska divizija", "country": "Belgija", "code": "BEL3", "merkur": "BEL ND1"},
     {"id": 213349, "key": "chnl2", "name": "Yi liga", "country": "Kina", "code": "CHN3", "merkur": "CHN YI"},
     {"id": 1887, "key": "cypd1", "name": "Prva divizija", "country": "Kipar", "code": "CYP", "merkur": "CYP D1"},

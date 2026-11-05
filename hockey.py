@@ -50,6 +50,9 @@ COMPETITIONS = [
     {"id": 1597, "key": "asia", "name": "Asia League", "country": "Azija", "code": "ASIA", "mx_id": 2387174},
     {"id": 1293, "key": "ohl", "name": "OHL", "country": "Kanada", "code": "OHL", "mx_id": 2325713},
     {"id": 280513, "key": "cze2l", "name": "2. liga", "country": "Češka", "code": "CZE2", "mx_id": 2388950},
+    {"id": 280900, "key": "ecn", "name": "European Cup of Nations", "country": "Evropa", "code": "ECN",
+     "mx_id": 2391444},
+    {"id": 4605, "key": "eht", "name": "Euro Hockey Tour", "country": "Evropa", "code": "EHT", "mx_id": 2328104},
 ]
 MX_COMP = {c["mx_id"]: c["id"] for c in COMPETITIONS}
 
