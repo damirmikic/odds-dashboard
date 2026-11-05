@@ -1,7 +1,7 @@
 // Basketball, tennis, hockey and MMA screen (SportPane), its board, odds modal and board loading.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { readStored, requestJson, writeStored } from "./api.js";
-import { DAY_FILTERS, clockFmt, dayKey, dayLabel, evClass, fmt2, fmtEv, fmtKickoffShort, fmtLimit, fmtLine, fmtOdds, inDayFilter, merkurClass, merkurTitle, timeFmt } from "./format.js";
+import { DAY_FILTERS, clockFmt, dayKey, dayLabel, evClass, fmt2, fmtEv, fmtKickoffShort, fmtLimit, fmtLine, fmtMargins, fmtOdds, inDayFilter, merkurClass, merkurTitle, timeFmt } from "./format.js";
 import { CompBadge, KickoffWarning, ModeledTag, StaleTag } from "./ui.jsx";
 import { PriceChart, Sparkline, histKey, usePriceHistory } from "./priceHistory.jsx";
 import { VALUE_LEVELS, ValueRange, ValueTable, bestPerMarket, isTopLeague, rangePasses } from "./value.jsx";
@@ -70,50 +70,68 @@ function SportDetail({ match, periodKey = "ft", history }) {
         <small> · upoređeno {rows.length} tržišta{modeled ? `, od toga ${modeled} modelirano` : ""}</small>
       </p>
       {!rows.length && <p className="muted">Nema tržišta koja postoje kod obe kuće.</p>}
-      <table className="lines mx-table">
-        <thead>
-          <tr><th>Tržište</th><th>Linija</th><th>Ishod</th><th>Fer</th><th>PIN</th><th>MX</th><th>Razlika</th><th title="Pinnacle limit (max bet) tržišta">Max bet</th><th title="Kretanje kvota: Pinnacle (plavo) i MerkurXtip (narandžasto). Klik za grafikon.">Kretanje</th></tr>
-        </thead>
-        <tbody>
-          {rows.flatMap((r) => {
+      {!!rows.length && (
+        <table className="lines mx-table">
+          <thead>
+            <tr>
+              <th>Tržište</th>
+              <th>Ishod</th>
+              <th>Fer</th>
+              <th>PIN</th>
+              <th>MX</th>
+              <th title="MerkurXtip kvota / Pinnacle fer kvota − 1">Razlika</th>
+              <th title="Pinnacle limit (max bet) tržišta">Max bet</th>
+              <th title="Kretanje kvota: Pinnacle (plavo) i MerkurXtip (narandžasto). Klik za grafikon.">Kretanje</th>
+            </tr>
+          </thead>
+          {rows.map((r, i) => {
+            const spread = r.group.startsWith("Hendikep");
             const keyOf = (o) => histKey(r.period || periodKey, r.group, r.line, o.key);
             const opened = r.outcomes.find((o) => keyOf(o) === open);
-            const side = (o) => (r.group.startsWith("Hendikep") ? (o.key === "home" ? match.home : match.away) : o.label);
-            const lines = r.outcomes.map((o, i) => (
-            <tr key={`${r.group}-${r.line}-${o.key}`} className={i === 0 ? "mx-first" : ""}>
-              <td>{i === 0 ? r.group : ""}</td>
-              <td>{i === 0 && r.line != null ? fmtLine(r.line, r.group.startsWith("Hendikep")) : ""}{i === 0 && r.modeled && <ModeledTag />}</td>
-              <td>{side(o)}</td>
-              <td className="mx-fair-cell">{fmtOdds(o.fair)}</td>
-              <td>{fmtOdds(o.pinnacle)}</td>
-              <td><span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}>{fmt2(o.merkur)}</span></td>
-              <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
-              <td className="mx-maxbet">{i === 0 ? fmtLimit(r.maxBet) || "—" : ""}</td>
-              <td>
-                <Sparkline
-                  points={history?.get(keyOf(o))}
-                  active={opened === o}
-                  onToggle={() => setOpen((current) => (current === keyOf(o) ? "" : keyOf(o)))}
-                />
-              </td>
-            </tr>
-            ));
-            if (opened) {
-              lines.push(
-                <tr key={`${r.group}-${r.line}-chart`} className="hist-row">
-                  <td colSpan={9}>
-                    <PriceChart
-                      points={history.get(open)}
-                      label={`${r.group}${r.line != null ? ` ${fmtLine(r.line, r.group.startsWith("Hendikep"))}` : ""} · ${side(opened)}`}
-                    />
-                  </td>
-                </tr>,
-              );
-            }
-            return lines;
+            const side = (o) => (spread ? (o.key === "home" ? match.home : match.away) : o.label);
+            return (
+              <tbody key={`${r.group}-${r.line}`} className={i > 0 && rows[i - 1].group !== r.group ? "mx-group-start" : ""}>
+                {r.outcomes.map((o, index) => (
+                  <tr key={o.key} className={index === 0 ? "mx-first" : ""}>
+                    {index === 0 && (
+                      <th rowSpan={r.outcomes.length} className="mx-market">
+                        {r.group}
+                        {r.line != null && <span>{fmtLine(r.line, spread)}{r.modeled && <ModeledTag />}</span>}
+                        <small title="Marža MerkurXtip / Pinnacle">{fmtMargins(r.merkurMargin, r.pinnacleMargin)}</small>
+                      </th>
+                    )}
+                    <td className="mx-side">{side(o)}</td>
+                    <td className="mx-fair-cell">{fmtOdds(o.fair)}</td>
+                    <td>{fmtOdds(o.pinnacle)}</td>
+                    <td><span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}><b>{fmt2(o.merkur)}</b></span></td>
+                    <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
+                    {index === 0 && (
+                      <td rowSpan={r.outcomes.length} className="mx-maxbet">{fmtLimit(r.maxBet) || "—"}</td>
+                    )}
+                    <td>
+                      <Sparkline
+                        points={history?.get(keyOf(o))}
+                        active={opened === o}
+                        onToggle={() => setOpen((current) => (current === keyOf(o) ? "" : keyOf(o)))}
+                      />
+                    </td>
+                  </tr>
+                ))}
+                {opened && (
+                  <tr className="hist-row">
+                    <td colSpan={8}>
+                      <PriceChart
+                        points={history.get(open)}
+                        label={`${r.group}${r.line != null ? ` ${fmtLine(r.line, spread)}` : ""} · ${side(opened)}`}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            );
           })}
-        </tbody>
-      </table>
+        </table>
+      )}
     </div>
   );
 }
