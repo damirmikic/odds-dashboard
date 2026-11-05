@@ -700,6 +700,7 @@ footer { padding: 14px 20px; border-top: 1px solid var(--line); color: var(--fai
 .mx-names { margin: -4px 0 8px; color: var(--muted); font-size: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .mx-names .kickoff-warn { margin-top: 0; }
 .mx-table tbody { border-top: 1px solid var(--line); }
+.bb-detail .mx-table tbody { border-top: 2px solid var(--muted); }
 .mx-table .mx-market { text-align: left; font-size: 11px; line-height: 1.3; }
 .mx-table .mx-market span { display: block; color: var(--text); font-size: 12px; }
 .mx-table .mx-side { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
