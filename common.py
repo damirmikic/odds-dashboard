@@ -233,7 +233,9 @@ def unpaired_other(events, offer, used, merkur_ts=lambda r: r.get("kickOffTime")
             "ts": event_ts(e)} for e in events]
     mer = [{"id": r["id"], "comp": "*", "home": r.get("home", ""), "away": r.get("away", ""),
             "ts": merkur_ts(r), "row": r} for r in offer if r["id"] not in used and mx.is_prematch(r)]
-    paired = mx.pair(pin, mer, OTHER_WINDOW, OTHER_MIN_SCORE, other_score)
+    # both team orders: MerkurXtip sometimes lists a game the other way round than Pinnacle
+    both_orders = mer + [{**m, "home": m["away"], "away": m["home"]} for m in mer]
+    paired = mx.pair(pin, both_orders, OTHER_WINDOW, OTHER_MIN_SCORE, other_score)
     hints = mx.hints(pin, mer, paired, OTHER_WINDOW, other_score)
     return {p["id"] for p in pin} - paired.keys(), hints, {pid: m["row"] for pid, (m, _) in paired.items()}
 

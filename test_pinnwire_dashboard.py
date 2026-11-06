@@ -1078,6 +1078,15 @@ class OtherLeagueTests(unittest.TestCase):
         missing, _, _ = dash.unpaired_other(events, offer, {12})
         self.assertEqual(missing, {"2", "3"})  # an offer row already used inside the tracked leagues is not reused
 
+    def test_pairing_accepts_a_game_listed_the_other_way_round(self):
+        events = [self.event(1, "Converge FiberXers", "Rain or Shine Elasto Painters")]
+        offer = [{"id": 11, "home": "Rain Or Shine", "away": "Converge Fiberxers",
+                  "kickOffTime": dash.event_ts(events[0]), "live": False}]
+        missing, hints, paired = dash.unpaired_other(events, offer, set())
+        self.assertEqual(missing, set())
+        self.assertEqual(hints, {})
+        self.assertEqual(paired["1"]["id"], 11)
+
     def test_missing_other_lists_unpaired_events_with_their_league(self):
         state = dash.DashboardState(history=object(), merkur=FakeMerkurAPI)
         events = [self.event(1, "Bala Town", "Penybont")]
