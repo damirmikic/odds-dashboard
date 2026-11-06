@@ -160,7 +160,8 @@ COMPETITIONS = [
     {"id": 202447, "key": "belamat", "name": "Prva amaterska divizija", "country": "Belgija", "code": "BEL3", "merkur": "BEL ND1"},
     {"id": 213349, "key": "chnl2", "name": "Yi liga", "country": "Kina", "code": "CHN3", "merkur": "CHN YI"},
     {"id": 1887, "key": "cypd1", "name": "Prva divizija", "country": "Kipar", "code": "CYP", "merkur": "CYP D1"},
-    {"id": 201192, "key": "cze3", "name": "3. liga (CFL)", "country": "Češka", "code": "CZE3", "merkur": "CZE CFL"},
+    {"id": 201192, "key": "cze3", "name": "3. liga (CFL, MSFL)", "country": "Češka", "code": "CZE3", "merkur": "CZE CFL",
+     "merkur_also": [2322696]},  # MSFL: leagueShort is only "Czechia"
     {"id": 214819, "key": "dnk3", "name": "3. divizija", "country": "Danska", "code": "DEN3", "merkur": "DEN 3D"},
     {"id": 1904, "key": "dnk1", "name": "1. divizija", "country": "Danska", "code": "DEN2D", "merkur": "DNK 1D"},
     {"id": 9885, "key": "egypl", "name": "Premier liga", "country": "Egipat", "code": "EGY", "merkur": "EGY PL"},
