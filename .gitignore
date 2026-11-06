@@ -9,6 +9,7 @@ __pycache__/
 data/pinnwire_config.json
 data/dashboard_history.json
 data/*.tmp
+data/logs/
 
 # editors / OS
 .vscode/

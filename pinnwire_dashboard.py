@@ -10,18 +10,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import mimetypes
 import os
 import re
 import threading
 import time
-import traceback
 import webbrowser
 from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
+import applog
 import basketball as bb
 import clv
 import common
@@ -44,8 +45,11 @@ from common import (  # noqa: F401 (tests use them here)
 )
 from football_competitions import COMPETITIONS, HIDDEN_MISSING_LEAGUES
 
+log = logging.getLogger("xtip.server")
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, "data")
+LOGS = os.path.join(DATA, "logs")
 STATIC = os.path.join(ROOT, "static", "dashboard_build")
 CONFIG_PATH = os.path.join(DATA, "pinnwire_config.json")
 HISTORY_PATH = os.path.join(DATA, "dashboard_history.json")
@@ -717,12 +721,14 @@ class DropFeed:
             self.sleep(5)
             return wait
         generation = self.generation
+        previous_error, bug = self.error, None
         try:
             stream = self.api_factory(key).drop_stream(min_drop=1, recheck=DROP_RECHECK,
                                                        stop=lambda: self.generation != generation)
             for frames in stream:
                 if not self.connected:
                     self.connected, self.error, self.since, wait = True, "", utc_stamp(), 1
+                    log.info("Drop stream povezan")
                 self.add(frames)
             self.error = ""
         except PermissionError as exc:
@@ -730,8 +736,11 @@ class DropFeed:
         except RuntimeError as exc:
             self.error = str(exc)
         except Exception as exc:  # noqa: BLE001 (the stream must outlive a bug in one frame, like ClvWorker)
-            self.error = f"Greška u drop streamu: {exc!r}"
-            traceback.print_exc()
+            self.error, bug = f"Greška u drop streamu: {exc!r}", exc
+        if self.connected:
+            log.info("Drop stream prekinut (povezan od %s)", self.since)
+        if self.error and self.error != previous_error:  # the same failure again is not a new log line
+            log.log(logging.ERROR if bug else logging.WARNING, "Drop stream: %s", self.error, exc_info=bug)
         self.connected = False
         if self.generation != generation:
             return 1  # reconnect(): the new key connects right away
@@ -741,9 +750,18 @@ class DropFeed:
 DROPS = DropFeed(current_api_key)
 SPORT_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "hockey": HK_STATE, "mma": MM_STATE,
                 "handball": HB_STATE}
+for _sport, _state in SPORT_STATES.items():
+    _state.label = _sport
 
 CLV_REFRESH = 30  # seconds between background boards when nobody refreshes in the browser
 CLV_REFRESH_SOON = 10  # ... while a signalled match starts within 15 minutes, to catch its closing line
+STATUS_EVERY = 3600  # seconds between the status lines in the log
+
+
+def log_status(states):
+    """One line of how the app stands, so the log shows a slow decline as well as outright failures."""
+    sports = ", ".join(f"{sport} {len(state.events or ())}/{len(state.pairs)}" for sport, state in states.items())
+    log.info("Stanje (mečevi/upareni): %s; drop stream %s", sports, "povezan" if DROPS.connected else "nije povezan")
 
 
 class ClvWorker:
@@ -761,9 +779,13 @@ class ClvWorker:
             threading.Thread(target=self.run, name="clv-worker", daemon=True).start()
 
     def run(self):
+        next_status = 0.0
         while True:
             interval = CLV_REFRESH_SOON if self.store.soon() else CLV_REFRESH
             self.tick(interval)
+            if time.monotonic() >= next_status:
+                log_status(self.states)
+                next_status = time.monotonic() + STATUS_EVERY
             time.sleep(2)
 
     def tick(self, interval):
@@ -776,9 +798,9 @@ class ClvWorker:
                 state.board(refresh=True)
             except (PermissionError, LookupError, RuntimeError):
                 self.store.last_seen[sport] = time.time()  # retry after one interval, not in a tight loop
-            except Exception as exc:  # noqa: BLE001 (the worker must outlive a parsing bug in one sport)
+            except Exception as exc:  # the worker must outlive a parsing bug in one sport
                 self.store.last_seen[sport] = time.time()
-                print(f"clv worker {sport}: {exc!r}")
+                log.error("CLV worker, %s: %r", sport, exc, exc_info=exc)
 
 
 CLV = None  # opened by start_clv(), so importing this module (tests) never touches data/clv.sqlite3
@@ -944,7 +966,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.internal_error(exc)
 
     def internal_error(self, exc):
-        traceback.print_exc()
+        log.error("%s %s: %r", self.command, urlparse(self.path).path, exc, exc_info=exc)
         return self.send_error_json(500, f"Interna greška servera: {exc!r}")
 
     def do_POST(self):
@@ -962,6 +984,7 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 return self.send_error_json(400, "Neispravan format podešavanja.")
             save_api_key(body.get("apiKey", ""))
+            log.info("API ključ je promenjen")
             for state in SPORT_STATES.values():
                 state.reset()
             DROPS.reconnect()
@@ -994,7 +1017,8 @@ def main():
         parser.error(f"Port {args.port} je zauzet (da li dashboard već radi?): {exc}")
     host = "127.0.0.1" if args.host in ("0.0.0.0", "") else args.host
     url = f"http://{host}:{args.port}"
-    print(f"PinnWire Dashboard: {url}  (Ctrl+C to stop)")
+    applog.setup(LOGS)  # after the bind: a second server that exits above must not touch the first one's log
+    log.info("Server pokrenut: %s  (Ctrl+C za prekid)", url)
     DROPS.start()
     start_prices()
     start_clv()
@@ -1003,7 +1027,7 @@ def main():
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nstopped")
+        log.info("Server zaustavljen")
     finally:
         httpd.server_close()
 

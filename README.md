@@ -109,7 +109,10 @@ Every board also records the Pinnacle price, Pinnacle fair price and MerkurXtip 
 | `frontend/` | React + Vite app (source in `frontend/dashboard/`; PWA manifest, service worker and icons in `frontend/dashboard/public/`) |
 | `static/dashboard_build/` | Production bundle served by Python; `source-hash.txt` lets the tests catch a missing `npm run build` |
 | `test_pinnwire_dashboard.py` | Unit tests: `python -m unittest test_pinnwire_dashboard`; lint with `python -m ruff check .` and `npm run lint` in `frontend/` |
-| `data/` | API key and price history; do not share `pinnwire_config.json` |
+| `applog.py` | Application log: `data/logs/app.log` (git-ignored, 25 MB at most with rotation) and the console |
+| `data/` | API key, price history and the log; do not share `pinnwire_config.json` |
+
+`data/logs/app.log` records how the running server stands, with the UI closed too: PinnWire and MerkurXtip outages and recoveries (one line per outage, not per refresh), PinnWire retries, the drop stream connecting and dropping, full snapshots and a warning when a sport's match count halves, bugs with their traceback, and once an hour a status line with matches and paired matches per sport. Prices are not logged; they are in `data/prices.sqlite3` and `data/clv.sqlite3`.
 
 Competitions are the `COMPETITIONS` list in `football_competitions.py`, keyed by PinnWire `league_id`. Add an entry to track another league; the tests check that its key and badge code are unique and that it has a badge colour.
 

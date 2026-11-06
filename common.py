@@ -6,6 +6,7 @@ This module must not import `pinnwire_dashboard` (run as a script that module is
 from __future__ import annotations
 
 import functools
+import logging
 import re
 import threading
 import time
@@ -15,7 +16,10 @@ from datetime import datetime, timezone
 import merkur_client as mx
 import pinnwire_client as pw
 
+log = logging.getLogger("xtip.snapshot")
+
 FULL_RELOAD_SECONDS = 3600  # take a fresh full snapshot at least hourly; deltas in between
+SNAPSHOT_DROP_MIN = 10  # a snapshot of at least this many matches that halves is logged as a warning
 
 
 # ------------------------------------------------------------------------- time and events
@@ -246,6 +250,7 @@ class SnapshotState:
     sport_id = pw.SOCCER
     offer_path = mx.OFFER_PATH
     alt_units = False  # ask PinnWire for the side-market events too
+    label = "?"  # sport name in the log, set from SPORT_STATES
 
     def __init__(self, history, key_fn, merkur=None):
         self.history = history  # shared by every sport: opening prices (football) and the request counter
@@ -263,6 +268,7 @@ class SnapshotState:
         self.events = None  # {event_id str: raw event}
         self.last = None  # PinnWire cursor for the next delta request
         self.full_at = 0.0
+        self.fetch_error = ""  # last PinnWire failure, so the log gets one line per outage (guarded by fetch_lock)
         self.fetched_at = ""
         self.mode = ""
         self.changed = 0
@@ -364,11 +370,37 @@ class SnapshotState:
                 return  # a concurrent request loaded the snapshot while we waited
             need_full = (full or self.events is None or self.last is None
                          or time.monotonic() - self.full_at > FULL_RELOAD_SECONDS)
-            self._fetch(need_full)
+            self._fetch_logged(need_full)
+
+    def _fetch_logged(self, full):
+        """_fetch() plus its log lines (caller holds `fetch_lock`): outage, recovery, full snapshots."""
+        before = len(self.events or ())
+        try:
+            self._fetch(full)
+        except (PermissionError, LookupError, RuntimeError) as exc:
+            if str(exc) != self.fetch_error:
+                log.warning("%s: PinnWire: %s", self.label, exc)
+            self.fetch_error = str(exc)
+            raise
+        if self.fetch_error:
+            log.info("%s: PinnWire ponovo radi", self.label)
+            self.fetch_error = ""
+        after = len(self.events or ())
+        if full:
+            log.info("%s: pun snapshot, %d mečeva (pre: %d)", self.label, after, before)
+        if before >= SNAPSHOT_DROP_MIN and after < before / 2:
+            log.warning("%s: broj mečeva je pao sa %d na %d", self.label, before, after)
 
     def merkur_offer(self, refresh=False):
         with self.merkur_lock:
-            return self.merkur.get(refresh=refresh, stamp_fn=utc_stamp)
+            before = self.merkur.error
+            offer = self.merkur.get(refresh=refresh, stamp_fn=utc_stamp)
+            after = self.merkur.error
+        if after and after != before:
+            log.warning("%s: MerkurXtip: %s", self.label, after)
+        elif before and not after:
+            log.info("%s: MerkurXtip ponovo radi", self.label)
+        return offer
 
     def record(self, sport, observed, values):
         """Hand one board's compare rows to the CLV and price history stores; annotate its value items."""

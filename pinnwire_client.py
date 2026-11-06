@@ -5,10 +5,13 @@ Docs: https://pinnwire.com/docs.html · https://pinnwire.com/llms-full.txt
 from __future__ import annotations
 
 import json
+import logging
 import math
 import time
 
 import requests
+
+log = logging.getLogger("xtip.pinnwire")
 
 BASE = "https://pinnwire.com"
 SOCCER = 1  # PinnWire sport_id for soccer (5 is American football)
@@ -38,6 +41,7 @@ class PinnWireAPI:
                 last_err = e
                 if attempt >= 1:
                     break
+                log.warning("%s: ponovni pokušaj posle greške: %s", path, self._mask(str(e)))
                 time.sleep(1)
                 continue
             self.calls += 1
@@ -51,6 +55,7 @@ class PinnWireAPI:
             if r.status_code == 429:
                 retry = self._retry_after(r, body)
                 if retry <= MAX_RETRY_WAIT and attempt < 3:
+                    log.warning("%s: HTTP 429, ponovni pokušaj za %.1f s", path, retry)
                     time.sleep(retry)
                     last_err = "HTTP 429"
                     continue
@@ -58,6 +63,7 @@ class PinnWireAPI:
                 raise RuntimeError(self._mask(
                     f"PinnWire limit zahteva je potrošen ({window}); pokušaj ponovo za {int(retry)} s."))
             if r.status_code >= 500 and attempt < 3:
+                log.warning("%s: HTTP %s, ponovni pokušaj", path, r.status_code)
                 time.sleep(2 ** attempt)
                 last_err = f"HTTP {r.status_code}"
                 continue

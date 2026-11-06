@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import io
 import json
+import logging
 import os
 import re
 import tempfile
@@ -12,6 +13,7 @@ import urllib.error
 import urllib.request
 from unittest import mock
 
+import applog
 import basketball as bb
 import clv
 import common
@@ -1350,8 +1352,7 @@ class DropFeedCycleTests(unittest.TestCase):
 
     def test_unexpected_error_keeps_the_feed_alive(self):
         feed = self.feed(ValueError("bad frame"))
-        with contextlib.redirect_stderr(io.StringIO()):
-            feed.cycle(1)
+        feed.cycle(1)
         self.assertIn("ValueError", feed.error)
 
     def test_reconnect_connects_again_at_once(self):
@@ -1365,6 +1366,166 @@ class DropFeedCycleTests(unittest.TestCase):
         feed.api_factory.drop_stream = drop_stream
         self.assertEqual(feed.cycle(8), 1)
         self.assertEqual(feed.slept, [])
+
+
+class AppLogTests(unittest.TestCase):
+    """The log gets one line per state change, not one per refresh."""
+
+    def messages(self, logs):
+        return [record.getMessage() for record in logs.records]
+
+    def test_setup_writes_the_file_and_records_crashed_threads(self):
+        logger = applog.logger
+        handlers, level, hook = list(logger.handlers), logger.level, threading.excepthook
+
+        def restore():
+            for handler in logger.handlers[:]:
+                if handler not in handlers:
+                    logger.removeHandler(handler)
+                    handler.close()
+            logger.setLevel(level)
+            threading.excepthook = hook
+
+        self.addCleanup(restore)
+        directory = os.path.join(tempfile.mkdtemp(), "logs")
+        with contextlib.redirect_stderr(io.StringIO()):
+            path = applog.setup(directory)
+            logging.getLogger("xtip.test").info("šđčćž")
+
+            def crash():
+                raise ValueError("boom")
+
+            thread = threading.Thread(target=crash, name="radnik")
+            thread.start()
+            thread.join()
+        with open(path, encoding="utf-8") as log_file:
+            text = log_file.read()
+        self.assertIn("šđčćž", text)
+        self.assertIn("Nit radnik je pala", text)
+        self.assertIn("ValueError: boom", text)
+
+    def test_unusable_directory_does_not_stop_the_server(self):
+        logger = applog.logger
+        handlers, level, hook = list(logger.handlers), logger.level, threading.excepthook
+
+        def restore():
+            logger.handlers[:] = handlers
+            logger.setLevel(level)
+            threading.excepthook = hook
+
+        self.addCleanup(restore)
+        blocker = os.path.join(tempfile.mkdtemp(), "file")
+        with open(blocker, "w", encoding="utf-8"):
+            pass
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertIsNone(applog.setup(os.path.join(blocker, "logs")))
+
+    def test_pinnwire_outage_logs_once_and_recovery_once(self):
+        class Flaky(FakeAPI):
+            down = True
+
+            def prematch_snapshot(self, sport_id, since=None, alt_units=False):
+                if self.down:
+                    raise RuntimeError("PinnWire pao")
+                return super().prematch_snapshot(sport_id, since, alt_units)
+
+        api = Flaky([event(1)])
+        state = make_state(api)
+        state.label = "football"
+        with self.assertLogs("xtip.snapshot", "INFO") as logs:
+            for _ in range(3):
+                with self.assertRaises(RuntimeError):
+                    state.refresh()
+            api.down = False
+            state.refresh()
+            state.refresh()
+        self.assertEqual(self.messages(logs), ["football: PinnWire: PinnWire pao", "football: PinnWire ponovo radi",
+                                               "football: pun snapshot, 1 mečeva (pre: 0)"])
+
+    def test_halved_snapshot_is_a_warning(self):
+        state = make_state(FakeAPI([event(i) for i in range(1, 21)]))
+        state.refresh(full=True)
+        state.get_api().full = [event(1)]
+        with self.assertLogs("xtip.snapshot", "WARNING") as logs:
+            state.refresh(full=True)
+        self.assertIn("broj mečeva je pao sa 20 na 1", logs.output[0])
+
+    def test_merkur_outage_logs_once_and_recovery_once(self):
+        class Flaky(FakeMerkurAPI):
+            down = True
+
+            def offer(self):
+                if self.down:
+                    raise RuntimeError("Merkur pao")
+                return []
+
+        api = Flaky()
+        state = dash.DashboardState(dash.History(path=None), merkur=mx.OfferCache(api=api))
+        state.label = "football"
+        with self.assertLogs("xtip.snapshot", "INFO") as logs:
+            state.merkur_offer()
+            state.merkur_offer()
+            api.down = False
+            state.merkur_offer()
+        self.assertEqual(self.messages(logs), ["football: MerkurXtip: Merkur pao", "football: MerkurXtip ponovo radi"])
+
+    def drop_feed(self, *outcomes):
+        feed = dash.DropFeed(lambda: "key")
+        feed.sleep = lambda seconds: None
+        outcomes = list(outcomes)
+
+        class API:
+            def __init__(self, key):
+                pass
+
+            def drop_stream(self, **params):
+                outcome = outcomes.pop(0)
+                if isinstance(outcome, Exception):
+                    raise outcome
+                yield from outcome
+
+        feed.api_factory = API
+        return feed
+
+    def test_drop_stream_logs_a_repeated_failure_once(self):
+        feed = self.drop_feed(*[RuntimeError("down")] * 3)
+        with self.assertLogs("xtip.server", "INFO") as logs:
+            for _ in range(3):
+                feed.cycle(1)
+        self.assertEqual(self.messages(logs), ["Drop stream: down"])
+
+    def test_drop_stream_logs_connecting_and_dropping(self):
+        feed = self.drop_feed([[]], RuntimeError("down"))
+        with self.assertLogs("xtip.server", "INFO") as logs:
+            feed.cycle(1)
+            feed.cycle(1)
+        self.assertEqual(self.messages(logs)[0], "Drop stream povezan")
+        self.assertTrue(self.messages(logs)[1].startswith("Drop stream prekinut"))
+        self.assertEqual(self.messages(logs)[2], "Drop stream: down")
+
+    def test_unexpected_drop_error_logs_its_traceback_once(self):
+        feed = self.drop_feed(ValueError("bad"), ValueError("bad"))
+        with self.assertLogs("xtip.server", "ERROR") as logs:
+            feed.cycle(1)
+            feed.cycle(1)
+        self.assertEqual(len(logs.records), 1)
+        self.assertIn("ValueError: bad", logs.output[0])
+
+    def test_status_line_counts_matches_and_pairs(self):
+        state = make_state(FakeAPI([event(1)]))
+        state.board()
+        with self.assertLogs("xtip.server", "INFO") as logs:
+            dash.log_status({"football": state})
+        self.assertIn("football 1/0", logs.output[0])
+
+    def test_pinnwire_retry_is_logged_without_the_key(self):
+        api = pw.PinnWireAPI("TAJNIKLJUC", min_interval=0)
+        error = pw.requests.ConnectionError("veza pala, kljuc TAJNIKLJUC")
+        with (mock.patch.object(api.s, "get", side_effect=error), mock.patch.object(pw.time, "sleep"),
+              self.assertLogs("xtip.pinnwire", "WARNING") as logs, self.assertRaises(RuntimeError)):
+            api.get("/x")
+        self.assertIn("/x: ponovni pokušaj", logs.output[0])
+        self.assertNotIn("TAJNIKLJUC", logs.output[0])
 
 
 class CompetitionTableTests(unittest.TestCase):
