@@ -4,8 +4,10 @@ PinnWire numbers hockey periods 0 = the whole game with overtime and shootout (t
 time (60 minutes: three-way winner, handicap, totals, team totals) and 1, 2, 3 = the thirds (two-way winner that
 refunds a drawn third, handicap, totals). MerkurXtip sells the winner with overtime ("P1" / "P2"), the 60-minute
 1X2, handicap and totals, and the same markets per third. Lines are matched exactly; only half-point lines are
-used, plus the level handicap (AH 0), which MerkurXtip sells as "X vraća ulog". No model, like tennis.
-Everything else (state, delta merging, board shape) is shared with basketball.
+used. The level handicap (AH 0) is left out on purpose, unlike football: Pinnacle's two-way hockey price is the
+moneyline with overtime, compared with MerkurXtip's winner with overtime and shootout, so MerkurXtip's "X vraća
+ulog" has no Pinnacle counterpart. No model, like tennis. Everything else (state, delta merging, board shape) is
+shared with basketball.
 """
 from __future__ import annotations
 
@@ -87,7 +89,6 @@ MX_PERIOD = {
         "totals": [("overUnderThirdPeriod", "50509", "50508")],
     },
 }
-LEVEL_SPREAD = ("264", "265")  # "X vraća ulog" (W1 / W2) is the level handicap of the 60 minutes
 
 GROUPS = [
     # key in pinnacle_markets()/merkur_markets(), group label, outcome sides
@@ -109,14 +110,17 @@ def numbers(period):
 
 
 def pinnacle_markets(event, period="ft"):
-    """Pinnacle prices of one period keyed like merkur_markets(): ml {side: odds}, lines {line: {side: odds}}."""
+    """Pinnacle prices of one period keyed like merkur_markets(): ml {side: odds}, lines {line: {side: odds}}.
+
+    Spreads use the default ladder rule (half-point lines only), which drops the AH 0 PinnWire still quotes.
+    """
     winner, rest = (pw.period(event, n) for n in numbers(period))
     ml = pw.priced(winner.get("money_line") or {}, ("home", "away"))
     three = pw.priced(rest.get("money_line") or {}, ("home", "draw", "away"))
     return {
         "ml": ml if len(ml) == 2 else None,
         "x12": three if period == "ft" and len(three) == 3 else None,
-        "spreads": pw.ladder(rest.get("spreads"), "hdp", ("home", "away"), "spreads"),
+        "spreads": pw.ladder(rest.get("spreads"), "hdp", ("home", "away")),
         "totals": pw.ladder(rest.get("totals"), "points", ("over", "under")),
         **common.team_ladders(rest),
     }
@@ -127,7 +131,7 @@ def pinnacle_limits(event, period="ft"):
     rest = pw.period(event, numbers(period)[1])
     team = rest.get("team_totals") or {}
     return {
-        "spreads": pw.ladder_limits(rest.get("spreads"), "hdp", "spreads"),
+        "spreads": pw.ladder_limits(rest.get("spreads"), "hdp"),
         "totals": pw.ladder_limits(rest.get("totals"), "points"),
         "home": pw.ladder_limits(team.get("home"), "points"),
         "away": pw.ladder_limits(team.get("away"), "points"),
@@ -142,11 +146,7 @@ def merkur_markets(row, period="ft"):
     out = {"ml": mx._pick(raw, dict(zip(("home", "away"), codes["ml"]))), **EMPTY}
     if "x12" in codes:
         out["x12"] = mx._pick(raw, dict(zip(("home", "draw", "away"), codes["x12"])))
-    out["spreads"] = common.param_lines(row, codes["spreads"], ("home", "away"), "spreads")
-    if period == "ft":
-        level = mx._pick(raw, dict(zip(("home", "away"), LEVEL_SPREAD)))
-        if level:
-            out["spreads"].setdefault(0.0, level)
+    out["spreads"] = common.param_lines(row, codes["spreads"], ("home", "away"))
     out["totals"] = common.param_lines(row, codes["totals"], ("over", "under"))
     for side in ("home", "away"):
         out[side] = common.param_lines(row, codes.get(side, []), ("over", "under"))

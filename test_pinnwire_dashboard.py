@@ -906,7 +906,8 @@ class HockeyTests(unittest.TestCase):
         pin = hockey.pinnacle_markets(self.event())
         self.assertEqual(pin["ml"], {"home": 1.62, "away": 2.38})
         self.assertEqual(pin["x12"], {"home": 2.05, "draw": 4.3, "away": 3.7})
-        self.assertEqual(set(pin["spreads"]), {0.0, -1.5})  # whole-goal lines other than AH 0 are dropped
+        self.assertEqual(set(pin["spreads"]), {-1.5})  # whole-goal lines are dropped, AH 0 included
+        self.assertEqual(set(hockey.pinnacle_limits(self.event())["spreads"]), {-1.5})
         self.assertEqual(set(pin["totals"]), {5.5})
         self.assertEqual(set(pin["home"]), {3.5})
         first = hockey.pinnacle_markets(self.event(), "p1")
@@ -917,7 +918,7 @@ class HockeyTests(unittest.TestCase):
         decoded = hockey.merkur_markets(self.ROW)
         self.assertEqual(decoded["ml"], {"home": 1.6, "away": 2.4})
         self.assertEqual(decoded["x12"], {"home": 2.1, "draw": 4.2, "away": 3.6})
-        self.assertEqual(decoded["spreads"], {-1.5: {"home": 2.9, "away": 1.38}, 0.0: {"home": 1.55, "away": 2.35}})
+        self.assertEqual(decoded["spreads"], {-1.5: {"home": 2.9, "away": 1.38}})  # "X vraća ulog" (264/265) ignored
         self.assertEqual(decoded["totals"], {5.5: {"over": 1.7, "under": 2.05}})
         self.assertEqual(decoded["home"], {3.5: {"over": 1.95, "under": 1.8}})
         first = hockey.merkur_markets(self.ROW, "p1")
@@ -925,10 +926,10 @@ class HockeyTests(unittest.TestCase):
         self.assertEqual(first["totals"], {1.5: {"over": 1.75, "under": 2.0}})
         self.assertIsNone(first["x12"])
 
-    def test_match_compares_winner_x12_level_handicap_and_periods(self):
+    def test_match_compares_winner_x12_handicap_and_periods_without_level_handicap(self):
         match, values = hockey.shape_match(self.event(), (self.ROW, 1.0))
         groups = {(r["group"], r["line"]) for r in match["rows"]}
-        self.assertEqual(groups, {("Pobednik", None), ("1X2", None), ("Hendikep", 0.0), ("Hendikep", -1.5),
+        self.assertEqual(groups, {("Pobednik", None), ("1X2", None), ("Hendikep", -1.5),
                                   ("Ukupno golova", 5.5), ("Golovi domaćin", 3.5)})
         x12 = next(r for r in match["rows"] if r["group"] == "1X2")
         self.assertEqual([o["key"] for o in x12["outcomes"]], ["home", "draw", "away"])
