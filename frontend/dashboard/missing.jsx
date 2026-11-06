@@ -136,8 +136,8 @@ export function SuspendedTable({ matches }) {
                 <small>{m.leagueName}</small>
               </td>
               <td>{ML_SIDES.filter(([side]) => m.ml?.[side]).map(([side]) => fmt2(m.ml[side])).join(" · ") || "–"}</td>
-              <td>{fmtKickoffShort(m.starts)}</td>
-              <td>{fmtKickoffShort(m.since)}</td>
+              <td>{fmtKickoffShort(new Date(m.starts))}</td>
+              <td>{fmtKickoffShort(new Date(m.since))}</td>
             </tr>
           ))}
         </tbody>
