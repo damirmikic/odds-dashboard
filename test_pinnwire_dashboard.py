@@ -939,6 +939,30 @@ class HockeyTests(unittest.TestCase):
         self.assertEqual(match["total"]["line"], 5.5)
         self.assertTrue(all(v["merkur"] > v["pinnacle"] for v in values))
 
+    def test_goals_and_handicap_never_come_from_the_period_with_overtime(self):
+        # MerkurXtip's goals and handicap are the 60 minutes: PinnWire period 0 (with overtime) must not feed them
+        event = self.event()
+        event["periods"]["num_0"].update({
+            "spreads": {"-1.5": {"hdp": -1.5, "home": 3.3, "away": 1.3, "max": 999}},
+            "totals": {"5.5": {"points": 5.5, "over": 3.0, "under": 1.3, "max": 999},
+                       "4.5": {"points": 4.5, "over": 1.2, "under": 4.0, "max": 999}},
+            "team_totals": {"home": {"3.5": {"points": 3.5, "over": 3.0, "under": 1.3}},
+                            "away": {"2.5": {"points": 2.5, "over": 3.0, "under": 1.3}}}})
+        pin = hockey.pinnacle_markets(event)
+        self.assertEqual(pin["totals"], {5.5: {"over": 1.75, "under": 2.0}})
+        self.assertEqual(pin["spreads"], {-1.5: {"home": 2.75, "away": 1.43}})
+        self.assertEqual(pin["home"], {3.5: {"over": 1.9, "under": 1.85}})
+        self.assertEqual(pin["away"], {})
+        limits = hockey.pinnacle_limits(event)
+        self.assertEqual((limits["totals"], limits["spreads"]), ({5.5: 200}, {-1.5: 200}))
+        match, _ = hockey.shape_match(event, (self.ROW, 1.0))
+        total = next(r for r in match["rows"] if r["group"] == "Ukupno golova")
+        self.assertEqual([o["pinnacle"] for o in total["outcomes"]], [1.75, 2.0])
+        self.assertEqual(match["total"]["pinnacle"], {"over": 1.75, "under": 2.0})
+        quotes = hockey.drop_quotes(event, match)["4"][1]
+        self.assertNotIn(("total", 0, 5.5, "over"), quotes)  # a drop of the period 0 total matches no MerkurXtip price
+        self.assertNotIn(("spread", 0, -1.5, "home"), quotes)
+
     def test_alias_pairs_a_short_merkur_name(self):
         self.assertEqual(hockey.name_score("ZSC Lions", "Zurich"), 1.0)
         self.assertEqual(hockey.name_score("SCL Tigers", "Langnau"), 1.0)
