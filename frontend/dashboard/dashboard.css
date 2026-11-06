@@ -1028,3 +1028,8 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.svkext { --badge: #0b4ea2; }
 .comp-badge.cze1l { --badge: #3f6fb0; }
 .comp-badge.phlpba { --badge: #0038a8; }
+.comp-badge.crcascenso { --badge: #002b7f; }
+.comp-badge.ghapl { --badge: #b8860b; }
+.comp-badge.porlpb { --badge: #006600; }
+.comp-badge.espfeb { --badge: #c60b1e; }
+.comp-badge.wcw { --badge: #7a4fb0; }

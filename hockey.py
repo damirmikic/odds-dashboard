@@ -56,6 +56,7 @@ COMPETITIONS = [
     {"id": 280900, "key": "ecn", "name": "European Cup of Nations", "country": "Evropa", "code": "ECN",
      "mx_id": 2391444},
     {"id": 4605, "key": "eht", "name": "Euro Hockey Tour", "country": "Evropa", "code": "EHT", "mx_id": 2328104},
+    {"id": 4828, "key": "wcw", "name": "Svetsko prvenstvo (Ž)", "country": "Svet", "code": "WCW", "mx_id": 2323564},
 ]
 MX_COMP = {c["mx_id"]: c["id"] for c in COMPETITIONS}
 
