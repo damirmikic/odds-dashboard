@@ -1032,4 +1032,5 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.ghapl { --badge: #b8860b; }
 .comp-badge.porlpb { --badge: #006600; }
 .comp-badge.espfeb { --badge: #c60b1e; }
+.comp-badge.espacb { --badge: #e8590c; }
 .comp-badge.wcw { --badge: #7a4fb0; }
