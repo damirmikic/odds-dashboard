@@ -1009,3 +1009,21 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.cze2l { --badge: #3f6fb0; }
 .comp-badge.bolcup { --badge: #2e8b57; }
 .comp-badge.scow { --badge: #7a4fb0; }
+.comp-badge.unlc { --badge: #0b2a6f; }
+.comp-badge.gerrlby, .comp-badge.gerrln, .comp-badge.gerrlw, .comp-badge.gerbbl { --badge: #3a3a3a; }
+.comp-badge.jpnbprem, .comp-badge.jpnbone { --badge: #bc002d; }
+.comp-badge.isrnl { --badge: #0038b8; }
+.comp-badge.gbrslb { --badge: #012169; }
+.comp-badge.hunnbia { --badge: #477050; }
+.comp-badge.rouda { --badge: #002b7f; }
+.comp-badge.beltd1 { --badge: #b8860b; }
+.comp-badge.taitpbl { --badge: #d52b1e; }
+.comp-badge.croa1 { --badge: #2c4ea3; }
+.comp-badge.bnxt { --badge: #e8590c; }
+.comp-badge.fralnb { --badge: #1d3f8f; }
+.comp-badge.geosl { --badge: #c8102e; }
+.comp-badge.itab { --badge: #1a5fb4; }
+.comp-badge.polplk { --badge: #c4263a; }
+.comp-badge.srbkls { --badge: #a3262a; }
+.comp-badge.svkext { --badge: #0b4ea2; }
+.comp-badge.cze1l { --badge: #3f6fb0; }

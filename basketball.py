@@ -70,6 +70,23 @@ COMPETITIONS = [
     {"id": 210237, "key": "pol1b", "name": "1. liga", "country": "Poljska", "code": "POL", "mx_id": 2358947},
     {"id": 215513, "key": "prylnb", "name": "LNB", "country": "Paragvaj", "code": "PRY", "mx_id": 2381490},
     {"id": 548, "key": "svnskl", "name": "1. SKL", "country": "Slovenija", "code": "SVN", "mx_id": 2313969},
+    {"id": 197721, "key": "jpnbprem", "name": "B.League Premier", "country": "Japan", "code": "JPN", "mx_id": 2313965},
+    {"id": 206701, "key": "jpnbone", "name": "B.League One", "country": "Japan", "code": "JPN2", "mx_id": 2314113},
+    {"id": 212805, "key": "isrnl", "name": "National League", "country": "Izrael", "code": "ISR2", "mx_id": 2316038},
+    {"id": 321, "key": "gbrslb", "name": "SLB", "country": "Velika Britanija", "code": "UK", "mx_id": 2376194},
+    {"id": 203909, "key": "hunnbia", "name": "NB I. A", "country": "Mađarska", "code": "HUN", "mx_id": 2348405},
+    {"id": 527, "key": "rouda", "name": "Divizija A", "country": "Rumunija", "code": "ROU", "mx_id": 2314323},
+    {"id": 216565, "key": "beltd1", "name": "Top Division 1", "country": "Belgija", "code": "BEL", "mx_id": 2341912},
+    {"id": 238434, "key": "taitpbl", "name": "TPBL", "country": "Tajvan", "code": "TPBL", "mx_id": 2375648},
+    {"id": 306, "key": "croa1", "name": "A1 liga", "country": "Hrvatska", "code": "CRO", "mx_id": 2313962},
+    {"id": 218837, "key": "bnxt", "name": "BNXT liga", "country": "Evropa", "code": "BNXT", "mx_id": 2350882},
+    {"id": 414, "key": "fralnb", "name": "LNB Elite", "country": "Francuska", "code": "FRA", "mx_id": 2388436},
+    {"id": 208325, "key": "geosl", "name": "Superliga", "country": "Gruzija", "code": "GEO", "mx_id": 2340058},
+    {"id": 423, "key": "gerbbl", "name": "BBL", "country": "Nemačka", "code": "GER", "mx_id": 2319284},
+    {"id": 212395, "key": "itab", "name": "Serie B", "country": "Italija", "code": "ITA3", "mx_id": 2320232},
+    {"id": 512, "key": "polplk", "name": "PLK", "country": "Poljska", "code": "POL1", "mx_id": 2313956},
+    {"id": 537, "key": "srbkls", "name": "Naša liga (KLS)", "country": "Srbija", "code": "SRB", "mx_id": 2314106},
+    {"id": 544, "key": "svkext", "name": "Extraliga", "country": "Slovačka", "code": "SVK", "mx_id": 2313963},
 ]
 MX_COMP = {mid: c["id"] for c in COMPETITIONS for mid in (c["mx_id"], *c.get("mx_extra", ()))}
 
