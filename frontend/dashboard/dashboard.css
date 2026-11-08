@@ -395,6 +395,13 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.smrcs { --badge: #5eb6e4; }
 .comp-badge.engplcu21 { --badge: #5b2a86; }
 .comp-badge.hndln { --badge: #0073cf; }
+.comp-badge.luxcup { --badge: #00a3e0; }
+.comp-badge.andpd { --badge: #0018a8; }
+.comp-badge.cmbpl { --badge: #032ea1; }
+.comp-badge.argtfa { --badge: #74acdf; }
+.comp-badge.myscup { --badge: #cc0001; }
+.comp-badge.mdadn { --badge: #0046ae; }
+.comp-badge.saffch { --badge: #e07b00; }
 .comp-badge.fraligue3,
 .comp-badge.ruscup,
 .comp-badge.afcchampionsle,

@@ -397,6 +397,13 @@ COMPETITIONS = [
     {"id": 196865, "key": "hndln", "name": "Liga Nacional", "country": "Honduras", "code": "HON", "merkur": "HND LN"},
     {"id": 210556, "key": "crcascenso", "name": "Ascenso", "country": "Kostarika", "code": "CRC2", "merkur": "CRI ASC"},
     {"id": 196927, "key": "ghapl", "name": "Premier League", "country": "Gana", "code": "GHA", "merkur": "GHA PL"},
+    {"id": 196904, "key": "luxcup", "name": "Kup", "country": "Luksemburg", "code": "LUXC", "merkur": "LUX CUP"},
+    {"id": 211232, "key": "andpd", "name": "Premier divizija", "country": "Andora", "code": "AND", "merkur": "AND PD"},
+    {"id": 204591, "key": "cmbpl", "name": "Premier liga", "country": "Kambodža", "code": "CAM", "merkur": "CMB CL"},
+    {"id": 202608, "key": "argtfa", "name": "Torneo Federal A", "country": "Argentina", "code": "ARG5", "merkur": "ARG TF"},
+    {"id": 198556, "key": "myscup", "name": "FA kup", "country": "Malezija", "code": "MASC", "merkur": "MYS CUP"},
+    {"id": 205096, "key": "mdadn", "name": "Divizia Nationala", "country": "Moldavija", "code": "MDA", "merkur": "MDA DN"},
+    {"id": 192440, "key": "saffch", "name": "Championship", "country": "SAFF", "code": "SAFF", "merkur": "SAFF CH"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
