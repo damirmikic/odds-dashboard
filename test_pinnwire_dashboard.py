@@ -1822,16 +1822,21 @@ class CleanHandicapTests(unittest.TestCase):
         kept = dash.pw.period(dash.clean_ah0(event), 0)["spreads"]
         self.assertEqual(set(kept), {"-0.5"})
 
-    def test_only_the_offered_team_total_line_is_kept(self):
-        event = {"periods": {"num_0": {
-            "team_total": {"home": {"points": 2.5}, "away": {"points": 0.5}},
-            "team_totals": {
-                "home": {"1.5": {"points": 1.5, "over": 1.488, "under": 2.41},
-                         "2.5": {"points": 2.5, "over": 2.03, "under": 1.68}},
-                "away": {"0.5": {"points": 0.5, "over": 1.725, "under": 1.952}}}}}}
-        kept = dash.pw.period(dash.main_team_totals(event), 0)["team_totals"]
+    def test_only_the_team_total_line_closest_to_even_is_kept(self):
+        event = {"periods": {"num_0": {"team_totals": {
+            "home": {"2.5": {"points": 2.5, "over": 1.625, "under": 2.1},
+                     "3.5": {"points": 3.5, "over": 2.34, "under": 1.508}},
+            "away": {"0.5": {"points": 0.5, "over": 1.538, "under": 2.27}}}}}}
+        kept = dash.pw.period(dash.clean_ladders(event), 0)["team_totals"]
         self.assertEqual({side: set(lines) for side, lines in kept.items()}, {"home": {"2.5"}, "away": {"0.5"}})
 
+    def test_totals_line_out_of_order_is_hidden(self):
+        totals = {"2.5": (1.415, 2.54), "2.75": (1.312, 2.96), "3": (1.351, 2.78), "3.5": (1.704, 1.99),
+                  "3.75": (1.893, 1.806), "4": (2.16, 1.592), "4.5": (2.65, 1.383)}
+        event = {"periods": {"num_0": {"totals": {k: {"points": float(k), "over": o, "under": u}
+                                                  for k, (o, u) in totals.items()}}}}
+        kept = dash.pw.period(dash.clean_ladders(event), 0)["totals"]
+        self.assertEqual(set(kept), set(totals) - {"2.5"})
 
 if __name__ == "__main__":
     unittest.main()

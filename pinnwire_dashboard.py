@@ -122,29 +122,71 @@ def is_tracked(event):
 AH0_MAX_GAP = 0.03
 
 
-def main_team_totals(event):
-    """The event with only the team-total line Pinnacle itself offers (`team_total`) in every period.
+def _main_index(lines, sides):
+    return min(range(len(lines)), key=lambda i: abs(lines[i][1][sides[0]] - lines[i][1][sides[1]]))
 
-    PinnWire's `team_totals` also carries extra lines (e.g. home 1.5 next to the offered 2.5) that Pinnacle does
-    not sell and whose prices do not follow the match total, so they only produce false Value."""
+
+def consistent_ladder(ladder, key, sides, rising):
+    """The ladder without lines whose prices break the order around the main line (stale lines PinnWire keeps
+    quoting outside Pinnacle's ladder, e.g. Over 2.5 dearer than Over 3).
+
+    rising: whether the first side's price grows with the line (totals: over; spreads: no, home falls)."""
+    lines = sorted(((pw._num(v.get(key)), name, v) for name, v in ladder.items() if isinstance(v, dict)),
+                   key=lambda t: (t[0] is None, t[0] or 0))
+    priced = [(x, name, v) for x, name, v in lines if x is not None and len(pw.priced(v, sides)) == 2]
+    if len(priced) < 2:
+        return ladder
+    rows = [(x, pw.priced(v, sides)) for x, _, v in priced]
+    main = _main_index(rows, sides)
+    keep = {priced[main][1]}
+    for step in (1, -1):
+        last = rows[main][1]
+        i = main + step
+        while 0 <= i < len(rows):
+            prices = rows[i][1]
+            up = (prices[sides[0]] > last[sides[0]]) == ((step > 0) == rising)
+            down = (prices[sides[1]] < last[sides[1]]) == ((step > 0) == rising)
+            if up and down:
+                keep.add(priced[i][1])
+                last = prices
+            i += step
+    dropped = {name for _, name, _ in priced} - keep
+    return {name: v for name, v in ladder.items() if name not in dropped}
+
+
+def main_team_line(lines):
+    """Only the team-total line closest to even: Pinnacle offers one line per team, PinnWire also quotes others
+    (e.g. home 1.5 next to the offered 2.5) whose prices only produce false Value."""
+    priced = [(name, pw.priced(v, ("over", "under"))) for name, v in lines.items() if isinstance(v, dict)]
+    priced = [(name, p) for name, p in priced if len(p) == 2]
+    if len(priced) < 2:
+        return lines
+    name = min(priced, key=lambda t: abs(t[1]["over"] - t[1]["under"]))[0]
+    return {name: lines[name]}
+
+
+def clean_ladders(event):
+    """The event with consistent totals/spreads ladders and one team-total line per team, in every period."""
     periods = {}
-    for key, markets in event.get("periods", {}).items():
-        main, ladder = markets.get("team_total"), markets.get("team_totals")
-        if isinstance(main, dict) and isinstance(ladder, dict):
-            kept = {}
-            for side, lines in ladder.items():
-                point = pw._num((main.get(side) or {}).get("points")) if isinstance(main.get(side), dict) else None
-                kept[side] = ({k: v for k, v in lines.items() if isinstance(v, dict) and pw._num(v.get("points")) == point}
-                              if isinstance(lines, dict) and point is not None else lines)
-            markets = {**markets, "team_totals": kept}
-        periods[key] = markets
+    for period_key, markets in (event.get("periods") or {}).items():
+        if isinstance(markets, dict):
+            markets = dict(markets)
+            if isinstance(markets.get("totals"), dict):
+                markets["totals"] = consistent_ladder(markets["totals"], "points", ("over", "under"), True)
+            if isinstance(markets.get("spreads"), dict):
+                markets["spreads"] = consistent_ladder(markets["spreads"], "hdp", ("home", "away"), False)
+            if isinstance(markets.get("team_totals"), dict):
+                markets["team_totals"] = {side: main_team_line(lines) if isinstance(lines, dict) else lines
+                                          for side, lines in markets["team_totals"].items()}
+        periods[period_key] = markets
     return {**event, "periods": periods} if periods else event
 
 
 def clean_ah0(event):
-    """The event without full-match AH 0 / AH ±0.5 lines that contradict the 1X2 (PinnWire keeps quoting an AH 0
-    for some small fixtures where Pinnacle does not offer it, and its AH ±0.5 is sometimes a stale copy of ±1)."""
-    event = main_team_totals(event)
+    """clean_ladders(event) without full-match AH 0 / AH ±0.5 lines that contradict the 1X2 (PinnWire keeps
+    quoting an AH 0 for some small fixtures where Pinnacle does not offer it, and its AH ±0.5 is sometimes a
+    stale copy of ±1)."""
+    event = clean_ladders(event)
     markets = pw.period(event, 0)
     spreads = markets.get("spreads") or {}
     ml = pw.priced(markets.get("money_line") or {}, ML_SIDES)
