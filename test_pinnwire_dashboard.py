@@ -1822,6 +1822,16 @@ class CleanHandicapTests(unittest.TestCase):
         kept = dash.pw.period(dash.clean_ah0(event), 0)["spreads"]
         self.assertEqual(set(kept), {"-0.5"})
 
+    def test_only_the_offered_team_total_line_is_kept(self):
+        event = {"periods": {"num_0": {
+            "team_total": {"home": {"points": 2.5}, "away": {"points": 0.5}},
+            "team_totals": {
+                "home": {"1.5": {"points": 1.5, "over": 1.488, "under": 2.41},
+                         "2.5": {"points": 2.5, "over": 2.03, "under": 1.68}},
+                "away": {"0.5": {"points": 0.5, "over": 1.725, "under": 1.952}}}}}}
+        kept = dash.pw.period(dash.main_team_totals(event), 0)["team_totals"]
+        self.assertEqual({side: set(lines) for side, lines in kept.items()}, {"home": {"2.5"}, "away": {"0.5"}})
+
 
 if __name__ == "__main__":
     unittest.main()

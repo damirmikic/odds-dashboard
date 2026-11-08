@@ -122,9 +122,29 @@ def is_tracked(event):
 AH0_MAX_GAP = 0.03
 
 
+def main_team_totals(event):
+    """The event with only the team-total line Pinnacle itself offers (`team_total`) in every period.
+
+    PinnWire's `team_totals` also carries extra lines (e.g. home 1.5 next to the offered 2.5) that Pinnacle does
+    not sell and whose prices do not follow the match total, so they only produce false Value."""
+    periods = {}
+    for key, markets in event.get("periods", {}).items():
+        main, ladder = markets.get("team_total"), markets.get("team_totals")
+        if isinstance(main, dict) and isinstance(ladder, dict):
+            kept = {}
+            for side, lines in ladder.items():
+                point = pw._num((main.get(side) or {}).get("points")) if isinstance(main.get(side), dict) else None
+                kept[side] = ({k: v for k, v in lines.items() if isinstance(v, dict) and pw._num(v.get("points")) == point}
+                              if isinstance(lines, dict) and point is not None else lines)
+            markets = {**markets, "team_totals": kept}
+        periods[key] = markets
+    return {**event, "periods": periods} if periods else event
+
+
 def clean_ah0(event):
     """The event without full-match AH 0 / AH ±0.5 lines that contradict the 1X2 (PinnWire keeps quoting an AH 0
     for some small fixtures where Pinnacle does not offer it, and its AH ±0.5 is sometimes a stale copy of ±1)."""
+    event = main_team_totals(event)
     markets = pw.period(event, 0)
     spreads = markets.get("spreads") or {}
     ml = pw.priced(markets.get("money_line") or {}, ML_SIDES)
