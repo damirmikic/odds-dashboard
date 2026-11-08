@@ -1042,3 +1042,8 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.espacb { --badge: #e8590c; }
 .comp-badge.esplfw { --badge: #7a4fb0; }
 .comp-badge.wcw { --badge: #7a4fb0; }
+.comp-badge.mar2 { --badge: #c1272d; }
+.comp-badge.ven2 { --badge: #cf9f00; }
+.comp-badge.czenbl { --badge: #11457e; }
+.comp-badge.gerproa { --badge: #5a5a5a; }
+.comp-badge.bihd1 { --badge: #002395; }
