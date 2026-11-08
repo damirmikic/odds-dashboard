@@ -123,22 +123,24 @@ AH0_MAX_GAP = 0.03
 
 
 def clean_ah0(event):
-    """The event without its full-match AH 0 line when that line contradicts the 1X2 (PinnWire keeps quoting
-    an AH 0 for some small fixtures where Pinnacle does not offer it)."""
+    """The event without full-match AH 0 / AH ±0.5 lines that contradict the 1X2 (PinnWire keeps quoting an AH 0
+    for some small fixtures where Pinnacle does not offer it, and its AH ±0.5 is sometimes a stale copy of ±1)."""
     markets = pw.period(event, 0)
     spreads = markets.get("spreads") or {}
-    line = next((v for v in spreads.values() if isinstance(v, dict) and pw._num(v.get("hdp")) == 0), None)
-    if line is None:
-        return event
     ml = pw.priced(markets.get("money_line") or {}, ML_SIDES)
-    ah = pw.priced(line, ("home", "away"))
-    if len(ml) < 3 or len(ah) < 2:
+    if len(ml) < 3:
         return event
     p = pw.devig(ml)
-    dnb = p["home"] / (p["home"] + p["away"])
-    if abs(pw.devig(ah)["home"] - dnb) <= AH0_MAX_GAP:
+    expected = {0: p["home"] / (p["home"] + p["away"]), -0.5: p["home"], 0.5: p["home"] + p["draw"]}
+    drop = []
+    for line in spreads.values():
+        hdp = pw._num(line.get("hdp")) if isinstance(line, dict) else None
+        ah = pw.priced(line, ("home", "away")) if hdp in expected else {}
+        if len(ah) == 2 and abs(pw.devig(ah)["home"] - expected[hdp]) > AH0_MAX_GAP:
+            drop.append(line)
+    if not drop:
         return event
-    kept = {k: v for k, v in spreads.items() if v is not line}
+    kept = {k: v for k, v in spreads.items() if not any(v is d for d in drop)}
     return {**event, "periods": {**event["periods"], "num_0": {**markets, "spreads": kept}}}
 
 

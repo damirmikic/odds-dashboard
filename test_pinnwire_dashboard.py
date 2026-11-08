@@ -1806,5 +1806,22 @@ class PriceHistoryTests(unittest.TestCase):
         self.assertTrue(self.store.series("football", 1))
 
 
+class CleanHandicapTests(unittest.TestCase):
+    def event(self, spreads):
+        return {"periods": {"num_0": {
+            "money_line": {"home": 1.247, "draw": 5.64, "away": 6.83},
+            "spreads": {str(h): {"hdp": h, **v} for h, v in spreads.items()}}}}
+
+    def test_stale_half_goal_line_is_hidden(self):
+        event = self.event({-0.5: {"home": 1.348, "away": 2.82}, -1: {"home": 1.348, "away": 2.79}})
+        kept = dash.pw.period(dash.clean_ah0(event), 0)["spreads"]
+        self.assertEqual(set(kept), {"-1"})
+
+    def test_consistent_half_goal_line_is_kept(self):
+        event = self.event({-0.5: {"home": 1.26, "away": 4.3}})
+        kept = dash.pw.period(dash.clean_ah0(event), 0)["spreads"]
+        self.assertEqual(set(kept), {"-0.5"})
+
+
 if __name__ == "__main__":
     unittest.main()
