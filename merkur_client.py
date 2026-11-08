@@ -270,6 +270,10 @@ def name_score(a, b):
     return sum(1 for t in short if any(_token_match(t, u) for u in long_)) / len(short)
 
 
+# Kickoff gap (minutes) beyond which both team names must match at least partly
+FAR_KICKOFF = 90
+
+
 def pair(pinnacle, merkur, window_minutes=180, min_score=0.5, score_fn=None):
     """Pair events one-to-one.
 
@@ -292,7 +296,10 @@ def pair(pinnacle, merkur, window_minutes=180, min_score=0.5, score_fn=None):
             home = score_fn(p["home"], m["home"])
             if home < min_first:
                 continue
-            score = (home + score_fn(p["away"], m["away"])) / 2
+            away = score_fn(p["away"], m["away"])
+            if diff > FAR_KICKOFF and min(home, away) <= 0:
+                continue  # one matching team plus hours of kickoff gap is a coincidence ("San" in Santomera / El San Martin)
+            score = (home + away) / 2
             if score >= min_score:
                 scored.append((score, -diff, p["id"], m["id"], m))
     scored.sort(key=lambda row: (row[0], row[1]), reverse=True)

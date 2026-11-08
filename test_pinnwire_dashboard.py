@@ -379,6 +379,13 @@ class MerkurDecodeTests(unittest.TestCase):
 
 
 class MerkurPairingTests(unittest.TestCase):
+    def test_one_team_match_with_far_kickoff_is_not_paired(self):
+        pin = [{"id": "1", "comp": "c", "home": "Santomera", "away": "Mazarron", "ts": 16 * 3600000}]
+        mer = [{"id": "m", "comp": "c", "home": "El San Martin Ra", "away": "Lealtad", "ts": 12 * 3600000}]
+        self.assertEqual(mx.pair(pin, mer), {})
+        mer[0]["ts"] = pin[0]["ts"]
+        self.assertIn("1", mx.pair(pin, mer))
+
     def test_name_scores(self):
         self.assertEqual(mx.name_score("Paris Saint-Germain", "PSG"), 1.0)
         self.assertEqual(mx.name_score("Atletico Madrid", "Atl. Madrid"), 1.0)
