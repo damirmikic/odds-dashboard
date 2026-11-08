@@ -304,26 +304,60 @@ def allowed_line(line, market):
     return abs(line * 2 - round(line * 2)) < 1e-9 and round(line * 2) % 2 == 1
 
 
-def _ladder_lines(lines, key, market):
-    """(line, raw line dict) of a spread/total ladder {name: {key: line, sides..., max}} kept by allowed_line()."""
-    for line in (lines or {}).values() if isinstance(lines, dict) else ():
-        if isinstance(line, dict) and allowed_line(_num(line.get(key)), market):
+LADDER_SIDES = {"points": (("over", "under"), True), "hdp": (("home", "away"), False)}
+
+
+def consistent(lines, key):
+    """The line dicts of one ladder without lines whose prices break the order around the main line.
+
+    PinnWire keeps quoting lines Pinnacle no longer shows, some with stale prices (football Over 2.5 dearer
+    than Over 3, hockey Over 6.5 cheaper than Over 6). Walking outward from the main line (prices closest to
+    even), the first side's price must move one way and the second side's the other way (totals: over rises
+    with the line; spreads: home falls as the line goes up); a line that breaks it is dropped."""
+    lines = [line for line in lines if isinstance(line, dict)]
+    (first, second), rising = LADDER_SIDES.get(key, ((None, None), None))
+    rows = sorted(((_num(line.get(key)), priced(line, (first, second)), line) for line in lines
+                   if first and _num(line.get(key)) is not None), key=lambda row: row[0])
+    rows = [row for row in rows if len(row[1]) == 2]
+    if len(rows) < 2:
+        return lines
+    main = min(range(len(rows)), key=lambda i: abs(rows[i][1][first] - rows[i][1][second]))
+    dropped = []
+    for step in (1, -1):
+        last, i = rows[main][1], main + step
+        while 0 <= i < len(rows):
+            prices, outward = rows[i][1], (step > 0) == rising
+            if (prices[first] > last[first]) == outward and (prices[second] < last[second]) == outward:
+                last = prices
+            else:
+                dropped.append(rows[i][2])
+            i += step
+    return [line for line in lines if not any(line is d for d in dropped)]
+
+
+def _ladder_lines(lines, key, market, ordered=False):
+    """(line, raw line dict) of a spread/total ladder {name: {key: line, sides..., max}} kept by allowed_line()
+    and, with `ordered`, by consistent() (football and hockey; basketball ladders jitter by a few cents)."""
+    values = [line for line in lines.values() if isinstance(line, dict)] if isinstance(lines, dict) else []
+    for line in consistent(values, key) if ordered else values:
+        if allowed_line(_num(line.get(key)), market):
             yield _num(line[key]), line
 
 
-def ladder(lines, key, sides, market="totals"):
-    """{line: {side: odds}} of a ladder, lines priced on every side only. `market` "spreads" also keeps AH 0."""
+def ladder(lines, key, sides, market="totals", ordered=False):
+    """{line: {side: odds}} of a ladder, lines priced on every side only. `market` "spreads" also keeps AH 0,
+    `ordered` drops lines out of price order (consistent())."""
     out = {}
-    for value, line in _ladder_lines(lines, key, market):
+    for value, line in _ladder_lines(lines, key, market, ordered):
         prices = priced(line, sides)
         if len(prices) == len(sides):
             out[value] = prices
     return out
 
 
-def ladder_limits(lines, key, market="totals"):
+def ladder_limits(lines, key, market="totals", ordered=False):
     """{line: Pinnacle limit (max bet)} over the same lines as ladder()."""
-    return {value: line.get("max") for value, line in _ladder_lines(lines, key, market)}
+    return {value: line.get("max") for value, line in _ladder_lines(lines, key, market, ordered)}
 
 
 def build_lines(event, market, sides, line_key, number=0):
@@ -332,10 +366,9 @@ def build_lines(event, market, sides, line_key, number=0):
 
 
 def lines_from(lines, sides, line_key, market="totals"):
+    """Football rows of one ladder (consistent() lines only), main line marked."""
     rows = []
-    for line in lines:
-        if not isinstance(line, dict):
-            continue
+    for line in consistent(lines, line_key):
         value = _num(line.get(line_key))
         if not allowed_line(value, market):
             continue

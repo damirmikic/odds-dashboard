@@ -1835,8 +1835,21 @@ class CleanHandicapTests(unittest.TestCase):
                   "3.75": (1.893, 1.806), "4": (2.16, 1.592), "4.5": (2.65, 1.383)}
         event = {"periods": {"num_0": {"totals": {k: {"points": float(k), "over": o, "under": u}
                                                   for k, (o, u) in totals.items()}}}}
-        kept = dash.pw.period(dash.clean_ladders(event), 0)["totals"]
-        self.assertEqual(set(kept), set(totals) - {"2.5"})
+        kept = dash.pw.ladder(dash.pw.period(event, 0)["totals"], "points", ("over", "under"), ordered=True)
+        self.assertEqual(set(kept), {2.5, 3.5, 4.5} - {2.5})
+
+    def test_hockey_totals_line_out_of_order_is_hidden(self):
+        totals = {"4.5": (1.526, 2.34), "5": (1.585, 2.22), "5.5": (1.901, 1.833), "6": (2.31, 1.538),
+                  "6.5": (2.26, 1.562)}
+        ladder = {k: {"points": float(k), "over": o, "under": u} for k, (o, u) in totals.items()}
+        self.assertEqual(set(dash.pw.ladder(ladder, "points", ("over", "under"), ordered=True)), {4.5, 5.5})
+        self.assertEqual(set(dash.pw.ladder(ladder, "points", ("over", "under"))), {4.5, 5.5, 6.5})
+
+    def test_hockey_lines_below_the_main_limit_are_hidden(self):
+        totals = {"4.5": (1.526, 2.34, 100), "5": (1.585, 2.22, 200), "5.5": (1.901, 1.833, 200),
+                  "6": (2.31, 1.538, 200), "6.5": (2.26, 1.562, 50)}
+        ladder = {k: {"points": float(k), "over": o, "under": u, "max": m} for k, (o, u, m) in totals.items()}
+        self.assertEqual(set(hockey.full_limit(ladder, "points")), {"5", "5.5", "6"})
 
 if __name__ == "__main__":
     unittest.main()

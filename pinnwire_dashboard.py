@@ -122,38 +122,6 @@ def is_tracked(event):
 AH0_MAX_GAP = 0.03
 
 
-def _main_index(lines, sides):
-    return min(range(len(lines)), key=lambda i: abs(lines[i][1][sides[0]] - lines[i][1][sides[1]]))
-
-
-def consistent_ladder(ladder, key, sides, rising):
-    """The ladder without lines whose prices break the order around the main line (stale lines PinnWire keeps
-    quoting outside Pinnacle's ladder, e.g. Over 2.5 dearer than Over 3).
-
-    rising: whether the first side's price grows with the line (totals: over; spreads: no, home falls)."""
-    lines = sorted(((pw._num(v.get(key)), name, v) for name, v in ladder.items() if isinstance(v, dict)),
-                   key=lambda t: (t[0] is None, t[0] or 0))
-    priced = [(x, name, v) for x, name, v in lines if x is not None and len(pw.priced(v, sides)) == 2]
-    if len(priced) < 2:
-        return ladder
-    rows = [(x, pw.priced(v, sides)) for x, _, v in priced]
-    main = _main_index(rows, sides)
-    keep = {priced[main][1]}
-    for step in (1, -1):
-        last = rows[main][1]
-        i = main + step
-        while 0 <= i < len(rows):
-            prices = rows[i][1]
-            up = (prices[sides[0]] > last[sides[0]]) == ((step > 0) == rising)
-            down = (prices[sides[1]] < last[sides[1]]) == ((step > 0) == rising)
-            if up and down:
-                keep.add(priced[i][1])
-                last = prices
-            i += step
-    dropped = {name for _, name, _ in priced} - keep
-    return {name: v for name, v in ladder.items() if name not in dropped}
-
-
 def main_team_line(lines):
     """Only the team-total line closest to even: Pinnacle offers one line per team, PinnWire also quotes others
     (e.g. home 1.5 next to the offered 2.5) whose prices only produce false Value."""
@@ -166,15 +134,11 @@ def main_team_line(lines):
 
 
 def clean_ladders(event):
-    """The event with consistent totals/spreads ladders and one team-total line per team, in every period."""
+    """The event with one team-total line per team in every period (pw.consistent() cleans the other ladders)."""
     periods = {}
     for period_key, markets in (event.get("periods") or {}).items():
         if isinstance(markets, dict):
             markets = dict(markets)
-            if isinstance(markets.get("totals"), dict):
-                markets["totals"] = consistent_ladder(markets["totals"], "points", ("over", "under"), True)
-            if isinstance(markets.get("spreads"), dict):
-                markets["spreads"] = consistent_ladder(markets["spreads"], "hdp", ("home", "away"), False)
             if isinstance(markets.get("team_totals"), dict):
                 markets["team_totals"] = {side: main_team_line(lines) if isinstance(lines, dict) else lines
                                           for side, lines in markets["team_totals"].items()}
@@ -287,8 +251,8 @@ def pinnacle_lines(event, number, cleaned=False):
     ml = pw.priced(markets.get("money_line") or {}, ML_SIDES)
     return {
         "ml": ml if len(ml) == 3 else None,
-        "totals": pw.ladder(markets.get("totals"), "points", ("over", "under")),
-        "spreads": pw.ladder(markets.get("spreads"), "hdp", ("home", "away"), "spreads"),
+        "totals": pw.ladder(markets.get("totals"), "points", ("over", "under"), ordered=True),
+        "spreads": pw.ladder(markets.get("spreads"), "hdp", ("home", "away"), "spreads", ordered=True),
         "teamTotals": {side: pw.ladder(lines, "points", ("over", "under"))
                        for side, lines in (markets.get("team_totals") or {}).items() if isinstance(lines, dict)},
     }
@@ -300,8 +264,8 @@ def pinnacle_max(event, number, cleaned=False):
         event = clean_ah0(event)
     markets = pw.period(event, number)
     return {
-        "totals": pw.ladder_limits(markets.get("totals"), "points"),
-        "spreads": pw.ladder_limits(markets.get("spreads"), "hdp", "spreads"),
+        "totals": pw.ladder_limits(markets.get("totals"), "points", ordered=True),
+        "spreads": pw.ladder_limits(markets.get("spreads"), "hdp", "spreads", ordered=True),
         "teamTotals": {side: pw.ladder_limits(lines, "points")
                        for side, lines in (markets.get("team_totals") or {}).items() if isinstance(lines, dict)},
     }

@@ -111,6 +111,24 @@ def numbers(period):
     return (0, REGULATION) if period == "ft" else (NUMBERS[period], NUMBERS[period])
 
 
+def full_limit(lines, key):
+    """The ladder without lines limited below its main line (prices closest to even): Pinnacle shows only the
+    main line ±0.5 in hockey, and PinnWire's extra lines (60 min Over 4.5 at max 100 and 6.5 at max 50 next to
+    5.5 at 200) carry lower limits and prices out of line with the rest."""
+    if not isinstance(lines, dict):
+        return lines
+    sides = ("over", "under") if key == "points" else ("home", "away")
+    rows = [(name, line, pw.priced(line, sides)) for name, line in lines.items() if isinstance(line, dict)]
+    rows = [row for row in rows if len(row[2]) == 2]
+    if len(rows) < 2:
+        return lines
+    top = min(rows, key=lambda row: abs(row[2][sides[0]] - row[2][sides[1]]))[1].get("max")
+    if not top:
+        return lines
+    return {name: line for name, line in lines.items()
+            if not (isinstance(line, dict) and line.get("max") and line["max"] < top)}
+
+
 def pinnacle_markets(event, period="ft"):
     """Pinnacle prices of one period keyed like merkur_markets(): ml {side: odds}, lines {line: {side: odds}}.
 
@@ -122,8 +140,8 @@ def pinnacle_markets(event, period="ft"):
     return {
         "ml": ml if len(ml) == 2 else None,
         "x12": three if period == "ft" and len(three) == 3 else None,
-        "spreads": pw.ladder(rest.get("spreads"), "hdp", ("home", "away")),
-        "totals": pw.ladder(rest.get("totals"), "points", ("over", "under")),
+        "spreads": pw.ladder(full_limit(rest.get("spreads"), "hdp"), "hdp", ("home", "away"), ordered=True),
+        "totals": pw.ladder(full_limit(rest.get("totals"), "points"), "points", ("over", "under"), ordered=True),
         **common.team_ladders(rest),
     }
 
@@ -133,8 +151,8 @@ def pinnacle_limits(event, period="ft"):
     rest = pw.period(event, numbers(period)[1])
     team = rest.get("team_totals") or {}
     return {
-        "spreads": pw.ladder_limits(rest.get("spreads"), "hdp"),
-        "totals": pw.ladder_limits(rest.get("totals"), "points"),
+        "spreads": pw.ladder_limits(full_limit(rest.get("spreads"), "hdp"), "hdp", ordered=True),
+        "totals": pw.ladder_limits(full_limit(rest.get("totals"), "points"), "points", ordered=True),
         "home": pw.ladder_limits(team.get("home"), "points"),
         "away": pw.ladder_limits(team.get("away"), "points"),
     }
