@@ -1,5 +1,6 @@
 // Value view: filters and the table of outcomes where MerkurXtip beats Pinnacle.
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { readStored, writeStored } from "./api.js";
 import { evClass, fmt2, fmtEv, fmtKickoffShort, fmtMargins, fmtOdds, marketLine } from "./format.js";
 import { CompBadge, DerivedTag, KickoffWarning, ModeledTag, StaleTag } from "./ui.jsx";
 import { ChangeTimes } from "./priceHistory.jsx";
@@ -67,9 +68,34 @@ export function ValueRange({ min, max, setMin, setMax, topOnly, setTopOnly }) {
   );
 }
 
+// Sort orders of the Value table: the difference vs Pinnacle's fair price or vs its quoted price, largest first.
+const VALUE_SORTS = {
+  fair: (v) => v.ev,
+  pin: (v) => v.overPinnacle,
+};
+
+function SortHeader({ sortKey, sort, setSort, className, title, children }) {
+  const active = sort === sortKey;
+  return (
+    <th className={`${className || ""} sortable${active ? " sorted" : ""}`} title={`${title}; klik sortira po ovoj koloni`}
+      aria-sort={active ? "descending" : "none"} onClick={() => setSort(sortKey)}>
+      {children}{active && " ▼"}
+    </th>
+  );
+}
+
 // Rows of the all-sports screen carry their own `match`, `comp` and `sport` (shown as an icon); onOdds/onSelect get the row too.
 export function ValueTable({ values, matchesById, competitions, selectedId, onSelect, onOdds }) {
   const byComp = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
+  const [sort, setSort] = useState(() => {
+    const stored = readStored("pb.valueSort", "fair");
+    return VALUE_SORTS[stored] ? stored : "fair";
+  });
+  useEffect(() => writeStored("pb.valueSort", sort), [sort]);
+  const sorted = useMemo(() => {
+    const by = VALUE_SORTS[sort];
+    return [...values].sort((a, b) => (by(b) ?? -Infinity) - (by(a) ?? -Infinity));
+  }, [values, sort]);
   return (
     <div className="board-scroll mc-wrap">
       <table className="mc-board value-board">
@@ -81,14 +107,16 @@ export function ValueTable({ values, matchesById, competitions, selectedId, onSe
             <th className="mc-group">MX</th>
             <th>PIN</th>
             <th>Fer</th>
-            <th className="mc-group" title="MerkurXtip kvota / Pinnacle kvota − 1">MX vs PIN</th>
-            <th title="MerkurXtip kvota / Pinnacle fer kvota − 1">MX vs fer</th>
+            <SortHeader sortKey="pin" sort={sort} setSort={setSort} className="mc-group"
+              title="MerkurXtip kvota / Pinnacle kvota − 1">MX vs PIN</SortHeader>
+            <SortHeader sortKey="fair" sort={sort} setSort={setSort}
+              title="MerkurXtip kvota / Pinnacle fer kvota − 1">MX vs fer</SortHeader>
             <th className="mc-group" title="Marža tržišta MerkurXtip / Pinnacle">Marža MX / PIN</th>
             <th className="mc-group" title="Poslednja promena kvote kod MerkurXtip i Pinnacle (podebljano: u poslednjih 15 min)">Promena</th>
           </tr>
         </thead>
         <tbody>
-          {values.map((v) => {
+          {sorted.map((v) => {
             const match = v.match || matchesById.get(v.matchId);
             const comp = v.comp || byComp.get(match.leagueId);
             const id = String(v.matchId);

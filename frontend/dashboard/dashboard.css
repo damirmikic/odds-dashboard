@@ -803,6 +803,9 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .value-board .mc-when .comp-badge { margin-left: 2px; }
 .value-board .mc-when .sport-icon { flex: none; width: 15px; height: 15px; }
 .value-board td { padding-top: 5px; padding-bottom: 5px; }
+.value-board th.sortable { cursor: pointer; user-select: none; }
+.value-board th.sortable:hover { text-decoration: underline; }
+.value-board th.sorted { color: var(--text); }
 .value-board .mc-cell { min-height: 32px; }
 .value-market { text-align: left !important; padding-left: 10px !important; white-space: nowrap; font-size: 12.5px; }
 .value-market small { display: block; color: var(--faint); font-size: 10.5px; }
