@@ -19,8 +19,10 @@ import pinnwire_client as pw
 SPORT_ID = 2
 OFFER_PATH = "/restapi/custom/offer/sr/sport/T/mob"
 MIN_PAIR_SCORE = 0.75
-# MerkurXtip's tennis kickoff is often a rough "not before" time, hours away from Pinnacle's; the player names pair
-PAIR_WINDOW = 12 * 60
+# MerkurXtip's tennis kickoff is often a rough "not before" time, hours away from Pinnacle's, and for an unscheduled
+# Challenger match one book can sit a whole day off (McCabe - Kumstat, Brisbane: Pinnacle 10.11. 00:00 UTC, MerkurXtip
+# the 11th); both surnames must match and the closest kickoff wins, so a day and a half cannot pair a wrong match
+PAIR_WINDOW = 36 * 60
 
 # (key, label, PinnWire period number); PinnWire numbers tennis periods 0 = match, 1 = 1st set.
 PERIODS = [("ft", "Ceo meč", 0), ("s1", "1. set", 1)]

@@ -769,6 +769,10 @@ class TennisTests(unittest.TestCase):
         self.assertEqual(pairs["7"][0]["id"], 5)
         other = {**row, "home": "K. Jacquet", "away": "B. Nakashima"}
         self.assertEqual(tennis.pair_events([self.merged()], [other]), {})
+        next_day = {**self.ROW, "kickOffTime": 1_900_000_000_000 + 24 * 3600_000}  # one book a whole day off
+        self.assertEqual(tennis.pair_events([self.merged()], [next_day])["7"][0]["id"], 5)
+        far = {**self.ROW, "kickOffTime": 1_900_000_000_000 + 48 * 3600_000}
+        self.assertEqual(tennis.pair_events([self.merged()], [far]), {})
 
     def test_competitions_are_tournaments_grouped_by_category(self):
         state = tennis.TennisState.__new__(tennis.TennisState)
