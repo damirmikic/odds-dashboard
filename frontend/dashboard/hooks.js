@@ -1,6 +1,48 @@
-// App-wide hooks: PWA install and connectivity, colour theme, sticky header offsets.
+// App-wide hooks: PWA install and connectivity, new build reload, colour theme, sticky header offsets.
 import { useCallback, useEffect, useState } from "react";
 import { readStored, writeStored } from "./api.js";
+
+const BUILD_CHECK_MS = 60000;
+const IDLE_RELOAD_MS = 60000;
+const bundleOf = (html) => html.match(/<script[^>]+src="(\/assets\/[^"]+\.js)"/)?.[1] || null;
+
+// A new build on the server reloads the page by itself: at once while the tab is hidden, otherwise
+// after a minute without input, so nobody has to refresh by hand after a deploy. Filters, sport, view
+// and the open match (#id) are in localStorage / the URL, so the reload lands on the same screen.
+export function useBuildReload() {
+  useEffect(() => {
+    if (!import.meta.env.PROD) return undefined;
+    const current = new URL(document.querySelector('script[type="module"][src]')?.src || "", window.location.href).pathname;
+    let pending = false;
+    let lastInput = Date.now();
+    const reloadIfQuiet = () => {
+      if (pending && (document.visibilityState === "hidden" || Date.now() - lastInput >= IDLE_RELOAD_MS)) {
+        window.location.reload();
+      }
+    };
+    const check = async () => {
+      try {
+        const response = await fetch("/", { cache: "no-store" });
+        if (!response.ok) return;
+        const bundle = bundleOf(await response.text());
+        if (bundle && current && bundle !== current) pending = true;
+      } catch {
+        /* server down: the boards show that; try again next time */
+      }
+      reloadIfQuiet();
+    };
+    const onInput = () => { lastInput = Date.now(); };
+    const timer = setInterval(check, BUILD_CHECK_MS);
+    const events = ["pointerdown", "keydown", "wheel", "touchstart"];
+    events.forEach((name) => window.addEventListener(name, onInput, { passive: true }));
+    document.addEventListener("visibilitychange", reloadIfQuiet);
+    return () => {
+      clearInterval(timer);
+      events.forEach((name) => window.removeEventListener(name, onInput));
+      document.removeEventListener("visibilitychange", reloadIfQuiet);
+    };
+  }, []);
+}
 
 // PWA install prompt (Chrome/Edge) and connectivity state.
 export function usePwa() {

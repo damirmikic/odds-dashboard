@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { readStored, requestJson, serverDownStore, writeStored } from "./api.js";
-import { usePwa, useStickyHeaderOffsets, useTheme } from "./hooks.js";
+import { useBuildReload, usePwa, useStickyHeaderOffsets, useTheme } from "./hooks.js";
 import { DAY_FILTERS, clockFmt, dayKey, dayLabel, evClass, fmtEv, fmtOdds, inDayFilter } from "./format.js";
 import { VALUE_GROUPS, VALUE_LEVELS, ValueRange, ValueTable, isTopLeague, rangePasses, valuePasses } from "./value.jsx";
 import { SideMenu } from "./menu.jsx";
@@ -15,6 +15,8 @@ import { AllValuePane, collectValues } from "./allValue.jsx";
 import { GlobalSearch, matchesQuery, searchAll } from "./search.jsx";
 
 const AUTO_OPTIONS = [0, 3, 5, 10, 15, 30, 60, 120, 300];
+const BACKGROUND_SECONDS = 30;
+const STATUS_RETRY_SECONDS = 5;
 
 const DROP_OPTIONS = [2, 3, 5, 10];
 
@@ -192,21 +194,66 @@ export default function App() {
       onOpen={(hit) => openAlert({ sport: hit.sport, matchId: hit.match.id })} />
   );
 
+  // retried until the server answers, so a page opened while the server was down recovers by itself
   useEffect(() => {
-    requestJson("/api/status")
+    if (apiKeySet !== null) return undefined;
+    let stopped = false;
+    let timer;
+    const check = () => requestJson("/api/status")
       .then((status) => {
+        if (stopped) return;
+        setError("");
         setApiKeySet(status.apiKeySet);
         setCallsToday(status.callsToday);
-        
       })
-      .catch((err) => setError(err.message));
-  }, [loadBoard]);
+      .catch((err) => {
+        if (stopped) return;
+        setError(err.message);
+        timer = setTimeout(check, STATUS_RETRY_SECONDS * 1000);
+      });
+    check();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [apiKeySet]);
 
   useEffect(() => {
     if (!autoSeconds || !apiKeySet || curLoading) return undefined;
     const timer = setTimeout(() => reload("refresh"), autoSeconds * 1000);
     return () => clearTimeout(timer);
   }, [autoSeconds, apiKeySet, reload, curLoading, cur?.fetchedAt]);
+
+  // The boards not on screen (and the shown one with Auto off) re-read the server's snapshot, which the
+  // CLV worker keeps fresh: no PinnWire request, and a board that failed (server down) retries by itself.
+  const live = useRef(null);
+  useEffect(() => {
+    live.current = {
+      boards: {
+        football: [loadBoard, loading], basketball: [bbLoad, bb.loading], tennis: [tnLoad, tn.loading],
+        hockey: [hkLoad, hk.loading], mma: [mmLoad, mm.loading], handball: [hbLoad, hb.loading],
+      },
+      onScreen: (key) => !!autoSeconds && (allValue || key === sport),
+      wake: () => { if (!curLoading) reload(autoSeconds ? "refresh" : undefined); },
+    };
+  });
+  useEffect(() => {
+    if (!apiKeySet) return undefined;
+    const timer = setInterval(() => {
+      const { boards, onScreen } = live.current;
+      for (const [key, [load, busy]] of Object.entries(boards)) if (!busy && !onScreen(key)) load();
+    }, BACKGROUND_SECONDS * 1000);
+    // back to the tab, out of sleep or back online: the shown board at once, not after a throttled timer
+    const wake = () => { if (document.visibilityState === "visible") live.current.wake(); };
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("online", wake);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("online", wake);
+    };
+  }, [apiKeySet]);
+  useBuildReload();
 
   useEffect(() => writeStored("pb.competition", competition), [competition]);
   useEffect(() => writeStored("pb.day", dayFilter), [dayFilter]);
@@ -415,7 +462,7 @@ export default function App() {
                 Number.isNaN(new Date(cur.__cachedAt).getTime()) ? "" : ` (${clockFmt.format(new Date(cur.__cachedAt))})`
               } — nisu žive.`
             : "Kvote se ne mogu osvežiti dok veza ne proradi."}{" "}
-          Osvežite stranu.
+          Ponovo pokušavam automatski.
           <button type="button" className="button small" onClick={() => window.location.reload()}>Osveži stranu</button>
         </div>
       )}
