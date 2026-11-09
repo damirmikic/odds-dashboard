@@ -1016,7 +1016,7 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.cze2l { --badge: #3f6fb0; }
 .comp-badge.bolcup { --badge: #2e8b57; }
 .comp-badge.scow { --badge: #7a4fb0; }
-.comp-badge.unlc { --badge: #0b2a6f; }
+.comp-badge.unlc, .comp-badge.unld { --badge: #0b2a6f; }
 .comp-badge.gerrlby, .comp-badge.gerrln, .comp-badge.gerrlw, .comp-badge.gerbbl { --badge: #3a3a3a; }
 .comp-badge.jpnbprem, .comp-badge.jpnbone { --badge: #bc002d; }
 .comp-badge.isrnl { --badge: #0038b8; }
@@ -1047,3 +1047,5 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.czenbl { --badge: #11457e; }
 .comp-badge.gerproa { --badge: #5a5a5a; }
 .comp-badge.bihd1 { --badge: #002395; }
+.comp-badge.engalanturvey { --badge: #4a3a8c; }
+.comp-badge.intfriendlies { --badge: #2e7d32; }

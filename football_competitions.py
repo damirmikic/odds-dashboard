@@ -406,6 +406,11 @@ COMPETITIONS = [
     {"id": 192440, "key": "saffch", "name": "Championship", "country": "SAFF", "code": "SAFF", "merkur": "SAFF CH"},
     {"id": 207422, "key": "mar2", "name": "Botola 2", "country": "Maroko", "code": "MAR2", "merkur": "MAR B2"},
     {"id": 201212, "key": "ven2", "name": "Segunda Division", "country": "Venecuela", "code": "VEN2", "merkur": "VEN 2D"},
+    {"id": 200727, "key": "unld", "name": "Liga nacija D", "country": "UEFA", "code": "UNLD", "merkur": "UEFA NLD"},
+    {"id": 202288, "key": "engalanturvey", "name": "Alan Turvey Trophy", "country": "Engleska", "code": "ENGIC",
+     "merkur": "ENG IC"},
+    {"id": 2117, "key": "intfriendlies", "name": "Prijateljske utakmice", "country": "Međunarodno", "code": "INTF",
+     "merkur": "INT FRN"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
