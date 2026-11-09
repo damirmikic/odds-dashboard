@@ -879,7 +879,7 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.aba { --badge: #e2231a; }
 .comp-badge.itaa { --badge: #0b5ca8; }
 .comp-badge.tursl { --badge: #c8102e; }
-.comp-badge.isrpl { --badge: #0038b8; }
+.comp-badge.isrpl, .comp-badge.isrleaguecup { --badge: #0038b8; }
 .comp-badge.fracup, .comp-badge.fraprob { --badge: #1d3f8f; }
 .comp-badge.swebl { --badge: #006aa7; }
 .comp-badge.bulnbl { --badge: #00966e; }
