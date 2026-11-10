@@ -411,6 +411,10 @@ COMPETITIONS = [
      "merkur": "ENG IC"},
     {"id": 2117, "key": "intfriendlies", "name": "Prijateljske utakmice", "country": "Međunarodno", "code": "INTF",
      "merkur": "INT FRN"},
+    {"id": 1713, "key": "afconq", "name": "Afrički kup nacija (kval.)", "country": "CAF", "code": "CAFQ",
+     "merkur": "AFCON Q"},
+    {"id": 1867, "key": "colcup", "name": "Cup", "country": "Kolumbija", "code": "COLC", "merkur": "COL CUP"},
+    {"id": 192769, "key": "argsc", "name": "Super Cup", "country": "Argentina", "code": "ARGSC", "merkur": "ARG SC"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {

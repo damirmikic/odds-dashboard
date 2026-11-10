@@ -57,6 +57,10 @@ COMPETITIONS = [
      "mx_id": 2391444},
     {"id": 4605, "key": "eht", "name": "Euro Hockey Tour", "country": "Evropa", "code": "EHT", "mx_id": 2328104},
     {"id": 4828, "key": "wcw", "name": "Svetsko prvenstvo (Ž)", "country": "Svet", "code": "WCW", "mx_id": 2323564},
+    {"id": 1325, "key": "chl", "name": "Champions Hockey League", "country": "Evropa", "code": "CHL", "mx_id": 2323761},
+    {"id": 1517, "key": "shl", "name": "SHL", "country": "Švedska", "code": "SHL", "mx_id": 2313733},
+    {"id": 206707, "key": "swissl", "name": "Swiss League", "country": "Švajcarska", "code": "SUI2", "mx_id": 2314025},
+    {"id": 1446, "key": "latl", "name": "Latvian Hockey League", "country": "Letonija", "code": "LAT", "mx_id": 2314027},
 ]
 MX_COMP = {c["mx_id"]: c["id"] for c in COMPETITIONS}
 
