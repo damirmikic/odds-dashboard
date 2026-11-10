@@ -415,6 +415,8 @@ COMPETITIONS = [
      "merkur": "AFCON Q"},
     {"id": 1867, "key": "colcup", "name": "Cup", "country": "Kolumbija", "code": "COLC", "merkur": "COL CUP"},
     {"id": 192769, "key": "argsc", "name": "Super Cup", "country": "Argentina", "code": "ARGSC", "merkur": "ARG SC"},
+    {"id": 197888, "key": "brafareslopes", "name": "Copa Fares Lopes", "country": "Brazil", "code": "BRAFL",
+     "merkur": "BRA CFL"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
