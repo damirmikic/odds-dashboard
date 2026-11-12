@@ -811,7 +811,7 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .mc-wrap .value-board thead th.sorted { box-shadow: inset 0 -3px 0 var(--accent), 0 1px 0 var(--line), 0 4px 6px -4px rgba(0, 0, 0, .35); }
 .value-board .mc-cell { min-height: 32px; }
 .value-market { text-align: left !important; padding-left: 10px !important; white-space: nowrap; font-size: 12.5px; }
-.value-market small { display: block; color: var(--faint); font-size: 10.5px; }
+.value-market small { display: block; color: var(--muted); font-size: 10.5px; font-weight: 700; }
 .value-side { text-align: left !important; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .value-pct { color: var(--amber-ink); }
 .value-margin { font-size: 11.5px; white-space: nowrap; padding: 0 10px !important; }
