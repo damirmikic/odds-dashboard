@@ -520,6 +520,7 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
             {board && inValue && !shownValues.length && <p className="state">Nema ishoda za izabrane filtere.</p>}
             {board && inValue && !!shownValues.length && (
               <ValueTable
+                sport={sport}
                 values={shownValues}
                 matchesById={matchesById}
                 competitions={competitions}

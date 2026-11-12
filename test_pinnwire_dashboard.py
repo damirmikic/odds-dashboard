@@ -25,6 +25,7 @@ import pinnwire_client as pw
 import pinnwire_dashboard as dash
 import price_history
 import tennis
+import value_marks
 
 
 def kit_event(event_id=1628594960, **overrides):
@@ -1743,6 +1744,15 @@ class HandlerTests(unittest.TestCase):
                   mock.patch.dict(dash.SPORT_STATES, {"football": self.FakeState(error)})):
                 self.assertEqual(self.request("/api/board")[0], status)
 
+    def test_marks_round_trip(self):
+        with mock.patch.object(dash, "MARKS", value_marks.MarkStore()):
+            body = json.dumps({"key": "tennis|3|ft|Pobednik||home", "sport": "tennis", "status": "blocked"}).encode()
+            status, result = self.request("/api/marks", body, "application/json")
+            self.assertEqual((status, result["mark"]["status"]), (200, "blocked"))
+            self.assertIn("tennis|3|ft|Pobednik||home", self.request("/api/marks")[1]["marks"])
+            bad = json.dumps({"key": "k", "sport": "tennis", "status": "nope"}).encode()
+            self.assertEqual(self.request("/api/marks", bad, "application/json")[0], 400)
+
     def test_config_accepts_only_json(self):
         saved = []
         original = dash.save_api_key
@@ -1752,6 +1762,38 @@ class HandlerTests(unittest.TestCase):
         finally:
             dash.save_api_key = original
         self.assertEqual((status, saved), (415, []))
+
+
+class ValueMarkTests(unittest.TestCase):
+    sports = ("football", "tennis")
+
+    def setUp(self):
+        self.store = value_marks.MarkStore()
+
+    def body(self, **extra):
+        return {"key": "football|7|ft|Hendikep|-0.5|home", "sport": "football", "starts": "2026-11-12T18:00:00Z",
+                "status": "done", "merkur": 2.05, **extra}
+
+    def test_set_list_and_clear(self):
+        now = value_marks.parse_starts("2026-11-12T12:00:00Z", 0)
+        mark = self.store.set(self.body(), self.sports, user="damir", now=now)
+        self.assertEqual((mark["status"], mark["merkur"], mark["user"]), ("done", 2.05, "damir"))
+        self.store.set(self.body(status="custom", note="  javljeno trejderu "), self.sports, now=now)
+        self.assertEqual(self.store.all(now=now)["football|7|ft|Hendikep|-0.5|home"]["note"], "javljeno trejderu")
+        self.store.set(self.body(status=""), self.sports, now=now)
+        self.assertEqual(self.store.all(now=now), {})
+
+    def test_bad_input_is_rejected(self):
+        for body in (self.body(status="x"), self.body(sport="golf"), self.body(key=""),
+                     self.body(status="custom"), self.body(merkur="x")):
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                self.store.set(body, self.sports)
+
+    def test_marks_expire_after_kickoff(self):
+        starts = value_marks.parse_starts("2026-11-12T18:00:00Z", 0)
+        self.store.set(self.body(), self.sports, now=starts - 3600)
+        self.assertEqual(len(self.store.all(now=starts + 3600)), 1)
+        self.assertEqual(self.store.all(now=starts + value_marks.KEEP_HOURS * 3600 + 1), {})
 
 
 class PriceHistoryTests(unittest.TestCase):

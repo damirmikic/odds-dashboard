@@ -5,6 +5,7 @@ import { evClass, fmt2, fmtEv, fmtKickoffShort, fmtMargins, fmtOdds, marketLine 
 import { CompBadge, DerivedTag, KickoffWarning, ModeledTag, StaleTag } from "./ui.jsx";
 import { ChangeTimes } from "./priceHistory.jsx";
 import { SportIcon } from "./menu.jsx";
+import { MarkCell, markKey, useMarks } from "./marks.jsx";
 
 export const VALUE_LEVELS = [
   ["all", "MX > Pinnacle"],
@@ -85,18 +86,32 @@ function SortHeader({ sortKey, sort, setSort, className, title, children }) {
 }
 
 // Rows of the all-sports screen carry their own `match`, `comp` and `sport` (shown as an icon); onOdds/onSelect get the row too.
-export function ValueTable({ values, matchesById, competitions, selectedId, onSelect, onOdds }) {
+// `sport` is the screen's sport for rows without their own (the key of the shared value marks).
+export function ValueTable({ values, matchesById, competitions, selectedId, onSelect, onOdds, sport: screenSport }) {
   const byComp = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
   const [sort, setSort] = useState(() => {
     const stored = readStored("pb.valueSort", "fair");
     return VALUE_SORTS[stored] ? stored : "fair";
   });
   useEffect(() => writeStored("pb.valueSort", sort), [sort]);
+  const marks = useMarks();
+  const [hideMarked, setHideMarked] = useState(() => readStored("pb.hideMarked", false));
+  useEffect(() => writeStored("pb.hideMarked", hideMarked), [hideMarked]);
+  const markOf = (v) => marks[markKey(v.sport || screenSport, v)];
+  const markedCount = values.filter((v) => markOf(v)).length;
   const sorted = useMemo(() => {
     const by = VALUE_SORTS[sort];
-    return [...values].sort((a, b) => (by(b) ?? -Infinity) - (by(a) ?? -Infinity));
-  }, [values, sort]);
+    const shown = hideMarked ? values.filter((v) => !marks[markKey(v.sport || screenSport, v)]) : values;
+    return [...shown].sort((a, b) => (by(b) ?? -Infinity) - (by(a) ?? -Infinity));
+  }, [values, sort, hideMarked, marks, screenSport]);
   return (
+    <>
+    <div className="mark-bar">
+      <label title="Označeni ishodi (oznake vide svi korisnici ovog servera)">
+        <input type="checkbox" checked={hideMarked} onChange={(e) => setHideMarked(e.target.checked)} />
+        sakrij obrađene ({markedCount})
+      </label>
+    </div>
     <div className="board-scroll mc-wrap">
       <table className="mc-board value-board">
         <thead>
@@ -113,6 +128,7 @@ export function ValueTable({ values, matchesById, competitions, selectedId, onSe
               title="MerkurXtip kvota / Pinnacle fer kvota − 1">MX vs fer</SortHeader>
             <th className="mc-group" title="Marža tržišta MerkurXtip / Pinnacle">Marža MX / PIN</th>
             <th className="mc-group" title="Poslednja promena kvote kod MerkurXtip i Pinnacle (podebljano: u poslednjih 15 min)">Promena</th>
+            <th className="mc-group" title="Šta je urađeno sa ishodom; oznake vide svi korisnici">Obrađeno</th>
           </tr>
         </thead>
         <tbody>
@@ -120,6 +136,8 @@ export function ValueTable({ values, matchesById, competitions, selectedId, onSe
             const match = v.match || matchesById.get(v.matchId);
             const comp = v.comp || byComp.get(match.leagueId);
             const id = String(v.matchId);
+            const rowSport = v.sport || screenSport;
+            const mark = markOf(v);
             const oddsClick = (event) => {
               event.stopPropagation();
               onOdds(id, v);
@@ -127,7 +145,7 @@ export function ValueTable({ values, matchesById, competitions, selectedId, onSe
             return (
               <tr
                 key={`${v.sport || ""}-${v.matchId}-${v.period}-${v.group}-${v.line}-${v.key}`}
-                className={`mc-row${id === selectedId ? " selected" : ""}`}
+                className={`mc-row${id === selectedId ? " selected" : ""}${mark ? " marked" : ""}`}
                 onClick={() => onSelect(id, v)}
               >
                 <td className="mc-match">
@@ -163,12 +181,17 @@ export function ValueTable({ values, matchesById, competitions, selectedId, onSe
                   {fmtMargins(v.merkurMargin, v.pinnacleMargin)}
                 </td>
                 <td className="mc-group value-change"><ChangeTimes value={v} /></td>
+                <td className="mc-group value-mark">
+                  <MarkCell key={`${markKey(rowSport, v)}|${mark?.status || ""}|${mark?.note || ""}`}
+                    sport={rowSport} value={v} match={match} mark={mark} />
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 

@@ -33,6 +33,7 @@ import mma
 import pinnwire_client as pw
 import price_history
 import tennis
+import value_marks
 from common import (  # noqa: F401 (tests use them here)
     event_ts,
     is_upcoming,
@@ -55,6 +56,7 @@ CONFIG_PATH = os.path.join(DATA, "pinnwire_config.json")
 HISTORY_PATH = os.path.join(DATA, "dashboard_history.json")
 CLV_PATH = os.path.join(DATA, "clv.sqlite3")
 PRICES_PATH = os.path.join(DATA, "prices.sqlite3")
+MARKS_PATH = os.path.join(DATA, "marks.sqlite3")
 
 LEAGUE_IDS = {c["id"] for c in COMPETITIONS}
 # `merkur_also`: further MerkurXtip leagues that PinnWire quotes under the same league_id
@@ -854,6 +856,21 @@ def start_prices(path=PRICES_PATH):
         state.prices = PRICES
 
 
+MARKS = None  # opened by start_marks(), like CLV
+
+
+def start_marks(path=MARKS_PATH):
+    """Open the value marks store (shared by every user of this server)."""
+    global MARKS
+    MARKS = value_marks.MarkStore(path)
+
+
+def marks_store():
+    if MARKS is None:
+        raise LookupError("Oznake nisu otvorene.")
+    return MARKS
+
+
 def history_response(query):
     """Stored price history of one board match, for the line-movement charts in the odds modals."""
     if PRICES is None:
@@ -967,6 +984,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, history_response(query))
             if path == "/api/drops":
                 return self.send_json(200, drops_response(query))
+            if path == "/api/marks":
+                return self.send_json(200, {"marks": marks_store().all()})
             route = SPORT_ROUTE.fullmatch(path)
             if route:
                 sport, endpoint, event_id = route.group(1) or "football", route.group(2), route.group(3)
@@ -998,7 +1017,8 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_error_json(500, f"Interna greška servera: {exc!r}")
 
     def do_POST(self):
-        if urlparse(self.path).path != "/api/config":
+        path = urlparse(self.path).path
+        if path not in ("/api/config", "/api/marks"):
             return self.send_error_json(404, "Ruta nije pronađena.")
         # a JSON body needs a CORS preflight, which this server never grants, so another site open in the
         # browser cannot post a form or text/plain body here and replace the API key
@@ -1010,7 +1030,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_error_json(413, "Zahtev je prevelik.")
             body = json.loads(self.rfile.read(content_length) or b"{}")
             if not isinstance(body, dict):
-                return self.send_error_json(400, "Neispravan format podešavanja.")
+                return self.send_error_json(400, "Neispravan format zahteva.")
+            if path == "/api/marks":
+                # the basic-auth user, set by the reverse proxy (deploy/Caddyfile, deploy/nginx.conf)
+                user = self.headers.get("X-Remote-User", "")
+                return self.send_json(200, {"mark": marks_store().set(body, SPORT_STATES, user=user)})
             save_api_key(body.get("apiKey", ""))
             log.info("API ključ je promenjen")
             for state in SPORT_STATES.values():
@@ -1019,6 +1043,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"apiKeySet": True})
         except (ValueError, json.JSONDecodeError) as exc:
             return self.send_error_json(400, str(exc))
+        except LookupError as exc:
+            return self.send_error_json(404, str(exc))
         except RuntimeError as exc:
             return self.send_error_json(500, str(exc))
         except OSError as exc:
@@ -1049,6 +1075,7 @@ def main():
     log.info("Server pokrenut: %s  (Ctrl+C za prekid)", url)
     DROPS.start()
     start_prices()
+    start_marks()
     start_clv()
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
