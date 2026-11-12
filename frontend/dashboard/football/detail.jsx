@@ -312,7 +312,7 @@ export function OddsModal({ matchId, boardMatch, onClose, onCalls }) {
         <header className="modal-head">
           <div>
             <h2>{match?.home} <span>–</span> {match?.away}</h2>
-            {match?.starts && <p>{dayLabel(new Date(match.starts))}, {timeFmt.format(new Date(match.starts))}{match.leagueName ? ` · ${match.leagueName}` : ""}</p>}
+            {match?.starts && <p>Fudbal · {dayLabel(new Date(match.starts))}, {timeFmt.format(new Date(match.starts))}{match.leagueName ? ` · ${match.leagueName}` : ""}</p>}
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Zatvori">✕</button>
         </header>
