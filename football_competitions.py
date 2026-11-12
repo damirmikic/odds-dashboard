@@ -417,6 +417,8 @@ COMPETITIONS = [
      "merkur_of": 2113},
     {"id": 1713, "key": "afconq", "name": "Afrički kup nacija (kval.)", "country": "CAF", "code": "CAFQ",
      "merkur": "AFCON Q"},
+    {"id": 204527, "key": "afconu23q", "name": "Afrički kup nacija U23 (kval.)", "country": "CAF", "code": "CAFU23Q",
+     "merkur": 2336114},
     {"id": 1867, "key": "colcup", "name": "Cup", "country": "Kolumbija", "code": "COLC", "merkur": "COL CUP"},
     {"id": 192769, "key": "argsc", "name": "Super Cup", "country": "Argentina", "code": "ARGSC", "merkur": "ARG SC"},
     {"id": 208258, "key": "argw", "name": "Primera División (žene)", "country": "Argentina", "code": "ARGW", "merkur": "ARG W"},

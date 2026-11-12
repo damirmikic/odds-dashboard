@@ -230,6 +230,7 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.belcpl, .comp-badge.belu21 { --badge: #c8102e; }
 .comp-badge.cafcc { --badge: #1c8a3c; }
 .comp-badge.afconq { --badge: #1c8a3c; }
+.comp-badge.afconu23q { --badge: #2e9e4f; }
 .comp-badge.colcup, .comp-badge.argsc { --badge: #c9a227; }
 .comp-badge.fnlcz { --badge: #7a2e8c; }
 .comp-badge.dnk2, .comp-badge.fro1 { --badge: #b3202a; }
