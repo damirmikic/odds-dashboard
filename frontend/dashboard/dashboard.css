@@ -1056,3 +1056,8 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.bihd1 { --badge: #002395; }
 .comp-badge.engalanturvey { --badge: #4a3a8c; }
 .comp-badge.intfriendlies { --badge: #2e7d32; }
+.comp-badge.intclubfriendlies { --badge: #558b2f; }
+.comp-badge.concacafnla { --badge: #0b3d91; }
+.comp-badge.concacafnlb { --badge: #3a6fc4; }
+.comp-badge.omncup { --badge: #b8121a; }
+.comp-badge.fracup { --badge: #1c3f94; }

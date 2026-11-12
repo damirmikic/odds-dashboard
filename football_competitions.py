@@ -417,6 +417,14 @@ COMPETITIONS = [
     {"id": 192769, "key": "argsc", "name": "Super Cup", "country": "Argentina", "code": "ARGSC", "merkur": "ARG SC"},
     {"id": 197888, "key": "brafareslopes", "name": "Copa Fares Lopes", "country": "Brazil", "code": "BRAFL",
      "merkur": "BRA CFL"},
+    {"id": 1863, "key": "intclubfriendlies", "name": "Klupske prijateljske", "country": "Međunarodno", "code": "INTCF",
+     "merkur": "INT CF"},
+    {"id": 206571, "key": "concacafnla", "name": "Liga nacija", "country": "CONCACAF", "code": "CONNL",
+     "merkur": 2320028},
+    {"id": 294929, "key": "concacafnlb", "name": "Liga nacija B", "country": "CONCACAF", "code": "CONNLB",
+     "merkur": 2332117},
+    {"id": 2352, "key": "omncup", "name": "Kup", "country": "Oman", "code": "OMNC", "merkur": "OMN CUP"},
+    {"id": 2032, "key": "fracup", "name": "Kup", "country": "Francuska", "code": "FRAC", "merkur": "FRA CUP"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
