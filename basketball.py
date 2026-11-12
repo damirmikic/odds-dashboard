@@ -97,6 +97,8 @@ COMPETITIONS = [
     {"id": 223634, "key": "bihd1", "name": "Prvenstvo BiH", "country": "Bosna i Hercegovina", "code": "BIH", "mx_id": 2382106},
     {"id": 4530, "key": "isrleaguecup", "name": "Liga kup", "country": "Izrael", "code": "ISRLC", "mx_id": 2324727},
     {"id": 312, "key": "czecupbb", "name": "Kup", "country": "Češka", "code": "CZEC", "mx_id": 2343042},
+    {"id": 192318, "key": "ewq", "name": "Kval. za EuroBasket (Ž)", "country": "FIBA", "code": "EWQ", "mx_id": 2390595},
+    {"id": 207012, "key": "lbnd1", "name": "Liga Libana", "country": "Liban", "code": "LBN", "mx_id": 2326643},
 ]
 MX_COMP = {mid: c["id"] for c in COMPETITIONS for mid in (c["mx_id"], *c.get("mx_extra", ()))}
 
