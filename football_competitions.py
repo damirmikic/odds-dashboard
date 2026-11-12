@@ -415,6 +415,7 @@ COMPETITIONS = [
      "merkur": "AFCON Q"},
     {"id": 1867, "key": "colcup", "name": "Cup", "country": "Kolumbija", "code": "COLC", "merkur": "COL CUP"},
     {"id": 192769, "key": "argsc", "name": "Super Cup", "country": "Argentina", "code": "ARGSC", "merkur": "ARG SC"},
+    {"id": 208258, "key": "argw", "name": "Primera División (žene)", "country": "Argentina", "code": "ARGW", "merkur": "ARG W"},
     {"id": 197888, "key": "brafareslopes", "name": "Copa Fares Lopes", "country": "Brazil", "code": "BRAFL",
      "merkur": "BRA CFL"},
 ]
