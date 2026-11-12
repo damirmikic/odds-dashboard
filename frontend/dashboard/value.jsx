@@ -128,7 +128,7 @@ export function ValueTable({ values, matchesById, competitions, selectedId, onSe
               title="MerkurXtip kvota / Pinnacle fer kvota − 1">MX vs fer</SortHeader>
             <th className="mc-group" title="Marža tržišta MerkurXtip / Pinnacle">Marža MX / PIN</th>
             <th className="mc-group" title="Poslednja promena kvote kod MerkurXtip i Pinnacle (podebljano: u poslednjih 15 min)">Promena</th>
-            <th className="mc-group" title="Šta je urađeno sa ishodom; oznake vide svi korisnici">Obrađeno</th>
+            <th className="mc-group" title="Šta je urađeno sa ishodom; komentare vide svi korisnici">Komentar trejdera</th>
           </tr>
         </thead>
         <tbody>
