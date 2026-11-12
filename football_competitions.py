@@ -427,7 +427,7 @@ COMPETITIONS = [
     {"id": 1863, "key": "intclubfriendlies", "name": "Klupske prijateljske", "country": "Međunarodno", "code": "INTCF",
      "merkur": "INT CF"},
     {"id": 206571, "key": "concacafnla", "name": "Liga nacija", "country": "CONCACAF", "code": "CONNL",
-     "merkur": 2320028},
+     "merkur": 2320028, "merkur_also": [2376615]},
     {"id": 294929, "key": "concacafnlb", "name": "Liga nacija B", "country": "CONCACAF", "code": "CONNLB",
      "merkur": 2332117},
     {"id": 2352, "key": "omncup", "name": "Kup", "country": "Oman", "code": "OMNC", "merkur": "OMN CUP"},
