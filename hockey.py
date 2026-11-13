@@ -61,6 +61,9 @@ COMPETITIONS = [
     {"id": 1517, "key": "shl", "name": "SHL", "country": "Švedska", "code": "SHL", "mx_id": 2313733},
     {"id": 206707, "key": "swissl", "name": "Swiss League", "country": "Švajcarska", "code": "SUI2", "mx_id": 2314025},
     {"id": 1446, "key": "latl", "name": "Latvian Hockey League", "country": "Letonija", "code": "LAT", "mx_id": 2314027},
+    {"id": 222893, "key": "norehl", "name": "Eliteserien", "country": "Norveška", "code": "NOR", "mx_id": 2387459},
+    {"id": 217164, "key": "nor1dh", "name": "1. divisjon", "country": "Norveška", "code": "NOR2", "mx_id": 2314176},
+    {"id": 1604, "key": "intfrw", "name": "Prijateljske utakmice (Ž)", "country": "Svet", "code": "FRW", "mx_id": 2326954},
 ]
 MX_COMP = {c["mx_id"]: c["id"] for c in COMPETITIONS}
 
