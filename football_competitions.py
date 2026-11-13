@@ -427,7 +427,7 @@ COMPETITIONS = [
     {"id": 2032, "key": "fracup", "name": "Kup", "country": "Francuska", "code": "FRAC", "merkur": "FRA CUP"},
     {"id": 2679, "key": "walcup", "name": "Kup", "country": "Vels", "code": "WALC", "merkur": "WAL CUP"},
     {"id": 202454, "key": "ned4", "name": "Tweede Divisie", "country": "Holandija", "code": "NED4", "merkur": "NDL TWD"},
-    {"id": 283787, "key": "scohl", "name": "Highland League", "country": "Škotska", "code": "SCO5", "merkur": "SCO HL"},
+    {"id": 283787, "key": "scohl", "name": "Highland League", "country": "Škotska", "code": "SCO6", "merkur": "SCO HL"},
     {"id": 201159, "key": "sui1lc", "name": "1. Liga Classic", "country": "Švajcarska", "code": "SUI4", "merkur": "SWI 1LC"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
