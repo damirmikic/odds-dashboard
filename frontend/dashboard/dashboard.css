@@ -230,6 +230,7 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.belcpl, .comp-badge.belu21 { --badge: #c8102e; }
 .comp-badge.cafcc { --badge: #1c8a3c; }
 .comp-badge.afconq { --badge: #1c8a3c; }
+.comp-badge.afconu23q { --badge: #2e9e4f; }
 .comp-badge.colcup, .comp-badge.argsc { --badge: #c9a227; }
 .comp-badge.fnlcz { --badge: #7a2e8c; }
 .comp-badge.dnk2, .comp-badge.fro1 { --badge: #b3202a; }
@@ -243,7 +244,7 @@ button:disabled { cursor: default; opacity: .45; }
 .comp-badge.cze3 { --badge: #7a2e8c; }
 .comp-badge.egypl { --badge: #c9a227; }
 .comp-badge.eflcup { --badge: #1d428a; }
-.comp-badge.uclw, .comp-badge.nwsl, .comp-badge.ligamxw, .comp-badge.dnkw { --badge: #8d3a9b; }
+.comp-badge.uclw, .comp-badge.nwsl, .comp-badge.ligamxw, .comp-badge.dnkw, .comp-badge.argw { --badge: #8d3a9b; }
 .comp-badge.mexu21 { --badge: #1a6b3a; }
 .comp-badge.pol3 { --badge: #c4263a; }
 .comp-badge.j3 { --badge: #a8322d; }
@@ -811,7 +812,7 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .mc-wrap .value-board thead th.sorted { box-shadow: inset 0 -3px 0 var(--accent), 0 1px 0 var(--line), 0 4px 6px -4px rgba(0, 0, 0, .35); }
 .value-board .mc-cell { min-height: 32px; }
 .value-market { text-align: left !important; padding-left: 10px !important; white-space: nowrap; font-size: 12.5px; }
-.value-market small { display: block; color: var(--faint); font-size: 10.5px; }
+.value-market small { display: block; color: var(--muted); font-size: 10.5px; font-weight: 700; }
 .value-side { text-align: left !important; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .value-pct { color: var(--amber-ink); }
 .value-margin { font-size: 11.5px; white-space: nowrap; padding: 0 10px !important; }
@@ -991,6 +992,17 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .value-change { font-size: 11px; white-space: nowrap; text-align: left !important; padding: 0 8px !important; color: var(--muted); }
 .value-change small { display: inline-block; min-width: 26px; color: var(--faint); font-size: 10px; font-weight: 700; }
 .value-change .recent { color: var(--text); font-weight: 700; }
+.mark-bar { display: flex; justify-content: flex-end; padding: 0 4px 6px; font-size: 12px; color: var(--muted); }
+.mark-bar label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.value-mark { padding: 0 8px !important; text-align: left !important; cursor: default; }
+.mark-cell { display: flex; flex-direction: column; gap: 3px; min-width: 150px; }
+.mark-select, .mark-note { font: inherit; font-size: 11.5px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--panel); color: var(--text); }
+.mark-select.mark-done { border-color: var(--edge-pos); color: var(--edge-pos); font-weight: 700; }
+.mark-select.mark-deposit, .mark-select.mark-nochange, .mark-select.mark-custom { border-color: var(--edge-near); color: var(--edge-near); font-weight: 700; }
+.mark-select.mark-blocked { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.mark-moved { color: var(--accent); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.mc-row.marked td:not(.value-mark) { opacity: .5; }
 
 .comp-badge.facup { --badge: #c8102e; }
 .comp-badge.scochallcup { --badge: #1b4f9c; }
@@ -1056,6 +1068,8 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.bihd1 { --badge: #002395; }
 .comp-badge.engalanturvey { --badge: #4a3a8c; }
 .comp-badge.intfriendlies { --badge: #2e7d32; }
+.comp-badge.intfriendliesu20 { --badge: #43a047; }
+.comp-badge.intfriendliesu21 { --badge: #388e3c; }
 .comp-badge.intclubfriendlies { --badge: #558b2f; }
 .comp-badge.concacafnla { --badge: #0b3d91; }
 .comp-badge.concacafnlb { --badge: #3a6fc4; }

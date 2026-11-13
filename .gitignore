@@ -19,6 +19,7 @@ Thumbs.db
 .DS_Store
 data/clv.sqlite3*
 data/prices.sqlite3*
+data/marks.sqlite3*
 
 # server checkout
 .venv/

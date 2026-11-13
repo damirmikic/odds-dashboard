@@ -99,6 +99,10 @@ Every board also records the Pinnacle price, Pinnacle fair price and MerkurXtip 
 - **Value view:** the **Promena** column shows when each book last changed that price (bold within the last 15 minutes). Times are as precise as the board refresh. Hover shows since when the outcome has been tracked.
 - `/api/history?sport=&id=<board match id>` serves the stored series.
 
+## Value marks (Komentar trejdera)
+
+The last column of every Value table (each sport and the all-sports screen) marks what was done about an outcome: **Urađeno**, **Ostavljeno zbog uplate**, **Blokiran u ponudi**, **Ne povlači promene**, or **Ostalo…** with a note of your own. Marks are stored on the server in `data/marks.sqlite3` (`value_marks.py`), so **every user of the same server sees the same marks**; the UI polls them every 15 s. A marked row is dimmed, **sakrij obrađene** above the table hides marked rows (that switch is per browser). Hover shows when and by whom the mark was set (the basic-auth user, which the proxy passes as `X-Remote-User`; locally it is empty). A mark keeps the MerkurXtip price it was set at; when MerkurXtip later changes that price the cell says **MX kvota promenjena**, so a "Ne povlači promene" or "Urađeno" can be checked again. A mark belongs to one outcome (sport, match, period, market, line, side): a new line is a new outcome without a mark. Marks are deleted 24 hours after kickoff. `GET /api/marks` lists them, `POST /api/marks` (JSON `{key, sport, starts, status, note, merkur}`, empty `status` clears) sets one.
+
 ## Project layout
 
 | File | Purpose |

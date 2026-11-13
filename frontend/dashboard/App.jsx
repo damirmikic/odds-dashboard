@@ -670,6 +670,7 @@ export default function App() {
                 )}
                 {board && view === "value" && !!shownValues.length && (
                   <ValueTable
+                    sport="football"
                     values={shownValues}
                     matchesById={matchesById}
                     competitions={competitions}

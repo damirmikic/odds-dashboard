@@ -4,5 +4,8 @@ oddsmonitor.merkurxtip.app {
 	basic_auth {
 		damir <hash from caddy hash-password>
 	}
-	reverse_proxy 127.0.0.1:8070
+	reverse_proxy 127.0.0.1:8070 {
+		# who set a value mark (Komentar trejdera column)
+		header_up X-Remote-User {http.auth.user.id}
+	}
 }
