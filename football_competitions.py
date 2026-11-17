@@ -415,6 +415,8 @@ COMPETITIONS = [
      "merkur": "INT YOU"},
     {"id": 5982, "key": "euu21q", "name": "Kvalifikacije za EP U21", "country": "UEFA", "code": "EUU21Q",
      "merkur": "INT EU21"},
+    {"id": 5983, "key": "euu19q", "name": "Kvalifikacije za EP U19", "country": "UEFA", "code": "EUU19Q",
+     "merkur": "INT EU19Q"},
     {"id": 2114, "key": "intfriendliesu21", "name": "Prijateljske U21", "country": "Međunarodno", "code": "INTFU21",
      "merkur_of": 2113},
     {"id": 1713, "key": "afconq", "name": "Afrički kup nacija (kval.)", "country": "CAF", "code": "CAFQ",
