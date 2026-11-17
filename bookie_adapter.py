@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import time
+from typing import ClassVar
 
 import merkur_client as mx
 
@@ -20,7 +21,9 @@ _EMPTY_TEMPLATES = {
         0: {"ml": None, "totals": {}, "spreads": {}, "derived": set(), "teamTotals": {"home": {}, "away": {}}},
         1: {"ml": None, "totals": {}, "spreads": {}, "derived": set(), "teamTotals": {"home": {}, "away": {}}},
     },
-    "basketball": lambda: {"ml": None, "spreads": {}, "totals": {}, "home": {}, "away": {}},
+    # "main": the bookie's own main handicap / total line (None when unknown), for the "Merkur kasni" check
+    "basketball": lambda: {"ml": None, "spreads": {}, "totals": {}, "home": {}, "away": {},
+                           "main": {"spreads": None, "totals": None}},
     "tennis": lambda: {
         "ml": None, "setspreads": {}, "settotals": {}, "spreads": {}, "totals": {},
         "home": {}, "away": {}, "setwin": {},
@@ -86,7 +89,6 @@ class BookieAdapter:
 
     def comp_id(self, sport, row):
         """Map a bookie offer row to a PinnWire `league_id` for `sport`, or None if untracked."""
-        return None
 
     def decode_markets(self, sport, row, period=None):
         """Decode `row` into the market dict shape expected by `sport` (see `empty_markets(sport)`)."""
@@ -136,7 +138,7 @@ class MerkurAdapter(BookieAdapter):
     aliases = ("merkur", "mx")
     label = "MerkurXtip"
 
-    _OFFER_PATHS = {
+    _OFFER_PATHS: ClassVar[dict] = {
         "football": mx.OFFER_PATH,
         "basketball": "/restapi/custom/offer/sr/sport/B/mob",
         "tennis": "/restapi/custom/offer/sr/sport/T/mob",

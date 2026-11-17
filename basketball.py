@@ -331,8 +331,9 @@ def stale_gaps(pin, merkur):
     A lower MerkurXtip total favours the over, a higher one the under; a higher home handicap favours the home side.
     """
     out = {}
+    mains = merkur.get("main") or {}  # a bookie adapter may not know its main lines
     for key, group, sides in (("spreads", "Hendikep", ("home", "away")), ("totals", "Ukupno poena", ("over", "under"))):
-        pin_main, mx_main = main_line(pin[key], sides), merkur["main"][key]
+        pin_main, mx_main = main_line(pin[key], sides), mains.get(key)
         if pin_main is not None and mx_main is not None and abs(mx_main - pin_main) >= STALE_GAP:
             out[group] = round(mx_main - pin_main, 2)
     return out
