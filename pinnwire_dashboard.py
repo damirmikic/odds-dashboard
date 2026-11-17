@@ -24,6 +24,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import applog
 import basketball as bb
+import bookie_adapter
 import clv
 import common
 import handball
@@ -333,9 +334,9 @@ def value_items(match, rows):
     return common.value_items(match["id"], period_rows(rows), PERIOD_LABELS, label=label)
 
 
-def merkur_summary(row, event, score, cleaned=False):
+def merkur_summary(row, event, score, cleaned=False, decode=mx.markets):
     """Board cell data: 1X2 against fair odds, comparable goal lines and the largest edge anywhere."""
-    decoded = mx.markets(row)
+    decoded = decode(row)
     rows = {"ft": compare_period(event, decoded[0], 0, cleaned=cleaned),
             "ht": compare_period(event, decoded[1], 1, cleaned=True)}
     ml = next((r for r in rows["ft"] if r["group"] == "1X2"), None)
@@ -386,30 +387,35 @@ def goals_line(match, totals_rows):
 PAIR_WINDOW = 6 * 60
 
 
-def pair_inputs(events, offer):
+def pair_inputs(events, offer, comp_fn=merkur_comp, is_prematch=mx.is_prematch):
     pin = [{"id": str(e["event_id"]), "comp": PAIR_COMP[e["league_id"]], "home": e.get("home", ""),
             "away": e.get("away", ""), "ts": event_ts(e)} for e in events]
-    mer = [{"id": r["id"], "comp": merkur_comp(r), "home": r.get("home", ""),
-            "away": r.get("away", ""), "ts": merkur_ts(r), "row": r}
-           for r in offer if merkur_comp(r) and mx.is_prematch(r)]
+    mer = []
+    for r in offer:
+        if not is_prematch(r):
+            continue
+        comp = comp_fn(r)
+        if comp:
+            mer.append({"id": r["id"], "comp": comp, "home": r.get("home", ""),
+                        "away": r.get("away", ""), "ts": merkur_ts(r), "row": r})
     return pin, mer
 
 
-def pair_events(events, offer):
-    pin, mer = pair_inputs(events, offer)
+def pair_events(events, offer, comp_fn=merkur_comp, is_prematch=mx.is_prematch):
+    pin, mer = pair_inputs(events, offer, comp_fn=comp_fn, is_prematch=is_prematch)
     return {pid: (m["row"], score) for pid, (m, score) in mx.pair(pin, mer, PAIR_WINDOW).items()}
 
 
-def unpaired_hints(events, offer, pairs):
+def unpaired_hints(events, offer, pairs, comp_fn=merkur_comp, is_prematch=mx.is_prematch):
     """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
-    pin, mer = pair_inputs(events, offer)
+    pin, mer = pair_inputs(events, offer, comp_fn=comp_fn, is_prematch=is_prematch)
     return mx.hints(pin, mer, pairs, PAIR_WINDOW)
 
 
-def unpaired_other(events, offer, used):
+def unpaired_other(events, offer, used, is_prematch=mx.is_prematch):
     """({pinnacle id} unpaired, {pinnacle id: hint}, {pinnacle id: MerkurXtip row} paired) of events outside
     COMPETITIONS; `used` are MerkurXtip ids already paired within COMPETITIONS."""
-    return common.unpaired_other(events, offer, used, merkur_ts)
+    return common.unpaired_other(events, offer, used, merkur_ts, is_prematch=is_prematch)
 
 
 # ------------------------------------------------------------------------- state
@@ -491,11 +497,18 @@ class DashboardState(common.SnapshotState):
     """Football board. The snapshot keeps every main fixture of the feed (the "Nedostaju" view pairs the leagues
     outside COMPETITIONS too); only COMPETITIONS are compared and tracked in History."""
 
-    def __init__(self, history=None, merkur=None):
-        super().__init__(history or History(), current_api_key, merkur)
+    clv_name = "football"
+
+    def __init__(self, history=None, merkur=None, bookie=None):
+        super().__init__(history or History(), current_api_key, merkur, bookie=bookie)
         self.mx_track = {}  # merkur match id -> {last, prev, changedAt}: 1X2 movement this session
         self.goal_track = {}  # "pin|mx:<id>:<line>" -> {last, prev, changedAt}: board goal line movement
         self.other_cache = None  # (offer, signature, unpaired ids, hints, offered) of leagues outside COMPETITIONS
+
+    def comp_id(self, row):
+        if self.bookie.name == "merkurxtip":
+            return merkur_comp(row)
+        return self.bookie.comp_id("football", row)
 
     def merged(self, incoming, stamp):
         """Opening and previous 1X2 prices of the tracked events this fetch changed."""
@@ -515,14 +528,16 @@ class DashboardState(common.SnapshotState):
             events = [clean_ah0(e) for e in upcoming if is_tracked(e)]
             others = [e for e in upcoming if not is_tracked(e)]
             matches = [summary(e, self.history.track(e["event_id"]), cleaned=True) for e in events]
-        pairs = pair_events(events, offer)
-        hints = unpaired_hints(events, offer, pairs)
+        pairs = pair_events(events, offer, comp_fn=self.comp_id, is_prematch=self.is_prematch)
+        hints = unpaired_hints(events, offer, pairs, comp_fn=self.comp_id, is_prematch=self.is_prematch)
         self.pairs = pairs
         by_id = {str(e["event_id"]): e for e in events}
         values, quotes, clv_rows = [], {}, {}
         for m in matches:
             hit = pairs.get(str(m["id"]))
-            m["merkur"] = merkur_summary(hit[0], by_id[str(m["id"])], hit[1], cleaned=True) if hit else None
+            m["merkur"] = (merkur_summary(hit[0], by_id[str(m["id"])], hit[1], cleaned=True,
+                                          decode=self.decode_markets)
+                           if hit else None)
             m["hint"] = hints.get(str(m["id"]))
             if m["merkur"]:
                 m["merkur"].update(self.track_merkur(m["merkur"]))
@@ -567,7 +582,7 @@ class DashboardState(common.SnapshotState):
                 "fetchedAt": self.merkur.stamp,
                 "error": self.merkur.error,
                 "paired": sum(1 for m in matches if m["merkur"]),
-                "offered": sum(1 for r in offer if merkur_comp(r) and mx.is_prematch(r)),
+                "offered": sum(1 for r in offer if self.comp_id(r) and self.is_prematch(r)),
             },
         }
 
@@ -578,7 +593,7 @@ class DashboardState(common.SnapshotState):
         signature = (frozenset(str(e["event_id"]) for e in events), frozenset(used))
         cache = self.other_cache
         if cache is None or cache[0] is not offer or cache[1] != signature:
-            missing, hints, paired = unpaired_other(events, offer, used)
+            missing, hints, paired = unpaired_other(events, offer, used, is_prematch=self.is_prematch)
             cache = self.other_cache = (offer, signature, missing, hints, offered_other(events, paired))
         _, _, missing, hints, _ = cache
         out = []
@@ -634,7 +649,7 @@ class DashboardState(common.SnapshotState):
             row, fetched = self.merkur.api.match(row["id"]), utc_stamp()
         except (RuntimeError, LookupError) as exc:
             error, fetched = str(exc), self.merkur.stamp
-        decoded = mx.markets(row)
+        decoded = self.decode_markets(row)
         return {
             **merkur_info(row, event, score),
             "fetchedAt": fetched,
@@ -782,6 +797,14 @@ SPORT_STATES = {"football": STATE, "basketball": BB_STATE, "tennis": TN_STATE, "
                 "handball": HB_STATE}
 for _sport, _state in SPORT_STATES.items():
     _state.label = _sport
+
+
+def set_active_bookie(name=None):
+    """Select the active bookie adapter (explicit name -> XTIP_BOOKIE -> config -> merkurxtip) on all states."""
+    bookie = bookie_adapter.get_adapter(name, load_config)
+    for state in SPORT_STATES.values():
+        state.set_bookie(bookie)
+    return bookie
 
 CLV_REFRESH = 30  # seconds between background boards when nobody refreshes in the browser
 CLV_REFRESH_SOON = 10  # ... while a signalled match starts within 15 minutes, to catch its closing line
@@ -1058,6 +1081,8 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8070)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--bookie", default=None,
+                        help=f"Bookie adapter ({', '.join(bookie_adapter.list_adapters())})")
     args = parser.parse_args()
 
     if not os.path.isfile(os.path.join(STATIC, "index.html")):
@@ -1072,7 +1097,8 @@ def main():
     host = "127.0.0.1" if args.host in ("0.0.0.0", "") else args.host
     url = f"http://{host}:{args.port}"
     applog.setup(LOGS)  # after the bind: a second server that exits above must not touch the first one's log
-    log.info("Server pokrenut: %s  (Ctrl+C za prekid)", url)
+    active_bookie = set_active_bookie(args.bookie)
+    log.info("Server pokrenut: %s  (bookie: %s, Ctrl+C za prekid)", url, active_bookie.label)
     DROPS.start()
     start_prices()
     start_marks()

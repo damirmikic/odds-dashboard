@@ -389,23 +389,29 @@ def swapped_entries(base, row):
             {**base, "home": row.get("away", ""), "away": row.get("home", ""), "row": {**row, SWAPPED: True}}]
 
 
-def pair_inputs(events, offer, mx_comp=MX_COMP):
+def pair_inputs(events, offer, mx_comp=MX_COMP, comp_fn=None, is_prematch=mx.is_prematch):
+    comp_fn = comp_fn or (lambda r: mx_comp.get(r.get("leagueId")))
     pin = [{"id": str(e["event_id"]), "comp": e["league_id"], "home": e.get("home", ""),
             "away": e.get("away", ""), "ts": event_ts(e)} for e in events]
-    mer = [m for r in offer if r.get("leagueId") in mx_comp and mx.is_prematch(r)
-           for m in swapped_entries({"id": r["id"], "comp": mx_comp[r["leagueId"]],
-                                     "ts": r.get("kickOffTime") or 0}, r)]
+    mer = []
+    for r in offer:
+        if not is_prematch(r):
+            continue
+        comp = comp_fn(r)
+        if comp is None:
+            continue
+        mer.extend(swapped_entries({"id": r["id"], "comp": comp, "ts": r.get("kickOffTime") or 0}, r))
     return pin, mer
 
 
-def pair_events(events, offer, mx_comp=MX_COMP, score_fn=None):
-    pin, mer = pair_inputs(events, offer, mx_comp)
+def pair_events(events, offer, mx_comp=MX_COMP, score_fn=None, comp_fn=None, is_prematch=mx.is_prematch):
+    pin, mer = pair_inputs(events, offer, mx_comp, comp_fn=comp_fn, is_prematch=is_prematch)
     return {pid: (m["row"], score) for pid, (m, score) in mx.pair(pin, mer, score_fn=score_fn).items()}
 
 
-def unpaired_hints(events, offer, pairs, mx_comp=MX_COMP, score_fn=None):
+def unpaired_hints(events, offer, pairs, mx_comp=MX_COMP, score_fn=None, comp_fn=None, is_prematch=mx.is_prematch):
     """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
-    pin, mer = pair_inputs(events, offer, mx_comp)
+    pin, mer = pair_inputs(events, offer, mx_comp, comp_fn=comp_fn, is_prematch=is_prematch)
     return mx.hints(pin, mer, pairs, score_fn=score_fn)
 
 
@@ -451,18 +457,18 @@ def board_match(event, pin, hit, rows, periods, groups, prefixes, stale=None, le
     return match, every_row
 
 
-def shape_match(event, hit):
+def shape_match(event, hit, decode=merkur_markets):
     """Board entry of one Pinnacle event, plus its value items from the paired MerkurXtip row."""
     pin = pinnacle_markets(event)
     rows, stale, periods = [], {}, {}
     if hit:
         row, _ = hit
-        decoded = merkur_markets(row)
+        decoded = decode(row)
         rows = compare(pin, decoded, limits=pinnacle_limits(event))
         stale = stale_gaps(pin, decoded)
         for key, _, number, scale in PERIODS[1:]:
             if pw.period(event, number):
-                found = compare(pinnacle_markets(event, number), merkur_markets(row, key), key, scale,
+                found = compare(pinnacle_markets(event, number), decode(row, key), key, scale,
                                 pinnacle_limits(event, number))
                 if found:
                     periods[key] = found
@@ -518,17 +524,24 @@ class BasketballState(common.SnapshotState):
     def complete(self, event):
         return True
 
+    def comp_id(self, row):
+        if self.bookie.name == "merkurxtip":
+            return self.mx_comp.get(row.get("leagueId"))
+        return self.bookie.comp_id(self.clv_name, row)
+
     def shape(self, event, hit):
-        return shape_match(event, hit)
+        return shape_match(event, hit, decode=self.decode_markets)
 
     def pair(self, events, offer):
-        return pair_events(events, offer, self.mx_comp, self.score_fn)
+        return pair_events(events, offer, self.mx_comp, self.score_fn,
+                           comp_fn=self.comp_id, is_prematch=self.is_prematch)
 
     def hints(self, events, offer, pairs):
-        return unpaired_hints(events, offer, pairs, self.mx_comp, self.score_fn)
+        return unpaired_hints(events, offer, pairs, self.mx_comp, self.score_fn,
+                              comp_fn=self.comp_id, is_prematch=self.is_prematch)
 
     def offered(self, offer):
-        return sum(1 for r in offer if r.get("leagueId") in self.mx_comp and mx.is_prematch(r))
+        return sum(1 for r in offer if self.comp_id(r) is not None and self.is_prematch(r))
 
     def drop_quotes(self, event, match):
         return drop_quotes(event, match)
@@ -611,7 +624,7 @@ class BasketballState(common.SnapshotState):
         signature = (frozenset(str(e["event_id"]) for e in events), frozenset(used))
         cache = self.other_cache
         if cache is None or cache[0] is not offer or cache[1] != signature:
-            missing, hints, paired = common.unpaired_other(events, offer, used)
+            missing, hints, paired = common.unpaired_other(events, offer, used, is_prematch=self.is_prematch)
             cache = self.other_cache = (offer, signature, missing, hints, common.offered_other(events, paired))
         _, _, missing, hints, _ = cache
         out = []

@@ -15,6 +15,8 @@ from unittest import mock
 
 import applog
 import basketball as bb
+import bookie_adapter
+import bookie_example  # noqa: F401 (registers ExampleBookieAdapter)
 import clv
 import common
 import handball
@@ -1896,6 +1898,67 @@ class CleanHandicapTests(unittest.TestCase):
                   "6": (2.31, 1.538, 200), "6.5": (2.26, 1.562, 50)}
         ladder = {k: {"points": float(k), "over": o, "under": u, "max": m} for k, (o, u, m) in totals.items()}
         self.assertEqual(set(hockey.full_limit(ladder, "points")), {"5", "5.5", "6"})
+
+
+class BookieAdapterTests(unittest.TestCase):
+    def test_registry_defaults_and_selection(self):
+        self.assertIsInstance(bookie_adapter.get_adapter(), bookie_adapter.MerkurAdapter)
+        self.assertIsInstance(bookie_adapter.get_adapter("merkur"), bookie_adapter.MerkurAdapter)
+        self.assertIsInstance(bookie_adapter.get_adapter("example"), bookie_example.ExampleBookieAdapter)
+        self.assertIsInstance(
+            bookie_adapter.get_adapter(config_loader=lambda: {"bookie": "example"}),
+            bookie_example.ExampleBookieAdapter,
+        )
+        with mock.patch.dict(os.environ, {"XTIP_BOOKIE": "example"}):
+            self.assertIsInstance(bookie_adapter.get_adapter(), bookie_example.ExampleBookieAdapter)
+        with self.assertRaises(ValueError):
+            bookie_adapter.get_adapter("unknown-bookie")
+
+    def test_custom_adapter_drives_football_and_basketball_boards(self):
+        class CustomBookie(bookie_adapter.BookieAdapter):
+            name = "custom-test"
+            label = "CustomBookie"
+
+            def offer(self, sport):
+                if sport == "football":
+                    return [{"id": "fb-1", "home": "Alaves", "away": "Villarreal", "kickOffTime": KICKOFF_MS,
+                             "live": False, "league": "ESP1", "ml": {"home": 2.60, "draw": 3.30, "away": 2.85}}]
+                if sport == "basketball":
+                    return [{"id": "bb-1", "home": "Lakers", "away": "Celtics", "kickOffTime": KICKOFF_MS,
+                             "live": False, "league": "NBA", "ml": {"home": 2.10, "away": 1.80}}]
+                return []
+
+            def comp_id(self, sport, row):
+                return {"football": {"ESP1": 2196}, "basketball": {"NBA": 487}}.get(sport, {}).get(row.get("league"))
+
+            def decode_markets(self, sport, row, period=None):
+                markets = bookie_adapter.empty_markets(sport)
+                if sport == "football":
+                    markets[0]["ml"] = row["ml"]
+                    return markets if period is None else markets[period]
+                if period in (None, "ft"):
+                    markets["ml"] = row["ml"]
+                return markets
+
+        adapter = CustomBookie()
+        fb_state = dash.DashboardState(dash.History(path=None), bookie=adapter)
+        fb_state.get_api = lambda: FakeAPI([kit_event(1, league_id=2196)])
+        fb_board = fb_state.board()
+        self.assertEqual(fb_board["merkur"]["paired"], 1)
+        self.assertEqual(fb_board["matches"][0]["merkur"]["ml"]["home"]["odds"], 2.60)
+
+        bb_event = {
+            "event_id": 2, "sport_id": 3, "league_id": 487, "league_name": "USA - NBA",
+            "home": "Lakers", "away": "Celtics", "starts": "2030-08-28T19:30:00Z",
+            "units": "Regular", "parent_id": None,
+            "periods": {"num_0": {"number": 0, "money_line": {"home": 2.00, "away": 1.85}}},
+        }
+        bb_state = bb.BasketballState(dash.History(path=None), lambda: "key", bookie=adapter)
+        bb_state.get_api = lambda: FakeAPI([bb_event])
+        bb_board = bb_state.board()
+        self.assertEqual(bb_board["merkur"]["paired"], 1)
+        self.assertEqual(bb_board["matches"][0]["merkur"]["ml"]["home"]["odds"], 2.10)
+
 
 if __name__ == "__main__":
     unittest.main()

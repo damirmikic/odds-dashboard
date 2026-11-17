@@ -13,6 +13,7 @@ import time
 import unicodedata
 from datetime import datetime, timezone
 
+import bookie_adapter
 import merkur_client as mx
 import pinnwire_client as pw
 
@@ -226,13 +227,13 @@ def offered_other(events, rows):
     return sorted(out.values(), key=lambda x: (-x["count"], x["leagueName"]))
 
 
-def unpaired_other(events, offer, used, merkur_ts=lambda r: r.get("kickOffTime") or 0):
+def unpaired_other(events, offer, used, merkur_ts=lambda r: r.get("kickOffTime") or 0, is_prematch=mx.is_prematch):
     """({pinnacle id} unpaired, {pinnacle id: hint}, {pinnacle id: MerkurXtip row} paired) of untracked events;
     `used` are MerkurXtip ids already paired within the tracked competitions."""
     pin = [{"id": str(e["event_id"]), "comp": "*", "home": e.get("home", ""), "away": e.get("away", ""),
             "ts": event_ts(e)} for e in events]
     mer = [{"id": r["id"], "comp": "*", "home": r.get("home", ""), "away": r.get("away", ""),
-            "ts": merkur_ts(r), "row": r} for r in offer if r["id"] not in used and mx.is_prematch(r)]
+            "ts": merkur_ts(r), "row": r} for r in offer if r["id"] not in used and is_prematch(r)]
     # both team orders: MerkurXtip sometimes lists a game the other way round than Pinnacle
     both_orders = mer + [{**m, "home": m["away"], "away": m["home"]} for m in mer]
     paired = mx.pair(pin, both_orders, OTHER_WINDOW, OTHER_MIN_SCORE, other_score)
@@ -251,15 +252,18 @@ class SnapshotState:
 
     sport_id = pw.SOCCER
     offer_path = mx.OFFER_PATH
+    clv_name = "football"
     alt_units = False  # ask PinnWire for the side-market events too
     label = "?"  # sport name in the log, set from SPORT_STATES
 
-    def __init__(self, history, key_fn, merkur=None):
+    def __init__(self, history, key_fn, merkur=None, bookie=None):
         self.history = history  # shared by every sport: opening prices (football) and the request counter
         self.key_fn = key_fn
         self.lock = threading.Lock()
         self.fetch_lock = threading.Lock()
-        self.merkur = merkur or mx.OfferCache(mx.MerkurAPI(offer_path=self.offer_path))
+        self.bookie = bookie or bookie_adapter.MerkurAdapter()
+        self._custom_merkur = merkur is not None
+        self.merkur = merkur or mx.OfferCache(self.bookie.sport_api(self.clv_name))
         self.merkur_lock = threading.Lock()
         self.pairs = {}  # pinnacle event id -> (merkur offer row, name score)
         self.quotes = {}  # PinnWire event id -> (board match id, MerkurXtip prices by drop_key), from the last board
@@ -393,15 +397,31 @@ class SnapshotState:
         if before >= SNAPSHOT_DROP_MIN and after < before / 2:
             log.warning("%s: broj mečeva je pao sa %d na %d", self.label, before, after)
 
+    def set_bookie(self, bookie):
+        """Switch the active bookie adapter and clear cached pairing state."""
+        with self.merkur_lock:
+            self.bookie = bookie
+            if not self._custom_merkur:
+                self.merkur = mx.OfferCache(bookie.sport_api(self.clv_name))
+            self.pairs = {}
+            self.quotes = {}
+            self.other_cache = None
+
+    def is_prematch(self, row):
+        return self.bookie.is_prematch(row)
+
+    def decode_markets(self, row, period=None):
+        return self.bookie.decode_markets(self.clv_name, row, period)
+
     def merkur_offer(self, refresh=False):
         with self.merkur_lock:
             before = self.merkur.error
             offer = self.merkur.get(refresh=refresh, stamp_fn=utc_stamp)
             after = self.merkur.error
         if after and after != before:
-            log.warning("%s: MerkurXtip: %s", self.label, after)
+            log.warning("%s: %s: %s", self.label, self.bookie.label, after)
         elif before and not after:
-            log.info("%s: MerkurXtip ponovo radi", self.label)
+            log.info("%s: %s ponovo radi", self.label, self.bookie.label)
         return offer
 
     def record(self, sport, observed, values):

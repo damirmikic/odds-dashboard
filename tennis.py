@@ -258,35 +258,35 @@ def player_score(pinnacle, merkur):
     return sum(1 for t in short if any(mx._token_match(t, u) for u in long_)) / len(short)
 
 
-def pair_inputs(events, offer):
+def pair_inputs(events, offer, is_prematch=mx.is_prematch):
     # tournaments are named differently by the two books, so only the players and the kickoff pair a match
     pin = [{"id": str(e["event_id"]), "comp": "T", "home": e.get("home", ""), "away": e.get("away", ""),
             "ts": bb.event_ts(e)} for e in events]
-    mer = [m for r in offer if mx.is_prematch(r)
+    mer = [m for r in offer if is_prematch(r)
            for m in bb.swapped_entries({"id": r["id"], "comp": "T", "ts": r.get("kickOffTime") or 0}, r)]
     return pin, mer
 
 
-def pair_events(events, offer):
-    pin, mer = pair_inputs(events, offer)
+def pair_events(events, offer, is_prematch=mx.is_prematch):
+    pin, mer = pair_inputs(events, offer, is_prematch=is_prematch)
     return {pid: (m["row"], score) for pid, (m, score) in mx.pair(pin, mer, PAIR_WINDOW, MIN_PAIR_SCORE, player_score).items()}
 
 
-def unpaired_hints(events, offer, pairs):
+def unpaired_hints(events, offer, pairs, is_prematch=mx.is_prematch):
     """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
-    pin, mer = pair_inputs(events, offer)
+    pin, mer = pair_inputs(events, offer, is_prematch=is_prematch)
     return mx.hints(pin, mer, pairs, PAIR_WINDOW, player_score)
 
 
-def shape_match(event, hit):
+def shape_match(event, hit, decode=merkur_markets):
     """Board entry of one Pinnacle event, plus its value items from the paired MerkurXtip row."""
     pin = pinnacle_markets(event)
     rows, periods = [], {}
     if hit:
         row, _ = hit
-        rows = compare(pin, merkur_markets(row), limits=pinnacle_limits(event))
+        rows = compare(pin, decode(row), limits=pinnacle_limits(event))
         for key, _, _ in PERIODS[1:]:
-            found = compare(pinnacle_markets(event, key), merkur_markets(row, key), key, pinnacle_limits(event, key))
+            found = compare(pinnacle_markets(event, key), decode(row, key), key, pinnacle_limits(event, key))
             if found:
                 periods[key] = found
     match, every_row = bb.board_match(event, pin, hit, rows, periods, ("Hendikep gemova", "Ukupno gemova"), PREFIXES,
@@ -340,16 +340,16 @@ class TennisState(bb.BasketballState):
         return bool(event.get("home") and event.get("away"))
 
     def shape(self, event, hit):
-        return shape_match(event, hit)
+        return shape_match(event, hit, decode=self.decode_markets)
 
     def pair(self, events, offer):
-        return pair_events(events, offer)
+        return pair_events(events, offer, is_prematch=self.is_prematch)
 
     def hints(self, events, offer, pairs):
-        return unpaired_hints(events, offer, pairs)
+        return unpaired_hints(events, offer, pairs, is_prematch=self.is_prematch)
 
     def offered(self, offer):
-        return sum(1 for r in offer if mx.is_prematch(r))
+        return sum(1 for r in offer if self.is_prematch(r))
 
     def drop_quotes(self, event, match):
         return drop_quotes(event, match)

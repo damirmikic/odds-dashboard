@@ -113,13 +113,13 @@ def fighter_score(pinnacle, merkur):
     return tennis.player_score(pinnacle, ALIASES.get(" ".join(mx.norm_tokens(merkur)), merkur))
 
 
-def pair_inputs(events, offer):
+def pair_inputs(events, offer, is_prematch=mx.is_prematch):
     # every MerkurXtip fight is offered in both fighter orders; pair() keeps one per offer id
     pin = [{"id": str(e["event_id"]), "comp": "MM", "home": e.get("home", ""), "away": e.get("away", ""),
             "ts": bb.event_ts(e)} for e in events]
     mer = []
     for r in offer:
-        if not mx.is_prematch(r):
+        if not is_prematch(r):
             continue
         base = {"id": r["id"], "comp": "MM", "ts": r.get("kickOffTime") or 0}
         mer.append({**base, "home": r.get("home", ""), "away": r.get("away", ""), "row": r})
@@ -127,24 +127,24 @@ def pair_inputs(events, offer):
     return pin, mer
 
 
-def pair_events(events, offer):
-    pin, mer = pair_inputs(events, offer)
+def pair_events(events, offer, is_prematch=mx.is_prematch):
+    pin, mer = pair_inputs(events, offer, is_prematch=is_prematch)
     return {pid: (m["row"], score)
             for pid, (m, score) in mx.pair(pin, mer, PAIR_WINDOW, MIN_PAIR_SCORE, fighter_score).items()}
 
 
-def unpaired_hints(events, offer, pairs):
+def unpaired_hints(events, offer, pairs, is_prematch=mx.is_prematch):
     """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
-    pin, mer = pair_inputs(events, offer)
+    pin, mer = pair_inputs(events, offer, is_prematch=is_prematch)
     return mx.hints(pin, mer, pairs, PAIR_WINDOW, fighter_score)
 
 
-def shape_match(event, hit):
+def shape_match(event, hit, decode=merkur_markets):
     """Board entry of one Pinnacle event, plus its value items from the paired MerkurXtip row."""
     pin = pinnacle_markets(event)
     rows = []
     if hit:
-        rows = compare(pin, merkur_markets(hit[0]), pinnacle_limits(event))
+        rows = compare(pin, decode(hit[0]), pinnacle_limits(event))
     match, every_row = bb.board_match(event, pin, hit, rows, {}, ("Hendikep", "Ukupno rundi"), PREFIXES)
     items = common.value_items(event.get("event_id"), [(r["period"], r) for r in every_row], PERIOD_LABELS)
     return match, items
@@ -180,16 +180,16 @@ class MmaState(bb.BasketballState):
         return True  # every promotion
 
     def shape(self, event, hit):
-        return shape_match(event, hit)
+        return shape_match(event, hit, decode=self.decode_markets)
 
     def pair(self, events, offer):
-        return pair_events(events, offer)
+        return pair_events(events, offer, is_prematch=self.is_prematch)
 
     def hints(self, events, offer, pairs):
-        return unpaired_hints(events, offer, pairs)
+        return unpaired_hints(events, offer, pairs, is_prematch=self.is_prematch)
 
     def offered(self, offer):
-        return sum(1 for r in offer if mx.is_prematch(r))
+        return sum(1 for r in offer if self.is_prematch(r))
 
     def drop_quotes(self, event, match):
         return drop_quotes(event, match)

@@ -179,41 +179,41 @@ def women(home, away, league):
     return home, away
 
 
-def pair_inputs(events, offer):
+def pair_inputs(events, offer, is_prematch=mx.is_prematch):
     pin, mer = [], []
     for e in events:
         home, away = women(e.get("home", ""), e.get("away", ""), e.get("league_name"))
         pin.append({"id": str(e["event_id"]), "comp": kind(e), "ts": bb.event_ts(e), "home": home, "away": away})
     for r in offer:
-        if mx.is_prematch(r):
+        if is_prematch(r):
             home, away = women(r.get("home", ""), r.get("away", ""), r.get("leagueName"))
             mer.append({"id": r["id"], "comp": r.get("sport"), "ts": r.get("kickOffTime") or 0, "row": r,
                         "home": home, "away": away})
     return pin, mer
 
 
-def pair_events(events, offer):
-    pin, mer = pair_inputs(events, offer)
+def pair_events(events, offer, is_prematch=mx.is_prematch):
+    pin, mer = pair_inputs(events, offer, is_prematch=is_prematch)
     return {pid: (m["row"], score)
             for pid, (m, score) in mx.pair(pin, mer, PAIR_WINDOW, MIN_PAIR_SCORE, common.other_score).items()}
 
 
-def unpaired_hints(events, offer, pairs):
+def unpaired_hints(events, offer, pairs, is_prematch=mx.is_prematch):
     """{pinnacle id: closest unused MerkurXtip offer row} for events without a pair, for the "missing" view."""
-    pin, mer = pair_inputs(events, offer)
+    pin, mer = pair_inputs(events, offer, is_prematch=is_prematch)
     return mx.hints(pin, mer, pairs, PAIR_WINDOW, common.other_score)
 
 
-def shape_match(event, hit):
+def shape_match(event, hit, decode=merkur_markets):
     """Board entry of one Pinnacle event, plus its value items from the paired MerkurXtip row."""
     pin = pinnacle_markets(event)
     rows, periods = [], {}
     if hit:
         row, _ = hit
-        rows = compare(pin, merkur_markets(row), limits=pinnacle_limits(event))
+        rows = compare(pin, decode(row), limits=pinnacle_limits(event))
         for key, _, number in PERIODS[1:] if kind(event) == HANDBALL else ():
             if pw.period(event, number):
-                found = compare(pinnacle_markets(event, key), merkur_markets(row, key), key,
+                found = compare(pinnacle_markets(event, key), decode(row, key), key,
                                 pinnacle_limits(event, key))
                 if found:
                     periods[key] = found
@@ -267,8 +267,8 @@ class HandballState(bb.BasketballState):
     sport_id = SPORT_ID
     offer_path = OFFER_PATHS[0]
 
-    def __init__(self, history, key_fn, merkur=None):
-        super().__init__(history, key_fn, merkur or mx.OfferCache(JoinedAPI()))
+    def __init__(self, history, key_fn, merkur=None, bookie=None):
+        super().__init__(history, key_fn, merkur, bookie=bookie)
 
     def tracked(self, event):
         return True  # every league
@@ -286,16 +286,16 @@ class HandballState(bb.BasketballState):
         return [m for m in super().suspended_items() if self.owns(m["id"])]
 
     def shape(self, event, hit):
-        return shape_match(event, hit)
+        return shape_match(event, hit, decode=self.decode_markets)
 
     def pair(self, events, offer):
-        return pair_events(events, offer)
+        return pair_events(events, offer, is_prematch=self.is_prematch)
 
     def hints(self, events, offer, pairs):
-        return unpaired_hints(events, offer, pairs)
+        return unpaired_hints(events, offer, pairs, is_prematch=self.is_prematch)
 
     def offered(self, offer):
-        return sum(1 for r in offer if mx.is_prematch(r))
+        return sum(1 for r in offer if self.is_prematch(r))
 
     def drop_quotes(self, event, match):
         return drop_quotes(event, match)

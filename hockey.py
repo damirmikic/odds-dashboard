@@ -224,16 +224,16 @@ def pair_events(events, offer):
     return bb.pair_events(events, offer, MX_COMP, name_score)
 
 
-def shape_match(event, hit):
+def shape_match(event, hit, decode=merkur_markets):
     """Board entry of one Pinnacle event, plus its value items from the paired MerkurXtip row."""
     pin = pinnacle_markets(event)
     rows, periods = [], {}
     if hit:
         row, _ = hit
-        rows = compare(pin, merkur_markets(row), limits=pinnacle_limits(event))
+        rows = compare(pin, decode(row), limits=pinnacle_limits(event))
         for key, _, number in PERIODS[1:]:
             if pw.period(event, number):
-                found = compare(pinnacle_markets(event, key), merkur_markets(row, key), key,
+                found = compare(pinnacle_markets(event, key), decode(row, key), key,
                                 pinnacle_limits(event, key))
                 if found:
                     periods[key] = found
@@ -266,7 +266,7 @@ class HockeyState(bb.BasketballState):
     score_fn = staticmethod(name_score)
 
     def shape(self, event, hit):
-        return shape_match(event, hit)
+        return shape_match(event, hit, decode=self.decode_markets)
 
     def drop_quotes(self, event, match):
         return drop_quotes(event, match)
