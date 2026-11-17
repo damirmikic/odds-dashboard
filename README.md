@@ -1,6 +1,13 @@
 # Xtip Monitor
 
-A local dashboard of Pinnacle prematch prices from [PinnWire](https://pinnwire.com/docs.html), compared with MerkurXtip odds, for the top 5 leagues and the UEFA club competitions: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League and Conference League.
+A local dashboard of Pinnacle prematch prices from [PinnWire](https://pinnwire.com/docs.html), compared with MerkurXtip odds (or another bookmaker through a [bookie adapter](#other-bookmakers-bookie-adapters)). Sports:
+
+- **Football:** about 370 tracked competitions (top leagues, UEFA, national teams, second and lower divisions, cups, youth and women's competitions), `football_competitions.py`. Every other league PinnWire quotes feeds the "Nedostaju" view.
+- **Basketball:** NBA, European and national leagues (about 75), `basketball.py`.
+- **Tennis:** ATP, WTA, Challenger and ITF, every tournament, `tennis.py`.
+- **Ice hockey:** NHL, KHL and European leagues (about 40), `hockey.py`.
+- **MMA:** UFC and every other promotion PinnWire quotes, `mma.py`.
+- **Rukomet i odbojka:** handball and volleyball on one board, `handball.py`.
 
 ## Run
 
@@ -19,7 +26,7 @@ Or run `start.bat` (Windows) / `./start.sh`. Both install missing dependencies, 
 
 Enter a PinnWire API key in the app. It is saved to `data/pinnwire_config.json`; `PINNWIRE_API_KEY` overrides it. The key is sent only from the local server to pinnwire.com. Free trial keys are at https://pinnwire.com/#trial.
 
-Stop with `Ctrl+C`. Options: `--port 9000`, `--no-browser`.
+Stop with `Ctrl+C`. Options: `--port 9000`, `--no-browser`, `--host 0.0.0.0` (listen on the network, see PWA below), `--bookie <name>` (compared bookmaker, default `merkurxtip`).
 
 ## Server (subdomain on Linux)
 
@@ -48,7 +55,7 @@ The **MerkurXtip vs Pinnacle** view (default) compares the public MerkurXtip pre
 - **Value view:** every outcome, across all comparable markets and both periods, where the MerkurXtip price beats Pinnacle. It covers all competitions together, and the side menu shows a per-league summary instead: count and largest difference. Click a league to narrow the list. It is sorted by the difference to the fair price and defaults to MX ≥ fair; other thresholds are MX > Pinnacle and MX ≥ fair +2%. There is also a market-type filter, and the day and search filters apply. Open it directly with `/?view=value`.
 - **Value, svi sportovi:** the **Value** button in the side menu (next to Alerti, its badge counts MX ≥ fair outcomes) opens one list of the value outcomes of all five sports, sorted by the difference to the fair price. The side menu groups the leagues by sport; the buttons above the table narrow to one sport. Filters: level, market type (winner / 1X2, handicap, total, team or player totals), difference range, top leagues only, modelled basketball lines, day and search. Clicking a row opens that sport's odds modal. Auto refresh on this screen reloads every sport. Open it directly with `/?sport=value`.
 - **Detail panel:** every comparable market for full match and 1st half: 1X2, goal totals, two-way handicap, and home/away team goals. Opening a match fetches fresh odds for that match from MerkurXtip.
-- **Pairing:** same competition, kickoff within 3 hours, and team-name similarity (prefixes, initials such as PSG, small typos). Add names the rules miss to `ALIASES` in `merkur_client.py`. A ⏱ badge marks matches whose MerkurXtip kickoff differs from Pinnacle.
+- **Pairing:** same competition, kickoff within 6 hours (`PAIR_WINDOW`), and team-name similarity (prefixes, initials such as PSG, small typos). Add names the rules miss to `ALIASES` in `merkur_client.py`. A ⏱ badge marks matches whose MerkurXtip kickoff differs from Pinnacle.
 - **Sources:** offer list `GET /restapi/custom/offer/sr/sport/S/mob?annex=0` (~7 MB, cached 60 s and refetched on **Osveži**). Single match `GET /restapi/offer/sr/match/<id>`. Odds codes are defined in `/restapi/offer/sr/ttg_lang` (`betPickMap`). Goal totals are sold as ranges: `0-2` = under 2.5, `3+` = over 2.5.
 - **Lines:** handicaps and totals (including team totals) use only half-goal lines (x.5), everywhere: board, detail, comparison and value. Quarter (x.25/x.75) and whole lines are dropped, because MerkurXtip does not sell them. The exception is the level handicap **AH 0**, which is compared with MerkurXtip **X vraća ulog** (draw no bet, codes 264/265) and shown as "0 · X vraća ulog". Pinnacle's main line is chosen among the allowed lines (prices closest to even). The rule is `allowed_line()` in `pinnwire_client.py`.
 - **Derived handicaps:** MerkurXtip only sells a two-way handicap on `hd2w` (usually ±1.5) and AH 0, so the other handicap lines are built from other markets (all checked against live prices; see the docstring in `merkur_client.py`):
@@ -89,7 +96,7 @@ Opening and previous 1X2 prices are stored in `data/dashboard_history.json`, so 
 
 PinnWire has no historical data, so the dashboard builds its own. The first time an outcome shows a MerkurXtip price at least 2% above Pinnacle's fair price (`MIN_EV` in `clv.py`; modelled basketball lines are skipped), it is stored as a **signal** in `data/clv.sqlite3` (SQLite, git-ignored). Every later board updates that outcome's latest Pinnacle fair and MerkurXtip price until kickoff, and the last one seen is the closing line. **CLV = MerkurXtip price at the signal / closing fair price − 1**; above zero means MerkurXtip offered more than Pinnacle finally thought fair, which is the only check that the value was real without waiting for results.
 
-A background worker refreshes the three boards every 30 s (10 s while a signalled match starts within 15 minutes) when nobody refreshes in the browser, so closing lines are recorded with the UI closed. A signal counts only if its closing line was seen at most 30 minutes before kickoff; the others are listed as "bez zatvaranja". The page is **Alerti → CLV**: totals, then by sport, market and league, then the last 200 signals. `/api/clv?days=&sport=` serves it.
+A background worker (`ClvWorker`) refreshes every sport board every 30 s (10 s while a signalled match starts within 15 minutes) when nobody refreshes in the browser, so closing lines are recorded with the UI closed. A signal counts only if its closing line was seen at most 30 minutes before kickoff; the others are listed as "bez zatvaranja". The page is **Alerti → CLV**: totals, then by sport, market and league, then the last 200 signals. `/api/clv?days=&sport=` serves it.
 
 ## Line movement
 
@@ -103,20 +110,38 @@ Every board also records the Pinnacle price, Pinnacle fair price and MerkurXtip 
 
 The last column of every Value table (each sport and the all-sports screen) marks what was done about an outcome: **Urađeno**, **Ostavljeno zbog uplate**, **Blokiran u ponudi**, **Ne povlači promene**, or **Ostalo…** with a note of your own. Marks are stored on the server in `data/marks.sqlite3` (`value_marks.py`), so **every user of the same server sees the same marks**; the UI polls them every 15 s. A marked row is dimmed, **sakrij obrađene** above the table hides marked rows (that switch is per browser). Hover shows when and by whom the mark was set (the basic-auth user, which the proxy passes as `X-Remote-User`; locally it is empty). A mark keeps the MerkurXtip price it was set at; when MerkurXtip later changes that price the cell says **MX kvota promenjena**, so a "Ne povlači promene" or "Urađeno" can be checked again. A mark belongs to one outcome (sport, match, period, market, line, side): a new line is a new outcome without a mark. Marks are deleted 24 hours after kickoff. `GET /api/marks` lists them, `POST /api/marks` (JSON `{key, sport, starts, status, note, merkur}`, empty `status` clears) sets one.
 
+## Other bookmakers (bookie adapters)
+
+Pinnacle (PinnWire) is always the reference; the compared bookmaker is a plug-in, `BookieAdapter` in `bookie_adapter.py`. MerkurXtip (`merkurxtip`, aliases `merkur` and `mx`) is the default and the only full implementation. The active one is chosen at startup, first match wins: `--bookie <name>`, the `XTIP_BOOKIE` environment variable, `"bookie"` in `data/pinnwire_config.json`, else `merkurxtip`. Every sport state switches to it together (`set_active_bookie`), and the log's start line names it.
+
+To add a bookmaker, copy `bookie_example.py`, subclass `BookieAdapter`, give it a `name` and `label` and decorate it with `@register_adapter`, then import the module in `pinnwire_dashboard.py` so it registers (the example itself is only imported by the tests, so `--bookie example` does not work from the command line). An adapter implements:
+
+- `offer(sport)`: the prematch offer as rows with `id`, `home`, `away`, `kickOffTime` (UTC ms) and `live`; optionally `leagueId` / `leagueShort`, `matchCode` (football) and `sport` (`HB` / `V` for the handball board). Sports are `football`, `basketball`, `tennis`, `hockey`, `mma`, `handball`.
+- `decode_markets(sport, row, period=None)`: the row's prices in the shape `empty_markets(sport)` returns.
+- `comp_id(sport, row)`: the PinnWire `league_id` of a row, for the sports that pair by competition (football, basketball, hockey); `None` leaves it to the untracked "Nedostaju" pairing.
+- optionally `match(sport, id)` (fresh single match for the odds modals; the default raises `LookupError`) and `is_prematch(row)`.
+
+UI labels still say MerkurXtip / MX whichever adapter is active.
+
 ## Project layout
 
 | File | Purpose |
 |---|---|
-| `pinnwire_dashboard.py` | Local server on port 8070: competition filter, delta merge, price history, `/api/board`, `/api/match/<id>`, static files |
-| `merkur_client.py` | MerkurXtip offer client, odds-code decoding and event pairing |
+| `pinnwire_dashboard.py` | Local server on port 8070 and the football board: competition filter, delta merge, opening prices, `/api/*` routes for every sport, drop feed, CLV worker, static files |
+| `common.py` | What every sport shares: snapshot state (fetching, delta merging), compare rows, value items, "Nedostaju" pairing, time helpers |
+| `bookie_adapter.py` | `BookieAdapter` interface, adapter registry and the default `MerkurAdapter` |
+| `bookie_example.py` | Starter template for a new bookie adapter (also used by the tests) |
+| `merkur_client.py` | MerkurXtip offer client, football odds-code decoding and event pairing |
 | `football_competitions.py` | Football leagues that are compared (`COMPETITIONS`) and leagues never listed as missing |
-| `common.py` | What every sport shares: snapshot state (fetching, delta merging), compare rows, value items, time helpers |
-| `pinnwire_client.py` | PinnWire REST client (`x-api-key`, 429/Retry-After handling), devig and market parsing |
+| `basketball.py`, `tennis.py`, `hockey.py`, `mma.py`, `handball.py` | The other sport boards (tennis, hockey, MMA and handball build on the basketball state) |
+| `pinnwire_client.py` | PinnWire REST and SSE client (`x-api-key`, 429/Retry-After handling), devig and market parsing |
+| `clv.py`, `price_history.py`, `value_marks.py` | SQLite stores for CLV signals, price history and value marks in `data/` |
+| `deploy/` | Linux server setup: systemd service, install/update scripts, Caddy and nginx configs |
 | `frontend/` | React + Vite app (source in `frontend/dashboard/`; PWA manifest, service worker and icons in `frontend/dashboard/public/`) |
 | `static/dashboard_build/` | Production bundle served by Python; `source-hash.txt` lets the tests catch a missing `npm run build` |
 | `test_pinnwire_dashboard.py` | Unit tests: `python -m unittest test_pinnwire_dashboard`; lint with `python -m ruff check .` and `npm run lint` in `frontend/` |
 | `applog.py` | Application log: `data/logs/app.log` (git-ignored, 25 MB at most with rotation) and the console |
-| `data/` | API key, price history and the log; do not share `pinnwire_config.json` |
+| `data/` | API key, history, the SQLite stores and the log (all git-ignored); do not share `pinnwire_config.json` |
 
 `data/logs/app.log` records how the running server stands, with the UI closed too: PinnWire and MerkurXtip outages and recoveries (one line per outage, not per refresh), PinnWire retries, the drop stream connecting and dropping, full snapshots and a warning when a sport's match count halves, bugs with their traceback, and once an hour a status line with matches and paired matches per sport. Prices are not logged; they are in `data/prices.sqlite3` and `data/clv.sqlite3`.
 
@@ -129,7 +154,9 @@ During frontend development, run the Python server in one terminal and `npm run 
 Pick the basketball icon at the top of the side menu (or open `/?sport=basketball`). It has its own board, built in `basketball.py`:
 
 - PinnWire sport 3 against the MerkurXtip basketball offer (`/restapi/custom/offer/sr/sport/B/mob`). Both are cached and refreshed like football (delta requests), so basketball adds one PinnWire request per refresh.
-- Compared markets are full game with overtime: winner, handicap, total points and home/away team totals. Lines are matched exactly and only half-point lines (x.5) are used; whole-number lines are dropped because a push refunds the stake. Quarters and halves are not compared yet.
+- Compared markets: full game with overtime (winner, handicap, total points, home/away team totals), 1st half (winner with the draw refunded, handicap, totals) and the 1st quarter, which PinnWire only quotes close to the start, so it appears in the odds modal once Pinnacle prices it. Only half-point lines (x.5) are used; whole-number lines are dropped because a push refunds the stake.
+- **Modelled lines:** MerkurXtip lines Pinnacle does not quote are priced from a normal model fitted to Pinnacle's ladder of the same market (`model_probability`; up to 4 points from the nearest Pinnacle line on handicaps, 5 on totals, scaled down for the half and the quarter). They are tagged in the odds modal, carry no Pinnacle limit, never become CLV signals and are hidden from the all-sports Value list unless **modelirano** is ticked.
+- **Merkur kasni:** when MerkurXtip's main handicap or total is 2 points or more from Pinnacle's (`STALE_GAP`, `stale_gaps`), the board shows a tag with the gap: the MerkurXtip offer has not followed the market.
 - Competitions are the `COMPETITIONS` list in `basketball.py`: PinnWire `league_id` plus the MerkurXtip `leagueId` (basketball `leagueShort` values are not unique, so the numeric id is used). Add an entry to track another league. The other PinnWire leagues are paired against the whole MerkurXtip offer by names and kickoff (like football): their matches MerkurXtip does not offer show under "Nedostaju", and leagues MerkurXtip does offer are listed there with their PinnWire `league_id` and MerkurXtip `leagueId`, ready to be added.
 - MerkurXtip codes: winner `50291/50293`; handicap, total and team-total lines come in numbered sets (`handicapOvertime`, `handicapOvertime2` … in `params`) with the codes listed in `basketball.py`. The board shows the shared line closest to Pinnacle's main line; click a row for every compared line.
 
