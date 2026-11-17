@@ -16,7 +16,7 @@ from unittest import mock
 import applog
 import basketball as bb
 import bookie_adapter
-import bookie_example  # noqa: F401 (registers ExampleBookieAdapter)
+import bookie_example  # registers ExampleBookieAdapter
 import clv
 import common
 import handball

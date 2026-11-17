@@ -8,6 +8,8 @@ To add your own bookie:
 """
 from __future__ import annotations
 
+from typing import ClassVar
+
 import bookie_adapter
 
 
@@ -20,7 +22,7 @@ class ExampleBookieAdapter(bookie_adapter.BookieAdapter):
 
     # Map your bookie's league IDs/codes to PinnWire `league_id`s for tracked-league sports.
     # (Tennis, MMA, and Handball/Volleyball pair across all leagues without a competition map.)
-    COMP_MAP = {
+    COMP_MAP: ClassVar[dict] = {
         "football": {
             # "ENG_PL": 1980,
         },
@@ -68,5 +70,7 @@ class ExampleBookieAdapter(bookie_adapter.BookieAdapter):
         # markets["ml"] = {"home": 1.85, "away": 1.95}
         # markets["totals"] = {215.5: {"over": 1.90, "under": 1.90}}
         # markets["spreads"] = {-3.5: {"home": 1.90, "away": 1.90}}
+        # Basketball only: your main lines, for the "Merkur kasni" tag (leave None if unknown):
+        # markets["main"] = {"spreads": -3.5, "totals": 215.5}
         return markets
 
