@@ -4,9 +4,11 @@ import { requestJson } from "../api.js";
 import { clockFmt, dayLabel, evClass, fmtEv, fmtLimit, fmtLine, fmtMargins, fmtOdds, fmtPct, marketLine, merkurClass, timeFmt } from "../format.js";
 import { CompBadge, DerivedTag, KickoffWarning, ML_SIDES, Price } from "../ui.jsx";
 import { PriceChart, Sparkline, histKey, usePriceHistory } from "../priceHistory.jsx";
+import { betId, useBetslip } from "../betslip.jsx";
 
-function MerkurComparison({ merkur, periodKey, home, away, history }) {
+function MerkurComparison({ merkur, periodKey, matchId, home, away, starts, history }) {
   const [open, setOpen] = useState("");
+  const slip = useBetslip();
   if (!merkur) {
     return <p className="state">Meč nije u ponudi MerkurXtip (ili nije uparen).</p>;
   }
@@ -45,7 +47,25 @@ function MerkurComparison({ merkur, periodKey, home, away, history }) {
             const opened = row.outcomes.find((o) => histKey(periodKey, row.group, row.line, o.key) === open);
             return (
             <tbody key={`${row.group}-${row.line}`} className={i > 0 && rows[i - 1].group !== row.group ? "mx-group-start" : ""}>
-              {row.outcomes.map((o, index) => (
+              {row.outcomes.map((o, index) => {
+                const picked = !!slip?.has(betId("football", matchId, periodKey, row.group, row.line, o.key));
+                const pickOutcome = () => slip?.toggle({
+                  sport: "football",
+                  matchId,
+                  home,
+                  away,
+                  starts,
+                  period: periodKey,
+                  group: row.group,
+                  line: row.line ?? null,
+                  outcomeKey: o.key,
+                  label: sideLabel(row.group, o.label),
+                  pinnacle: o.pinnacle ?? null,
+                  fair: o.fair ?? null,
+                  merkur: o.merkur ?? null,
+                  ev: o.ev ?? null,
+                });
+                return (
                 <tr key={o.key} className={index === 0 ? "mx-first" : ""}>
                   {index === 0 && (
                     <th rowSpan={row.outcomes.length} className="mx-market">
@@ -58,8 +78,10 @@ function MerkurComparison({ merkur, periodKey, home, away, history }) {
                   )}
                   <td className="mx-side">{sideLabel(row.group, o.label)}</td>
                   <td className="mx-fair-cell">{fmtOdds(o.fair)}</td>
-                  <td>{fmtOdds(o.pinnacle)}</td>
-                  <td>
+                  <td className={`mc-click${picked ? " slip-selected" : ""}`} onClick={pickOutcome} title="Klikni za dodavanje na tiket">
+                    {fmtOdds(o.pinnacle)}
+                  </td>
+                  <td className={`mc-click${picked ? " slip-selected" : ""}`} onClick={pickOutcome} title="Klikni za dodavanje na tiket">
                     <span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}><b>{fmtOdds(o.merkur)}</b></span>
                   </td>
                   <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
@@ -77,7 +99,8 @@ function MerkurComparison({ merkur, periodKey, home, away, history }) {
                     />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {opened && (
                 <tr className="hist-row">
                   <td colSpan={8}>
@@ -214,7 +237,7 @@ export function DetailPanel({ matchId, boardMatch, competition, onClose, onCalls
       {!detail && loading && <p className="state">Učitavam kvote…</p>}
 
       {detail && (
-        <MerkurComparison merkur={detail.merkur} periodKey={periodKey} home={match.home} away={match.away} history={history} />
+        <MerkurComparison merkur={detail.merkur} periodKey={periodKey} matchId={matchId} home={match.home} away={match.away} starts={match.starts} history={history} />
       )}
 
       {period && !period.ml && <p className="state">Pinnacle nema ponudu za ovaj period.</p>}
@@ -333,7 +356,7 @@ export function OddsModal({ matchId, boardMatch, onClose, onCalls }) {
         {error && <p className="state error" role="alert">{error}</p>}
         {!detail && !error && <p className="state">Učitavam kvote…</p>}
         {detail && (
-          <MerkurComparison merkur={detail.merkur} periodKey={periodKey} home={match.home} away={match.away} history={history} />
+          <MerkurComparison merkur={detail.merkur} periodKey={periodKey} matchId={matchId} home={match.home} away={match.away} starts={match.starts} history={history} />
         )}
       </div>
     </div>

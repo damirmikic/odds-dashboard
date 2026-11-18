@@ -9,6 +9,7 @@ import { SideMenu, buildMenuGroups } from "./menu.jsx";
 import { MissingTable, OtherOffered, SuspendedTable, missingEmpty } from "./missing.jsx";
 import { SPORT_VIEWS } from "./sportViews.js";
 import { matchesQuery } from "./search.jsx";
+import { betId, useBetslip } from "./betslip.jsx";
 
 const SPORT_ML = [["home", "1"], ["away", "2"]];
 
@@ -22,25 +23,61 @@ function sportValuePasses(value, level, group, teamPrefix) {
 }
 
 // Fair / Pinnacle / MerkurXtip cells of one two-way line market (handicap or total points).
-function SportLineCells({ cell, sides, signed }) {
+function SportLineCells({ cell, sides, signed, sport, match, group }) {
+  const slip = useBetslip();
   if (!cell) return <td className="mc-line mc-group-strong" colSpan={7}><span className="muted">—</span></td>;
+  const pickSide = (side, label) => (event) => {
+    if (!slip?.pickMode) return;
+    event.stopPropagation();
+    slip.toggle({
+      sport,
+      matchId: match.id,
+      home: match.home,
+      away: match.away,
+      starts: match.starts,
+      period: "ft",
+      group,
+      line: cell.line,
+      outcomeKey: side,
+      label: signed ? (side === "home" ? match.home : match.away) : (side === "over" ? "Više" : "Manje") || label,
+      pinnacle: cell.pinnacle?.[side] ?? null,
+      fair: cell.fair?.[side] ?? null,
+      merkur: cell.merkur?.[side] ?? null,
+      ev: cell.ev?.[side] ?? null,
+    });
+  };
+  const isPicked = (side) => !!slip?.has(betId(sport, match.id, "ft", group, cell.line, side));
   return (
     <>
       <td className="mc-line mc-group-strong" title={cell.merkur ? "Linija koju imaju obe kuće, najbliža Pinnacle glavnoj" : "Pinnacle glavna linija"}>
         {fmtLine(cell.line, signed)}
       </td>
-      {sides.map(([side], i) => (
-        <td key={`f${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>{fmt2(cell.fair[side])}</td>
+      {sides.map(([side, label], i) => (
+        <td
+          key={`f${side}`}
+          className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${isPicked(side) ? " slip-selected" : ""}`}
+          onClick={pickSide(side, label)}
+        >
+          {fmt2(cell.fair[side])}
+        </td>
       ))}
-      {sides.map(([side], i) => (
-        <td key={`p${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>
+      {sides.map(([side, label], i) => (
+        <td
+          key={`p${side}`}
+          className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${isPicked(side) ? " slip-selected" : ""}`}
+          onClick={pickSide(side, label)}
+        >
           <span className="mc-cell">{fmt2(cell.pinnacle[side])}</span>
         </td>
       ))}
-      {sides.map(([side], i) => {
+      {sides.map(([side, label], i) => {
         const odds = cell.merkur?.[side];
         return (
-          <td key={`m${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>
+          <td
+            key={`m${side}`}
+            className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${isPicked(side) ? " slip-selected" : ""}`}
+            onClick={pickSide(side, label)}
+          >
             {odds ? (
               <span
                 className={`mc-cell ${merkurClass(odds, cell.pinnacle[side], cell.ev?.[side])}`}
@@ -56,8 +93,9 @@ function SportLineCells({ cell, sides, signed }) {
   );
 }
 
-function SportDetail({ match, periodKey = "ft", history }) {
+function SportDetail({ sport, match, periodKey = "ft", periodLabel, history }) {
   const [open, setOpen] = useState("");
+  const slip = useBetslip();
   const rows = (periodKey === "ft" ? match.rows : match.periods?.[periodKey]) || [];
   if (!match.merkur) return <p className="muted bb-detail">Meč nije u ponudi MerkurXtip (ili nije uparen).</p>;
   const modeled = rows.filter((r) => r.modeled).length;
@@ -91,32 +129,57 @@ function SportDetail({ match, periodKey = "ft", history }) {
             const side = (o) => (spread ? (o.key === "home" ? match.home : match.away) : o.label);
             return (
               <tbody key={`${r.group}-${r.line}`} className={i > 0 && rows[i - 1].group !== r.group ? "mx-group-start" : ""}>
-                {r.outcomes.map((o, index) => (
-                  <tr key={o.key} className={index === 0 ? "mx-first" : ""}>
-                    {index === 0 && (
-                      <th rowSpan={r.outcomes.length} className="mx-market">
-                        {r.group}
-                        {r.line != null && <span>{fmtLine(r.line, spread)}{r.modeled && <ModeledTag />}</span>}
-                        <small title="Marža MerkurXtip / Pinnacle">{fmtMargins(r.merkurMargin, r.pinnacleMargin)}</small>
-                      </th>
-                    )}
-                    <td className="mx-side">{side(o)}</td>
-                    <td className="mx-fair-cell">{fmtOdds(o.fair)}</td>
-                    <td>{fmtOdds(o.pinnacle)}</td>
-                    <td><span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}><b>{fmt2(o.merkur)}</b></span></td>
-                    <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
-                    {index === 0 && (
-                      <td rowSpan={r.outcomes.length} className="mx-maxbet">{fmtLimit(r.maxBet) || "—"}</td>
-                    )}
-                    <td>
-                      <Sparkline
-                        points={history?.get(keyOf(o))}
-                        active={opened === o}
-                        onToggle={() => setOpen((current) => (current === keyOf(o) ? "" : keyOf(o)))}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {r.outcomes.map((o, index) => {
+                  const rowPeriod = r.period || periodKey;
+                  const picked = !!slip?.has(betId(sport, match.id, rowPeriod, r.group, r.line, o.key));
+                  const pickOutcome = () => slip?.toggle({
+                    sport,
+                    matchId: match.id,
+                    home: match.home,
+                    away: match.away,
+                    starts: match.starts,
+                    period: rowPeriod,
+                    periodLabel,
+                    group: r.group,
+                    line: r.line ?? null,
+                    outcomeKey: o.key,
+                    label: side(o),
+                    pinnacle: o.pinnacle ?? null,
+                    fair: o.fair ?? null,
+                    merkur: o.merkur ?? null,
+                    ev: o.ev ?? null,
+                  });
+                  return (
+                    <tr key={o.key} className={index === 0 ? "mx-first" : ""}>
+                      {index === 0 && (
+                        <th rowSpan={r.outcomes.length} className="mx-market">
+                          {r.group}
+                          {r.line != null && <span>{fmtLine(r.line, spread)}{r.modeled && <ModeledTag />}</span>}
+                          <small title="Marža MerkurXtip / Pinnacle">{fmtMargins(r.merkurMargin, r.pinnacleMargin)}</small>
+                        </th>
+                      )}
+                      <td className="mx-side">{side(o)}</td>
+                      <td className="mx-fair-cell">{fmtOdds(o.fair)}</td>
+                      <td className={`mc-click${picked ? " slip-selected" : ""}`} onClick={pickOutcome} title="Klikni za dodavanje na tiket">
+                        {fmtOdds(o.pinnacle)}
+                      </td>
+                      <td className={`mc-click${picked ? " slip-selected" : ""}`} onClick={pickOutcome} title="Klikni za dodavanje na tiket">
+                        <span className={`mc-cell ${merkurClass(o.merkur, o.pinnacle, o.ev)}`}><b>{fmt2(o.merkur)}</b></span>
+                      </td>
+                      <td><span className={`ev-chip ${evClass(o.ev)}`}>{fmtEv(o.ev)}</span></td>
+                      {index === 0 && (
+                        <td rowSpan={r.outcomes.length} className="mx-maxbet">{fmtLimit(r.maxBet) || "—"}</td>
+                      )}
+                      <td>
+                        <Sparkline
+                          points={history?.get(keyOf(o))}
+                          active={opened === o}
+                          onToggle={() => setOpen((current) => (current === keyOf(o) ? "" : keyOf(o)))}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
                 {opened && (
                   <tr className="hist-row">
                     <td colSpan={8}>
@@ -192,15 +255,37 @@ export function SportOddsModal({ sport, matchId, boardMatch, onClose, onCalls })
         {error && <p className="state error" role="alert">{error}</p>}
         {!detail && !error && <p className="state">Učitavam kvote…</p>}
         {detail?.error && <p className="state error">{detail.error} Prikazane su kvote iz liste ponude.</p>}
-        {detail && <SportDetail match={detail.match} periodKey={periodKey} history={history} />}
+        {detail && <SportDetail sport={sport} match={detail.match} periodKey={periodKey} periodLabel={SPORT_VIEWS[sport].periods[periodKey]} history={history} />}
         {detail?.fetchedAt && <p className="muted bb-fetched">MerkurXtip {clockFmt.format(new Date(detail.fetchedAt))}</p>}
       </div>
     </div>
   );
 }
 
-function SportRow({ match, competition, expanded, onToggle, spread }) {
+function SportRow({ sport, match, competition, expanded, onToggle, cfg }) {
+  const slip = useBetslip();
   const x = match.merkur;
+  const pickMl = (side, label) => (event) => {
+    if (!slip?.pickMode) return;
+    event.stopPropagation();
+    slip.toggle({
+      sport,
+      matchId: match.id,
+      home: match.home,
+      away: match.away,
+      starts: match.starts,
+      period: "ft",
+      group: "Pobednik",
+      line: null,
+      outcomeKey: side,
+      label: side === "home" ? match.home : match.away || label,
+      pinnacle: match.ml?.[side]?.odds ?? null,
+      fair: match.ml?.[side]?.fair ?? null,
+      merkur: x?.ml?.[side]?.odds ?? null,
+      ev: x?.ml?.[side]?.ev ?? null,
+    });
+  };
+  const mlPicked = (side) => !!slip?.has(betId(sport, match.id, "ft", "Pobednik", null, side));
   return (
     <>
       <tr className={`mc-row${expanded ? " selected" : ""}`} onClick={onToggle}>
@@ -217,19 +302,33 @@ function SportRow({ match, competition, expanded, onToggle, spread }) {
           <div className="mc-teams"><b>{match.home}</b> <span>vs</span> <b>{match.away}</b></div>
           <div className="mc-league">{competition && <CompBadge competition={competition} />} {match.leagueName}</div>
         </td>
-        {SPORT_ML.map(([side], i) => (
-          <td key={`f${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>{fmt2(match.ml?.[side]?.fair)}</td>
+        {SPORT_ML.map(([side, label], i) => (
+          <td
+            key={`f${side}`}
+            className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${mlPicked(side) ? " slip-selected" : ""}`}
+            onClick={pickMl(side, label)}
+          >
+            {fmt2(match.ml?.[side]?.fair)}
+          </td>
         ))}
-        {SPORT_ML.map(([side], i) => (
-          <td key={`p${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>
+        {SPORT_ML.map(([side, label], i) => (
+          <td
+            key={`p${side}`}
+            className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${mlPicked(side) ? " slip-selected" : ""}`}
+            onClick={pickMl(side, label)}
+          >
             <span className="mc-cell">{fmt2(match.ml?.[side]?.odds)}</span>
           </td>
         ))}
-        {SPORT_ML.map(([side], i) => {
+        {SPORT_ML.map(([side, label], i) => {
           const odds = x?.ml?.[side]?.odds;
           const ev = x?.ml?.[side]?.ev;
           return (
-            <td key={`m${side}`} className={`mc-odds${i === 0 ? " mc-group" : ""}`}>
+            <td
+              key={`m${side}`}
+              className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${mlPicked(side) ? " slip-selected" : ""}`}
+              onClick={pickMl(side, label)}
+            >
               {odds ? (
                 <span
                   className={`mc-cell ${merkurClass(odds, match.ml?.[side]?.odds, ev)}`}
@@ -241,8 +340,8 @@ function SportRow({ match, competition, expanded, onToggle, spread }) {
             </td>
           );
         })}
-        {spread && <SportLineCells cell={match.spread} sides={SPORT_ML} signed />}
-        <SportLineCells cell={match.total} sides={SPORT_OU} />
+        {cfg.spreadTitle && <SportLineCells cell={match.spread} sides={SPORT_ML} signed sport={sport} match={match} group={cfg.spreadTitle} />}
+        <SportLineCells cell={match.total} sides={SPORT_OU} sport={sport} match={match} group={cfg.totalTitle} />
       </tr>
     </>
   );
@@ -283,11 +382,12 @@ function SportCompareTable({ sport, matches, competitions, selectedId, onOpen })
           {matches.map((match) => (
             <SportRow
               key={match.id}
+              sport={sport}
               match={match}
               competition={byId.get(match.leagueId)}
               expanded={String(match.id) === selectedId}
               onToggle={() => onOpen(String(match.id))}
-              spread={!!cfg.spreadTitle}
+              cfg={cfg}
             />
           ))}
         </tbody>
@@ -400,8 +500,10 @@ export function SportPane({ board, error, loading, dayFilter, setDayFilter, quer
   );
   const allItem = inValue
     ? { id: null, key: "all", label: "Sve lige", count: levelValues.length, active: valueLeague === "all" }
-    : { id: null, key: "all", label: "Sve", count: inMissing ? missingTotal : board?.matches.length || 0,
-        active: competition === "all" };
+    : {
+      id: null, key: "all", label: "Sve", count: inMissing ? missingTotal : board?.matches.length || 0,
+      active: competition === "all"
+    };
 
   const groups = useMemo(() => {
     const map = new Map();

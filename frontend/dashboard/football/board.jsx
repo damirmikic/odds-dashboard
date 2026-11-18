@@ -2,6 +2,7 @@
 import { useMemo } from "react";
 import { fmt2, fmtKickoffShort, fmtLimit, fmtLine, fmtOdds, merkurClass, merkurTitle, pinnacleClass, timeFmt } from "../format.js";
 import { CompBadge, KickoffWarning, ML_SIDES, Price } from "../ui.jsx";
+import { betId, useBetslip } from "../betslip.jsx";
 
 function OpenDelta({ match }) {
   if (!match.open || !match.ml) return <span className="muted">—</span>;
@@ -115,6 +116,7 @@ export function BoardTable({ groups, competitions, selectedId, fetchedAt, onSele
 }
 
 function CompareRow({ match, selected, onSelect, onOdds, pinStamp, mxStamp }) {
+  const slip = useBetslip();
   const x = match.merkur;
   // colour only moves from the latest refresh
   const pinPrev = pinStamp && match.changedAt === pinStamp ? match.prev : null;
@@ -125,6 +127,30 @@ function CompareRow({ match, selected, onSelect, onOdds, pinStamp, mxStamp }) {
     event.stopPropagation();
     onOdds(String(match.id));
   };
+  const pickMl = (side, label) => (event) => {
+    if (slip?.pickMode) {
+      event.stopPropagation();
+      slip.toggle({
+        sport: "football",
+        matchId: match.id,
+        home: match.home,
+        away: match.away,
+        starts: match.starts,
+        period: "ft",
+        group: "1X2",
+        line: null,
+        outcomeKey: side,
+        label,
+        pinnacle: match.ml?.[side]?.odds ?? null,
+        fair: match.ml?.[side]?.fair ?? null,
+        merkur: x?.ml?.[side]?.odds ?? null,
+        ev: x?.ml?.[side]?.ev ?? null,
+      });
+      return;
+    }
+    oddsClick(event);
+  };
+  const mlPicked = (side) => !!slip?.has(betId("football", match.id, "ft", "1X2", null, side));
   return (
     <tr className={`mc-row${selected ? " selected" : ""}`} onClick={() => onSelect(String(match.id))}>
       <td className="mc-match">
@@ -138,11 +164,21 @@ function CompareRow({ match, selected, onSelect, onOdds, pinStamp, mxStamp }) {
         </div>
         <div className="mc-league">{match.leagueName}</div>
       </td>
-      {ML_SIDES.map(([side], i) => (
-        <td key={`f${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={oddsClick}>{fmt2(match.ml?.[side]?.fair)}</td>
+      {ML_SIDES.map(([side, label], i) => (
+        <td
+          key={`f${side}`}
+          className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${mlPicked(side) ? " slip-selected" : ""}`}
+          onClick={pickMl(side, label)}
+        >
+          {fmt2(match.ml?.[side]?.fair)}
+        </td>
       ))}
-      {ML_SIDES.map(([side], i) => (
-        <td key={`p${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={oddsClick}>
+      {ML_SIDES.map(([side, label], i) => (
+        <td
+          key={`p${side}`}
+          className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${mlPicked(side) ? " slip-selected" : ""}`}
+          onClick={pickMl(side, label)}
+        >
           <span
             className={`mc-cell ${pinnacleClass(match.ml?.[side]?.odds, pinPrev?.[side])}`}
             title={match.prev?.[side] ? `Prethodna: ${fmtOdds(match.prev[side])}` : undefined}
@@ -151,13 +187,17 @@ function CompareRow({ match, selected, onSelect, onOdds, pinStamp, mxStamp }) {
           </span>
         </td>
       ))}
-      {ML_SIDES.map(([side], i) => {
+      {ML_SIDES.map(([side, label], i) => {
         const odds = x?.ml?.[side]?.odds;
         const ev = x?.ml?.[side]?.ev;
         const pin = match.ml?.[side]?.odds;
         const prev = mxPrev?.[side];
         return (
-          <td key={`m${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={oddsClick}>
+          <td
+            key={`m${side}`}
+            className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${mlPicked(side) ? " slip-selected" : ""}`}
+            onClick={pickMl(side, label)}
+          >
             {odds ? (
               <span className={`mc-cell ${merkurClass(odds, pin, ev, prev)}`} title={merkurTitle(odds, pin, match.ml?.[side]?.fair, ev, prev)}>
                 {fmt2(odds)}
@@ -168,29 +208,64 @@ function CompareRow({ match, selected, onSelect, onOdds, pinStamp, mxStamp }) {
           </td>
         );
       })}
-      <GoalCells goals={match.goals} pinStamp={pinStamp} mxStamp={mxStamp} onClick={oddsClick} />
+      <GoalCells match={match} goals={match.goals} pinStamp={pinStamp} mxStamp={mxStamp} onClick={oddsClick} />
     </tr>
   );
 }
 
 const OU = [["over", "V"], ["under", "M"]];
 
-function GoalCells({ goals, pinStamp, mxStamp, onClick }) {
+function GoalCells({ match, goals, pinStamp, mxStamp, onClick }) {
+  const slip = useBetslip();
   if (!goals) {
     return <td className="mc-line mc-group-strong" colSpan={7}><span className="muted">—</span></td>;
   }
   const pinPrev = pinStamp && goals.pinChangedAt === pinStamp ? goals.pinPrev : null;
   const mxPrev = mxStamp && goals.mxChangedAt === mxStamp ? goals.mxPrev : null;
+  const pickGoal = (side) => (event) => {
+    if (slip?.pickMode) {
+      event.stopPropagation();
+      slip.toggle({
+        sport: "football",
+        matchId: match.id,
+        home: match.home,
+        away: match.away,
+        starts: match.starts,
+        period: "ft",
+        group: "Ukupno golova",
+        line: goals.line,
+        outcomeKey: side,
+        label: side === "over" ? "Više" : "Manje",
+        pinnacle: goals.pinnacle?.[side] ?? null,
+        fair: goals.fair?.[side] ?? null,
+        merkur: goals.merkur?.[side] ?? null,
+        ev: goals.ev?.[side] ?? null,
+      });
+      return;
+    }
+    onClick(event);
+  };
+  const goalPicked = (side) => !!slip?.has(betId("football", match.id, "ft", "Ukupno golova", goals.line, side));
   return (
     <>
       <td className="mc-line mc-group-strong" title={goals.merkur ? "Linija koju imaju obe kuće, najbliža Pinnacle glavnoj" : "Pinnacle glavna linija"}>
         {goals.line}
       </td>
       {OU.map(([side], i) => (
-        <td key={`gf${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={onClick}>{fmt2(goals.fair[side])}</td>
+        <td
+          key={`gf${side}`}
+          className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${goalPicked(side) ? " slip-selected" : ""}`}
+          onClick={pickGoal(side)}
+        >
+          {fmt2(goals.fair[side])}
+        </td>
       ))}
       {OU.map(([side], i) => (
-        <td key={`gp${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={onClick}>
+        <td
+          key={`gp${side}`}
+          className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${goalPicked(side) ? " slip-selected" : ""}`}
+          onClick={pickGoal(side)}
+        >
           <span
             className={`mc-cell ${pinnacleClass(goals.pinnacle[side], pinPrev?.[side])}`}
             title={pinPrev?.[side] ? `Prethodna: ${fmtOdds(pinPrev[side])}` : undefined}
@@ -205,7 +280,11 @@ function GoalCells({ goals, pinStamp, mxStamp, onClick }) {
         const pin = goals.pinnacle[side];
         const prev = mxPrev?.[side];
         return (
-          <td key={`gm${side}`} className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}`} onClick={onClick}>
+          <td
+            key={`gm${side}`}
+            className={`mc-odds mc-click${i === 0 ? " mc-group" : ""}${goalPicked(side) ? " slip-selected" : ""}`}
+            onClick={pickGoal(side)}
+          >
             {odds ? (
               <span className={`mc-cell ${merkurClass(odds, pin, ev, prev)}`} title={merkurTitle(odds, pin, goals.fair[side], ev, prev)}>
                 {fmt2(odds)}

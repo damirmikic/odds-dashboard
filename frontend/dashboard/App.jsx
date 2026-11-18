@@ -13,6 +13,7 @@ import { AlertsPage, useDropAlerts } from "./alerts.jsx";
 import { ClvPage } from "./clv.jsx";
 import { AllValuePane, collectValues } from "./allValue.jsx";
 import { GlobalSearch, matchesQuery, searchAll } from "./search.jsx";
+import { BetslipDrawer, BetslipProvider, BetslipTopButton } from "./betslip.jsx";
 
 const AUTO_OPTIONS = [0, 3, 5, 10, 15, 30, 60, 120, 300];
 const BACKGROUND_SECONDS = 30;
@@ -389,6 +390,7 @@ export default function App() {
 
 
   return (
+    <BetslipProvider boards={boards}>
     <div className="app">
       <header className="topbar">
         <div className="brand">
@@ -420,6 +422,7 @@ export default function App() {
         </div>
 
         <div className="actions">
+          <BetslipTopButton />
           <button
             type="button"
             className="button ghost"
@@ -740,7 +743,9 @@ export default function App() {
         </div>
       )}
 
+      <BetslipDrawer onOpenMatch={openAlert} />
       <footer>Kvote: Pinnacle preko PinnWire · Kvote se mogu promeniti u svakom trenutku.</footer>
     </div>
+    </BetslipProvider>
   );
 }

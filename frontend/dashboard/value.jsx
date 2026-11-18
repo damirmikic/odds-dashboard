@@ -6,6 +6,7 @@ import { CompBadge, DerivedTag, KickoffWarning, ModeledTag, StaleTag } from "./u
 import { ChangeTimes } from "./priceHistory.jsx";
 import { SportIcon } from "./menu.jsx";
 import { MarkCell, markKey, useMarks } from "./marks.jsx";
+import { betId, useBetslip } from "./betslip.jsx";
 
 export const VALUE_LEVELS = [
   ["all", "MX > Pinnacle"],
@@ -88,6 +89,7 @@ function SortHeader({ sortKey, sort, setSort, className, title, children }) {
 // Rows of the all-sports screen carry their own `match`, `comp` and `sport` (shown as an icon); onOdds/onSelect get the row too.
 // `sport` is the screen's sport for rows without their own (the key of the shared value marks).
 export function ValueTable({ values, matchesById, competitions, selectedId, onSelect, onOdds, sport: screenSport }) {
+  const slip = useBetslip();
   const byComp = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
   const [sort, setSort] = useState(() => {
     const stored = readStored("pb.valueSort", "fair");
@@ -138,8 +140,34 @@ export function ValueTable({ values, matchesById, competitions, selectedId, onSe
             const id = String(v.matchId);
             const rowSport = v.sport || screenSport;
             const mark = markOf(v);
+            const rowPeriod = v.period || "ft";
+            const picked = !!slip?.has(betId(rowSport, v.matchId, rowPeriod, v.group, v.line, v.key));
+            const toggleSlip = (event) => {
+              event.stopPropagation();
+              slip?.toggle({
+                sport: rowSport,
+                matchId: v.matchId,
+                home: match.home,
+                away: match.away,
+                starts: match.starts,
+                period: rowPeriod,
+                periodLabel: v.periodLabel,
+                group: v.group,
+                line: v.line ?? null,
+                outcomeKey: v.key,
+                label: v.label,
+                pinnacle: v.pinnacle ?? null,
+                fair: v.fair ?? null,
+                merkur: v.merkur ?? null,
+                ev: v.ev ?? null,
+              });
+            };
             const oddsClick = (event) => {
               event.stopPropagation();
+              if (slip?.pickMode) {
+                toggleSlip(event);
+                return;
+              }
               onOdds(id, v);
             };
             return (
@@ -167,12 +195,23 @@ export function ValueTable({ values, matchesById, competitions, selectedId, onSe
                   {v.stale != null && <StaleTag gap={v.stale} />}
                   {v.period && v.period !== "ft" && <small>{v.periodLabel || "1. poluvreme"}</small>}
                 </td>
-                <td className="value-side">{v.label}</td>
-                <td className="mc-odds mc-click mc-group" onClick={oddsClick}>
+                <td className="value-side">
+                  <button
+                    type="button"
+                    className={`slip-mini-btn${picked ? " active" : ""}`}
+                    onClick={toggleSlip}
+                    title={picked ? "Ukloni sa tiketa" : "Dodaj na tiket"}
+                    aria-pressed={picked}
+                  >
+                    {picked ? "✓" : "+"}
+                  </button>
+                  <span>{v.label}</span>
+                </td>
+                <td className={`mc-odds mc-click mc-group${picked ? " slip-selected" : ""}`} onClick={oddsClick}>
                   <span className={`mc-cell ${v.ev >= 0 ? "mx-fair" : "mx-above"}`}>{fmt2(v.merkur)}</span>
                 </td>
-                <td className="mc-odds mc-click" onClick={oddsClick}>{fmtOdds(v.pinnacle)}</td>
-                <td className="mc-odds mc-click muted" onClick={oddsClick}>{fmtOdds(v.fair)}</td>
+                <td className={`mc-odds mc-click${picked ? " slip-selected" : ""}`} onClick={oddsClick}>{fmtOdds(v.pinnacle)}</td>
+                <td className={`mc-odds mc-click muted${picked ? " slip-selected" : ""}`} onClick={oddsClick}>{fmtOdds(v.fair)}</td>
                 <td className="mc-odds mc-group value-pct">{fmtEv(v.overPinnacle)}</td>
                 <td className="mc-odds">
                   <span className={`ev-chip ${evClass(v.ev)}`}>{fmtEv(v.ev)}</span>
