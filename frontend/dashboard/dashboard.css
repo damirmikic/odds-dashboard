@@ -1086,3 +1086,9 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.norehl { --badge: #ba0c2f; }
 .comp-badge.nor1dh { --badge: #00205b; }
 .comp-badge.intfrw { --badge: #8e44ad; }
+.comp-badge.aseancc { --badge: #003478; }
+.comp-badge.slocup { --badge: #005da4; }
+.comp-badge.vencup { --badge: #b8860b; }
+.comp-badge.albcup { --badge: #c8102e; }
+.comp-badge.chncup { --badge: #d62718; }
+.comp-badge.jorcup { --badge: #007a3d; }

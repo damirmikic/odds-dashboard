@@ -440,6 +440,12 @@ COMPETITIONS = [
     {"id": 202454, "key": "ned4", "name": "Tweede Divisie", "country": "Holandija", "code": "NED4", "merkur": "NDL TWD"},
     {"id": 283787, "key": "scohl", "name": "Highland League", "country": "Škotska", "code": "SCO6", "merkur": "SCO HL"},
     {"id": 201159, "key": "sui1lc", "name": "1. Liga Classic", "country": "Švajcarska", "code": "SUI4", "merkur": "SWI 1LC"},
+    {"id": 237407, "key": "aseancc", "name": "Klupsko prvenstvo", "country": "ASEAN", "code": "ASEAN", "merkur": "ASEAN CC"},
+    {"id": 2456, "key": "slocup", "name": "Kup", "country": "Slovenija", "code": "SLOC", "merkur": "SLO CUP"},
+    {"id": 5597, "key": "vencup", "name": "Kup", "country": "Venecuela", "code": "VENC", "merkur": "VEN CUP"},
+    {"id": 209203, "key": "albcup", "name": "Kup", "country": "Albanija", "code": "ALBC", "merkur": "ALB CUP"},
+    {"id": 1859, "key": "chncup", "name": "FA kup", "country": "Kina", "code": "CHNC", "merkur": "CHN CUP"},
+    {"id": 2167, "key": "jorcup", "name": "Kup", "country": "Jordan", "code": "JORC", "merkur": "JOR SHLC"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
