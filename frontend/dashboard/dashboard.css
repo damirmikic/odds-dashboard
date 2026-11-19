@@ -1190,3 +1190,4 @@ body.slip-picking .mc-odds.mc-click:hover {
 @media (max-width: 640px) {
   .betslip { right: 8px; bottom: 8px; width: calc(100vw - 16px); max-height: 75dvh; }
 }
+.comp-badge.chncbacc { --badge: #d62718; }
