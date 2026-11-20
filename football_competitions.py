@@ -446,6 +446,13 @@ COMPETITIONS = [
     {"id": 209203, "key": "albcup", "name": "Kup", "country": "Albanija", "code": "ALBC", "merkur": "ALB CUP"},
     {"id": 1859, "key": "chncup", "name": "FA kup", "country": "Kina", "code": "CHNC", "merkur": "CHN CUP"},
     {"id": 2167, "key": "jorcup", "name": "Kup", "country": "Jordan", "code": "JORC", "merkur": "JOR SHLC"},
+    {"id": 2228, "key": "lux1", "name": "Nacionalna divizija", "country": "Luksemburg", "code": "LUX", "merkur": "LUX BGL"},
+    {"id": 200547, "key": "kuwcpc", "name": "Kup prestolonaslednika", "country": "Kuvajt", "code": "KUWC",
+     "merkur": "KUW CUP"},
+    {"id": 2204, "key": "lvacup", "name": "Kup", "country": "Letonija", "code": "LVAC", "merkur": "LVA CUP"},
+    {"id": 209191, "key": "mne2", "name": "Druga liga", "country": "Crna Gora", "code": "MNE2", "merkur": "MNE 2CFL"},
+    {"id": 2384, "key": "porcup", "name": "Kup", "country": "Portugal", "code": "PORC", "merkur": "POR CUP"},
+    {"id": 10334, "key": "syrpl", "name": "Premijer liga", "country": "Sirija", "code": "SYR", "merkur": "SYR PL"},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {
