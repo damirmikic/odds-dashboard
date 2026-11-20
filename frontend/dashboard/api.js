@@ -26,8 +26,10 @@ export async function requestJson(url, options) {
     setServerDown(true);
     throw new Error("Server nije dostupan, ponovo pokušavam automatski.", { cause: error });
   }
-  // 502-504 come from the reverse proxy when the app behind it is down; the service worker's offline copy has this header
-  const down = [502, 503, 504].includes(response.status) || !!response.headers.get("X-PB-Cache");
+  // 502-504 come from the reverse proxy when the app behind it is down; the service worker's offline copy has this header.
+  // The app answers 502 itself, as JSON, when PinnWire or MerkurXtip failed: the server is up, the error is shown as such.
+  const fromApp = (response.headers.get("Content-Type") || "").includes("application/json");
+  const down = ([502, 503, 504].includes(response.status) && !fromApp) || !!response.headers.get("X-PB-Cache");
   setServerDown(down);
   if (down && !response.headers.get("X-PB-Cache")) throw new Error("Server nije dostupan, ponovo pokušavam automatski.");
   const result = await response.json().catch((error) => {
