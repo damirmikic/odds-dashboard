@@ -453,6 +453,8 @@ COMPETITIONS = [
     {"id": 209191, "key": "mne2", "name": "Druga liga", "country": "Crna Gora", "code": "MNE2", "merkur": "MNE 2CFL"},
     {"id": 2384, "key": "porcup", "name": "Kup", "country": "Portugal", "code": "PORC", "merkur": "POR CUP"},
     {"id": 10334, "key": "syrpl", "name": "Premijer liga", "country": "Sirija", "code": "SYR", "merkur": "SYR PL"},
+    {"id": 222733, "key": "intplicu21", "name": "Premier League International Cup", "country": "Engleska", "code": "PLIC",
+     "merkur": 2400869},
 ]
 # PinnWire league names never listed in "Nedostaju" (low-interest leagues MerkurXtip does not offer).
 HIDDEN_MISSING_LEAGUES = {

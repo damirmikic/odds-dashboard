@@ -1098,6 +1098,7 @@ td.mc-line { width: 56px; background: var(--mc-max-bg); color: var(--mc-max-ink)
 .comp-badge.mne2 { --badge: #c40308; }
 .comp-badge.porcup { --badge: #006600; }
 .comp-badge.syrpl { --badge: #ce1126; }
+.comp-badge.intplicu21 { --badge: #5b2a86; }
 
 /* ---------------------------------------------------------------- betslip ("Tiket") */
 .slip-selected {
