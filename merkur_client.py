@@ -249,7 +249,11 @@ def norm_tokens(name):
 
 
 def _token_match(a, b):
-    if a == b or a.startswith(b) or b.startswith(a):
+    if a == b:
+        return True
+    if min(len(a), len(b)) < 2:
+        return False  # a lone letter is a reserve/women marker ("Girona B"), not the start of "Bergantinos"
+    if a.startswith(b) or b.startswith(a):
         return True
     la, lb = len(a), len(b)
     if min(la, lb) >= 4 and (a in b or b in a):
